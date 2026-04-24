@@ -30,6 +30,7 @@ OpenRouter provider slice: native Chat Completions provider wrapper and shared s
 Provider endpoint routing slice: routes carry target API kind, API family, provider name, and capabilities
 OpenRouter multi-endpoint slice: native Responses text streaming and Anthropic-compatible Messages support
 OpenRouter Responses tool slice: native Responses function-call streaming and tool-result continuation support
+Documentation slice: minimal README, AGENTS, and provider-extension agent skill
 ```
 
 Verified:
@@ -71,6 +72,7 @@ endpoints/openaichatcompletions/
 gateway/
 cmd/llmadapter-gateway/
 router/
+.agents/skills/llmadapter-provider-extension/
 ```
 
 Gateway command config:
@@ -156,14 +158,71 @@ OpenRouter Responses provider is stream-first and covers smoke-tested text and f
 OpenRouter Messages provider reuses the Anthropic-compatible stream path against OpenRouter's native messages endpoint
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
+Provider support is currently strong for text + function-tool loops, not broad multimodal or media APIs
 streaming provider errors after response start need a final policy
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
+```
+
+Implementation assessment:
+
+```text
+Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, fake transport unit tests, and live outside-in e2e tests are all working.
+Main intentional shortcuts are static first-match routing, hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
+Current live tests are good smoke coverage, not full conformance coverage.
+Important remaining test gaps: provider error bodies, mid-stream errors, invalid credentials/models, capability-based fallback routing, parallel tool calls, malformed tool args, JSON/schema modes, reasoning/citations, multimodal input, and provider-specific extension passthrough.
 ```
 
 Next planned phase:
 
 ```text
-Provider support continuation: add downstream /v1/responses and /v1/messages endpoint codecs
+MiniMax provider continuation: add MiniMax Anthropic-compatible Messages first, then MiniMax OpenAI-compatible Chat Completions
+Endpoint continuation: add downstream /v1/responses and /v1/messages endpoint codecs
+```
+
+MiniMax research notes:
+
+```text
+Official docs describe Text Generation through Anthropic SDK (recommended) and OpenAI SDK.
+Anthropic-compatible base URL: https://api.minimax.io/anthropic
+Anthropic-compatible endpoint: /anthropic/v1/messages
+OpenAI-compatible base URL: https://api.minimax.io/v1
+OpenAI-compatible endpoint: /v1/chat/completions
+For llmadapter's existing OpenAI-compatible client wrapper, configure base URL as https://api.minimax.io because the client appends /v1/chat/completions.
+Supported text models include MiniMax-M2.7, MiniMax-M2.7-highspeed, MiniMax-M2.5, MiniMax-M2.5-highspeed, MiniMax-M2.1, MiniMax-M2.1-highspeed, and MiniMax-M2.
+Anthropic-compatible text supports streaming, system, max_tokens, temperature, top_p, tools, tool_choice, metadata, and thinking.
+Anthropic-compatible messages support text, tool_use, tool_result, and thinking; image/document inputs are not supported yet.
+MiniMax also offers speech, video, image, music, and file APIs; these are out of scope for the current text-first llmadapter provider path.
+Sources:
+https://platform.minimax.io/docs/api-reference/api-overview
+https://platform.minimax.io/docs/api-reference/text-anthropic-api
+https://platform.minimax.io/docs/api-reference/text-openai-api
+https://platform.minimax.io/docs/api-reference/text-chat-anthropic
+https://platform.minimax.io/docs/api-reference/text-chat
+```
+
+MiniMax implementation plan:
+
+```text
+1. Add adapt API kinds if/when implementation starts:
+   - minimax.anthropic_messages -> family anthropic.messages
+   - minimax.chat_completions -> family openai.chat_completions
+2. Add providers/minimax/messages as an Anthropic-compatible wrapper over providers/anthropic/messages.
+   - Base URL: https://api.minimax.io/anthropic
+   - Credential env: MINIMAX_API_KEY or MINIMAX_KEY
+   - Default model: MiniMax-M2.7
+   - Capabilities: streaming, tools, reasoning/thinking; no vision/document input initially
+3. Add shared live e2e entries:
+   - TestSmokeTextStream/minimax_messages
+   - TestSmokeToolUse/minimax_messages
+   - TestSmokeToolResultContinuation/minimax_messages
+4. Add providers/minimax/chatcompletions as an OpenAI-compatible wrapper over providers/openai/chatcompletions.
+   - Base URL: https://api.minimax.io
+   - Default model: MiniMax-M2.7
+   - Validate text/tool streaming behavior before setting Tools: true
+5. Register gateway provider types:
+   - minimax_messages
+   - minimax_chat
+6. Update README and PLAN with MiniMax env vars and verification commands.
 ```
 
 ---
