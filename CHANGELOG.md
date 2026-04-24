@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-04-24
+
 ### Added
 
 - Added a shared `providerregistry` package for provider endpoint descriptors and direct client construction.
