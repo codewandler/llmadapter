@@ -61,6 +61,34 @@ func TestDecodeHTTPToolResult(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPMixedTextAndToolResult(t *testing.T) {
+	body := `{
+		"model":"claude-test",
+		"max_tokens":32,
+		"messages":[{"role":"user","content":[
+			{"type":"text","text":"also note this"},
+			{"type":"tool_result","tool_use_id":"toolu","content":"ok"}
+		]}]
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(req.Unified.Messages) != 2 {
+		t.Fatalf("unexpected messages: %+v", req.Unified.Messages)
+	}
+	if req.Unified.Messages[0].Role != unified.RoleUser || len(req.Unified.Messages[0].Content) != 1 {
+		t.Fatalf("unexpected user message: %+v", req.Unified.Messages[0])
+	}
+	if text, ok := req.Unified.Messages[0].Content[0].(unified.TextPart); !ok || text.Text != "also note this" {
+		t.Fatalf("unexpected user content: %+v", req.Unified.Messages[0].Content)
+	}
+	if req.Unified.Messages[1].Role != unified.RoleTool || len(req.Unified.Messages[1].ToolResults) != 1 {
+		t.Fatalf("unexpected tool message: %+v", req.Unified.Messages[1])
+	}
+}
+
 func TestDecodeHTTPWarnings(t *testing.T) {
 	body := `{
 		"model":"claude-test",

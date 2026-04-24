@@ -52,6 +52,8 @@ Configuration:
 - `LLMADAPTER_ADDR` sets the listen address when no config file is used.
 - Routes select a provider endpoint with `provider` and optional `provider_api`.
 - Routes can set `weight`; providers can set `priority`. Compatible routes are ranked by weight first, then endpoint priority, with declaration order as the final tie-breaker.
+- `health_cooldown` is an optional Go duration string such as `30s`; recently failed provider endpoint/model pairs are deprioritized for that window.
+- Provider `capabilities` can override default endpoint metadata for a configured model, for example to disable `vision` or `json_schema` on a model that does not support it.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
 
 Example provider endpoint types:
@@ -63,6 +65,54 @@ Example provider endpoint types:
 - `openrouter_messages`
 - `minimax_chat`
 - `minimax_messages`
+
+Example config:
+
+```json
+{
+  "addr": ":8080",
+  "health_cooldown": "30s",
+  "providers": [
+    {
+      "name": "openrouter",
+      "type": "openrouter_chat",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "model": "openai/gpt-4.1-mini",
+      "priority": 10,
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "vision": false,
+        "json_mode": true,
+        "json_schema": true
+      }
+    },
+    {
+      "name": "anthropic",
+      "type": "anthropic",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "model": "claude-haiku-4-5-20251001"
+    }
+  ],
+  "routes": [
+    {
+      "source_api": "openai.chat_completions",
+      "model": "public-fast",
+      "provider": "openrouter",
+      "provider_api": "openrouter.chat_completions",
+      "native_model": "openai/gpt-4.1-mini",
+      "weight": 100
+    },
+    {
+      "source_api": "openai.chat_completions",
+      "model": "public-fast",
+      "provider": "anthropic",
+      "native_model": "claude-haiku-4-5-20251001",
+      "weight": 10
+    }
+  ]
+}
+```
 
 ## Design Notes
 
@@ -90,3 +140,10 @@ Malformed tool-call argument JSON from OpenAI Chat and OpenAI Responses inputs i
 OpenRouter-specific request controls are carried through `unified.Request.Extensions` using namespaced keys such as `openrouter.provider`, `openrouter.plugins`, `openrouter.debug`, `openrouter.trace`, and `openrouter.session_id`. The OpenRouter Chat, Responses, and Messages providers encode those extensions back into upstream request bodies.
 
 See `DESIGN.md` for the target architecture and `PLAN.md` for current status, known gaps, and next implementation phases.
+
+## Known Limitations
+
+- Capability defaults are endpoint-family guesses. Use provider `capabilities` overrides for model-specific support before routing production traffic.
+- Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
+- OpenRouter extension passthrough preserves raw JSON controls but does not yet validate provider-specific extension schemas.
+- Provider and endpoint codecs cover smoke-tested text, tools, structured output, and basic image inputs; they are not full conformance implementations for every provider field.

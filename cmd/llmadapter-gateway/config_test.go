@@ -6,13 +6,15 @@ import (
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/router"
 )
 
 func TestLoadConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(path, []byte(`{
 		"addr":":9090",
-		"providers":[{"name":"anthropic","type":"anthropic","api_key_env":"ANTHROPIC_API_KEY","model":"native","priority":7}],
+		"health_cooldown":"5s",
+		"providers":[{"name":"anthropic","type":"anthropic","api_key_env":"ANTHROPIC_API_KEY","model":"native","priority":7,"capabilities":{"vision":false}}],
 		"routes":[{"source_api":"openai.chat_completions","model":"public","provider":"anthropic","weight":11}]
 	}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -29,6 +31,9 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if cfg.Providers[0].Priority != 7 || cfg.Routes[0].Weight != 11 {
 		t.Fatalf("unexpected routing weights: %+v %+v", cfg.Providers[0], cfg.Routes[0])
+	}
+	if cfg.HealthCooldown != "5s" || cfg.Providers[0].Capabilities == nil || cfg.Providers[0].Capabilities.Vision == nil || *cfg.Providers[0].Capabilities.Vision {
+		t.Fatalf("unexpected stabilization config: %+v", cfg)
 	}
 }
 
@@ -51,6 +56,15 @@ func TestValidateConfig(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected unknown provider error")
+	}
+
+	err = validateConfig(config{
+		HealthCooldown: "soon",
+		Providers:      []providerConfig{{Name: "anthropic", Type: "anthropic"}},
+		Routes:         []routeConfig{{Provider: "anthropic"}},
+	})
+	if err == nil {
+		t.Fatalf("expected invalid health cooldown error")
 	}
 }
 
@@ -147,5 +161,28 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		if (tt.providerType == "openai_chat" || tt.providerType == "openrouter_chat" || tt.providerType == "openrouter_responses" || tt.providerType == "openrouter_messages") && !capabilities.Vision {
 			t.Fatalf("expected vision capability: %+v", capabilities)
 		}
+	}
+}
+
+func TestApplyCapabilityOverrides(t *testing.T) {
+	vision := false
+	jsonSchema := false
+	reasoning := true
+	caps := applyCapabilityOverrides(router.CapabilitySet{
+		Streaming:  true,
+		Tools:      true,
+		Vision:     true,
+		JSONMode:   true,
+		JSONSchema: true,
+	}, &capabilityConfig{
+		Vision:     &vision,
+		JSONSchema: &jsonSchema,
+		Reasoning:  &reasoning,
+	})
+	if !caps.Streaming || !caps.Tools || !caps.JSONMode {
+		t.Fatalf("unexpected unchanged capabilities: %+v", caps)
+	}
+	if caps.Vision || caps.JSONSchema || !caps.Reasoning {
+		t.Fatalf("unexpected overridden capabilities: %+v", caps)
 	}
 }

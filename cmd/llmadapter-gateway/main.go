@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
 	anthropicendpoint "github.com/codewandler/llmadapter/endpoints/anthropicmessages"
@@ -39,7 +38,11 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	health := gateway.NewHealthTracker(30 * time.Second)
+	cooldown, err := healthCooldown(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	health := gateway.NewHealthTracker(cooldown)
 	mux.Handle("/v1/chat/completions", gateway.Handler{
 		Endpoint: chat.Codec{},
 		Router:   r,
@@ -100,6 +103,7 @@ func buildProviderEndpoint(provider providerConfig) (router.ProviderEndpoint, er
 	if err != nil {
 		return router.ProviderEndpoint{}, err
 	}
+	capabilities = applyCapabilityOverrides(capabilities, provider.Capabilities)
 	return router.ProviderEndpoint{
 		ProviderName: provider.Name,
 		APIKind:      apiKind,
@@ -153,10 +157,7 @@ func findProviderEndpoint(endpoints []router.ProviderEndpoint, providerName stri
 func buildProvider(provider providerConfig) (unified.Client, error) {
 	switch provider.Type {
 	case "anthropic":
-		apiKey := provider.APIKey
-		if apiKey == "" && provider.APIKeyEnv != "" {
-			apiKey = os.Getenv(provider.APIKeyEnv)
-		}
+		apiKey := providerAPIKey(provider)
 		if apiKey == "" {
 			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
 		}
@@ -173,13 +174,7 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 		}
 		return anthropic.NewClient(opts...)
 	case "openai_chat":
-		apiKey := provider.APIKey
-		if apiKey == "" && provider.APIKeyEnv != "" {
-			apiKey = os.Getenv(provider.APIKeyEnv)
-		}
-		if apiKey == "" {
-			apiKey = firstEnv("OPENAI_API_KEY", "OPENAI_KEY")
-		}
+		apiKey := providerAPIKey(provider, "OPENAI_API_KEY", "OPENAI_KEY")
 		if apiKey == "" {
 			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
 		}
@@ -189,13 +184,7 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 		}
 		return openai.NewClient(opts...)
 	case "openrouter_chat":
-		apiKey := provider.APIKey
-		if apiKey == "" && provider.APIKeyEnv != "" {
-			apiKey = os.Getenv(provider.APIKeyEnv)
-		}
-		if apiKey == "" {
-			apiKey = firstEnv("OPENROUTER_API_KEY", "OPENROUTER_KEY")
-		}
+		apiKey := providerAPIKey(provider, "OPENROUTER_API_KEY", "OPENROUTER_KEY")
 		if apiKey == "" {
 			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
 		}
@@ -205,13 +194,7 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 		}
 		return openrouter.NewClient(opts...)
 	case "openrouter_responses":
-		apiKey := provider.APIKey
-		if apiKey == "" && provider.APIKeyEnv != "" {
-			apiKey = os.Getenv(provider.APIKeyEnv)
-		}
-		if apiKey == "" {
-			apiKey = firstEnv("OPENROUTER_API_KEY", "OPENROUTER_KEY")
-		}
+		apiKey := providerAPIKey(provider, "OPENROUTER_API_KEY", "OPENROUTER_KEY")
 		if apiKey == "" {
 			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
 		}
@@ -221,13 +204,7 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 		}
 		return openrouterresponses.NewClient(opts...)
 	case "openrouter_messages":
-		apiKey := provider.APIKey
-		if apiKey == "" && provider.APIKeyEnv != "" {
-			apiKey = os.Getenv(provider.APIKeyEnv)
-		}
-		if apiKey == "" {
-			apiKey = firstEnv("OPENROUTER_API_KEY", "OPENROUTER_KEY")
-		}
+		apiKey := providerAPIKey(provider, "OPENROUTER_API_KEY", "OPENROUTER_KEY")
 		if apiKey == "" {
 			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
 		}
@@ -237,13 +214,7 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 		}
 		return openroutermessages.NewClient(opts...)
 	case "minimax_chat":
-		apiKey := provider.APIKey
-		if apiKey == "" && provider.APIKeyEnv != "" {
-			apiKey = os.Getenv(provider.APIKeyEnv)
-		}
-		if apiKey == "" {
-			apiKey = firstEnv("MINIMAX_API_KEY", "MINIMAX_KEY")
-		}
+		apiKey := providerAPIKey(provider, "MINIMAX_API_KEY", "MINIMAX_KEY")
 		if apiKey == "" {
 			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
 		}
@@ -253,13 +224,7 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 		}
 		return minimax.NewClient(opts...)
 	case "minimax_messages":
-		apiKey := provider.APIKey
-		if apiKey == "" && provider.APIKeyEnv != "" {
-			apiKey = os.Getenv(provider.APIKeyEnv)
-		}
-		if apiKey == "" {
-			apiKey = firstEnv("MINIMAX_API_KEY", "MINIMAX_KEY")
-		}
+		apiKey := providerAPIKey(provider, "MINIMAX_API_KEY", "MINIMAX_KEY")
 		if apiKey == "" {
 			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
 		}
@@ -271,6 +236,16 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 	default:
 		return nil, fmt.Errorf("unsupported provider type %q", provider.Type)
 	}
+}
+
+func providerAPIKey(provider providerConfig, fallbackEnv ...string) string {
+	if provider.APIKey != "" {
+		return provider.APIKey
+	}
+	if provider.APIKeyEnv != "" {
+		return os.Getenv(provider.APIKeyEnv)
+	}
+	return firstEnv(fallbackEnv...)
 }
 
 func firstEnv(keys ...string) string {

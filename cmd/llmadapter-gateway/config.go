@@ -4,24 +4,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/router"
 )
 
 type config struct {
-	Addr      string           `json:"addr,omitempty"`
-	Providers []providerConfig `json:"providers,omitempty"`
-	Routes    []routeConfig    `json:"routes,omitempty"`
+	Addr           string           `json:"addr,omitempty"`
+	HealthCooldown string           `json:"health_cooldown,omitempty"`
+	Providers      []providerConfig `json:"providers,omitempty"`
+	Routes         []routeConfig    `json:"routes,omitempty"`
 }
 
 type providerConfig struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	APIKey    string `json:"api_key,omitempty"`
-	APIKeyEnv string `json:"api_key_env,omitempty"`
-	BaseURL   string `json:"base_url,omitempty"`
-	Model     string `json:"model,omitempty"`
-	Priority  int    `json:"priority,omitempty"`
+	Name         string            `json:"name"`
+	Type         string            `json:"type"`
+	APIKey       string            `json:"api_key,omitempty"`
+	APIKeyEnv    string            `json:"api_key_env,omitempty"`
+	BaseURL      string            `json:"base_url,omitempty"`
+	Model        string            `json:"model,omitempty"`
+	Priority     int               `json:"priority,omitempty"`
+	Capabilities *capabilityConfig `json:"capabilities,omitempty"`
 }
 
 type routeConfig struct {
@@ -31,6 +35,16 @@ type routeConfig struct {
 	ProviderAPI adapt.ApiKind `json:"provider_api,omitempty"`
 	NativeModel string        `json:"native_model,omitempty"`
 	Weight      int           `json:"weight,omitempty"`
+}
+
+type capabilityConfig struct {
+	Streaming  *bool `json:"streaming,omitempty"`
+	Tools      *bool `json:"tools,omitempty"`
+	Vision     *bool `json:"vision,omitempty"`
+	AudioInput *bool `json:"audio_input,omitempty"`
+	JSONMode   *bool `json:"json_mode,omitempty"`
+	JSONSchema *bool `json:"json_schema,omitempty"`
+	Reasoning  *bool `json:"reasoning,omitempty"`
 }
 
 func loadConfigFromEnv() (config, error) {
@@ -117,6 +131,11 @@ func findProvider(cfg config, name string) (providerConfig, bool) {
 }
 
 func validateConfig(cfg config) error {
+	if cfg.HealthCooldown != "" {
+		if _, err := time.ParseDuration(cfg.HealthCooldown); err != nil {
+			return fmt.Errorf("invalid health_cooldown %q: %w", cfg.HealthCooldown, err)
+		}
+	}
 	if len(cfg.Providers) == 0 {
 		return fmt.Errorf("at least one provider is required")
 	}
@@ -131,6 +150,41 @@ func validateConfig(cfg config) error {
 		}
 	}
 	return nil
+}
+
+func healthCooldown(cfg config) (time.Duration, error) {
+	if cfg.HealthCooldown == "" {
+		return 30 * time.Second, nil
+	}
+	return time.ParseDuration(cfg.HealthCooldown)
+}
+
+func applyCapabilityOverrides(caps router.CapabilitySet, overrides *capabilityConfig) router.CapabilitySet {
+	if overrides == nil {
+		return caps
+	}
+	if overrides.Streaming != nil {
+		caps.Streaming = *overrides.Streaming
+	}
+	if overrides.Tools != nil {
+		caps.Tools = *overrides.Tools
+	}
+	if overrides.Vision != nil {
+		caps.Vision = *overrides.Vision
+	}
+	if overrides.AudioInput != nil {
+		caps.AudioInput = *overrides.AudioInput
+	}
+	if overrides.JSONMode != nil {
+		caps.JSONMode = *overrides.JSONMode
+	}
+	if overrides.JSONSchema != nil {
+		caps.JSONSchema = *overrides.JSONSchema
+	}
+	if overrides.Reasoning != nil {
+		caps.Reasoning = *overrides.Reasoning
+	}
+	return caps
 }
 
 func countProviderEndpoints(cfg config, providerName string, apiKind adapt.ApiKind) int {

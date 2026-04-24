@@ -192,7 +192,7 @@ func TestHandlerDeprioritizesRecentlyFailedRoute(t *testing.T) {
 			Client:       primary,
 		},
 	}
-	health.MarkFailure(router.Route{ProviderName: "primary", TargetAPI: adapt.ApiOpenAIChatCompletions})
+	health.MarkFailure(router.Route{ProviderName: "primary", TargetAPI: adapt.ApiOpenAIChatCompletions, PublicModel: "model"})
 	handler := Handler{Endpoint: chat.Codec{}, Health: health, Router: router.NewStaticRouter(
 		primaryRoute,
 		router.StaticRoute{
@@ -222,6 +222,21 @@ func TestHandlerDeprioritizesRecentlyFailedRoute(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `"content":"fallback"`) {
 		t.Fatalf("unexpected response body: %s", w.Body.String())
+	}
+}
+
+func TestHealthTrackerKeysFailuresByNativeModel(t *testing.T) {
+	health := NewHealthTracker(time.Minute)
+	failed := router.Route{ProviderName: "provider", TargetAPI: adapt.ApiOpenAIChatCompletions, NativeModel: "model-a"}
+	health.MarkFailure(failed)
+
+	routes := []router.Route{
+		{ProviderName: "provider", TargetAPI: adapt.ApiOpenAIChatCompletions, NativeModel: "model-b"},
+		{ProviderName: "provider", TargetAPI: adapt.ApiOpenAIChatCompletions, NativeModel: "model-a"},
+	}
+	ordered := orderByHealth(routes, health)
+	if ordered[0].NativeModel != "model-b" || ordered[1].NativeModel != "model-a" {
+		t.Fatalf("unexpected health order: %+v", ordered)
 	}
 }
 

@@ -44,6 +44,8 @@ Do not model a multi-surface provider as one API kind. Add one endpoint per wire
 3. Prefer wrapping an existing compatibility provider only when the upstream wire protocol is actually compatible.
 4. Implement focused request encoding and stream decoding tests with fake transport.
 5. Register provider type and endpoint metadata in `cmd/llmadapter-gateway/main.go`.
+   - Default capabilities are endpoint-family defaults, not proof that every model supports the feature.
+   - Document or test model-specific support before enabling broad capabilities; gateway config can override capabilities per configured provider/model.
 6. Add config validation tests in `cmd/llmadapter-gateway/config_test.go`.
 7. Add shared e2e matrix entries gated by provider-specific env vars.
 8. Update `PLAN.md`; update `README.md` for new env vars or provider types.

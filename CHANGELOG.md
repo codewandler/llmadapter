@@ -10,6 +10,17 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- Gateway config now supports `health_cooldown` and provider-level capability overrides for model-specific routing corrections.
+
+### Changed
+
+- Gateway health deprioritization is keyed by provider/API/model instead of only provider/API.
+- Gateway provider API-key resolution now uses a shared helper across provider types.
+- OpenRouter raw extension preservation now uses shared `unified` helpers across endpoint and provider codecs.
+- Anthropic Messages endpoint decoding now preserves mixed user text/tool-result content instead of dropping the non-tool-result content.
+
 ## [0.23.0] - 2026-04-24
 
 ### Added

@@ -142,21 +142,16 @@ func decodeRequest(wire anthropic.MessageRequest) (unified.Request, []adapt.Warn
 }
 
 func copyOpenRouterExtensions(extensions *unified.Extensions, wire anthropic.MessageRequest) {
-	setRawExtension(extensions, unified.ExtOpenRouterModels, wire.OpenRouterModels)
-	setRawExtension(extensions, unified.ExtOpenRouterRoute, wire.OpenRouterRoute)
-	setRawExtension(extensions, unified.ExtOpenRouterProvider, wire.OpenRouterProvider)
-	setRawExtension(extensions, unified.ExtOpenRouterProviderPrefs, wire.OpenRouterPrefs)
-	setRawExtension(extensions, unified.ExtOpenRouterPlugins, wire.OpenRouterPlugins)
-	setRawExtension(extensions, unified.ExtOpenRouterDebug, wire.OpenRouterDebug)
-	setRawExtension(extensions, unified.ExtOpenRouterTrace, wire.OpenRouterTrace)
-	setRawExtension(extensions, unified.ExtOpenRouterSessionID, wire.OpenRouterSessionID)
-}
-
-func setRawExtension(extensions *unified.Extensions, key string, raw json.RawMessage) {
-	if len(raw) == 0 {
-		return
-	}
-	_ = extensions.Set(key, raw)
+	_ = unified.SetOpenRouterRawExtensions(extensions, unified.OpenRouterRawExtensions{
+		Models:        wire.OpenRouterModels,
+		Route:         wire.OpenRouterRoute,
+		Provider:      wire.OpenRouterProvider,
+		ProviderPrefs: wire.OpenRouterPrefs,
+		Plugins:       wire.OpenRouterPlugins,
+		Debug:         wire.OpenRouterDebug,
+		Trace:         wire.OpenRouterTrace,
+		SessionID:     wire.OpenRouterSessionID,
+	})
 }
 
 func decodeMessage(msg anthropic.InputMessage, field string) ([]unified.Message, []adapt.Warning) {
@@ -201,7 +196,16 @@ func decodeMessage(msg anthropic.InputMessage, field string) ([]unified.Message,
 		}
 	}
 	if len(toolResults) > 0 && msg.Role == "user" {
-		return []unified.Message{{Role: unified.RoleTool, ToolResults: toolResults}}, warnings
+		var messages []unified.Message
+		if len(content) > 0 || len(toolCalls) > 0 {
+			messages = append(messages, unified.Message{
+				Role:      unified.Role(msg.Role),
+				Content:   content,
+				ToolCalls: toolCalls,
+			})
+		}
+		messages = append(messages, unified.Message{Role: unified.RoleTool, ToolResults: toolResults})
+		return messages, warnings
 	}
 	return []unified.Message{{
 		Role:      unified.Role(msg.Role),

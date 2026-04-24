@@ -56,5 +56,9 @@ func (h *HealthTracker) unhealthy(route router.Route, now time.Time) bool {
 }
 
 func routeKey(route router.Route) string {
-	return route.ProviderName + "/" + string(route.TargetAPI)
+	model := route.NativeModel
+	if model == "" {
+		model = route.PublicModel
+	}
+	return route.ProviderName + "/" + string(route.TargetAPI) + "/" + model
 }

@@ -152,21 +152,16 @@ func decodeRequest(wire Request) (unified.Request, []adapt.Warning, error) {
 }
 
 func copyOpenRouterExtensions(extensions *unified.Extensions, wire Request) {
-	setRawExtension(extensions, unified.ExtOpenRouterModels, wire.OpenRouterModels)
-	setRawExtension(extensions, unified.ExtOpenRouterRoute, wire.OpenRouterRoute)
-	setRawExtension(extensions, unified.ExtOpenRouterProvider, wire.OpenRouterProvider)
-	setRawExtension(extensions, unified.ExtOpenRouterProviderPrefs, wire.OpenRouterPrefs)
-	setRawExtension(extensions, unified.ExtOpenRouterPlugins, wire.OpenRouterPlugins)
-	setRawExtension(extensions, unified.ExtOpenRouterDebug, wire.OpenRouterDebug)
-	setRawExtension(extensions, unified.ExtOpenRouterTrace, wire.OpenRouterTrace)
-	setRawExtension(extensions, unified.ExtOpenRouterSessionID, wire.OpenRouterSessionID)
-}
-
-func setRawExtension(extensions *unified.Extensions, key string, raw json.RawMessage) {
-	if len(raw) == 0 {
-		return
-	}
-	_ = extensions.Set(key, raw)
+	_ = unified.SetOpenRouterRawExtensions(extensions, unified.OpenRouterRawExtensions{
+		Models:        wire.OpenRouterModels,
+		Route:         wire.OpenRouterRoute,
+		Provider:      wire.OpenRouterProvider,
+		ProviderPrefs: wire.OpenRouterPrefs,
+		Plugins:       wire.OpenRouterPlugins,
+		Debug:         wire.OpenRouterDebug,
+		Trace:         wire.OpenRouterTrace,
+		SessionID:     wire.OpenRouterSessionID,
+	})
 }
 
 func decodeMessage(msg Message, field string) (unified.Message, []unified.Instruction, []adapt.Warning, error) {

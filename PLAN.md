@@ -1,8 +1,8 @@
 # llmadapter Implementation Plan
 
-Refined execution plan for `DESIGN.md` phases 1-3.
+Current execution plan for stabilizing the implemented `DESIGN.md` foundation.
 
-Primary goal: reach a working programmatic client for Anthropic Messages with a stable core IR, stream pipeline, and transport foundation. The first implementation pass should optimize for a thin, testable vertical slice, not for maximum provider coverage.
+Primary goal: keep the adapter buildable and incrementally useful while hardening provider routing, endpoint compatibility, gateway behavior, live smoke coverage, and documentation.
 
 ---
 
@@ -49,6 +49,9 @@ Endpoint image decode slice: OpenAI Chat, OpenAI Responses, and Anthropic Messag
 Provider image passthrough slice: OpenAI Chat-compatible providers, OpenRouter Responses, and Anthropic-compatible providers encode supported canonical image inputs upstream; gateway metadata advertises vision on those endpoint families
 Tool argument hardening slice: OpenAI Chat and OpenAI Responses endpoint codecs replace malformed tool-call argument JSON with an empty object and retain decode warnings
 Gateway health slice: gateway command shares an in-memory health tracker that temporarily deprioritizes failed provider endpoints during a cooldown window
+Stabilization slice: gateway health cooldown is configurable, health deprioritization is keyed by provider/API/model, and provider capability metadata can be overridden per configured provider/model
+Stabilization slice: OpenRouter raw extension preservation is centralized in unified helpers used by endpoint and provider codecs
+Stabilization slice: Anthropic Messages endpoint decoding preserves mixed user text/tool-result content by splitting it into canonical user and tool messages
 ```
 
 Verified:
@@ -113,7 +116,9 @@ LLMADAPTER_ADDR sets the listen address when no config file is used
 ANTHROPIC_API_KEY provides default Anthropic credentials when no config file is used
 LLMADAPTER_UPSTREAM_MODEL sets the default native model override when no config file is used
 provider config supports api_key or api_key_env
-route config supports source_api, model, provider, provider_api, and native_model
+provider config supports base_url, model, priority, and capability overrides
+route config supports source_api, model, provider, provider_api, native_model, and weight
+health_cooldown configures the in-memory provider endpoint/model failure deprioritization window
 ```
 
 Anthropic path coverage:
@@ -196,6 +201,7 @@ non-streaming Anthropic response bodies are not yet modeled separately from stre
 SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
 Raw/unmapped event preservation is minimal and should be expanded before gateway work
 router is static and now includes capability checks plus deterministic weighted ranking; gateway retries pre-response provider failures and temporarily deprioritizes failed endpoints, but there is no probabilistic load balancing or capability conversion policy yet
+capability defaults are endpoint-family guesses; configured provider capability overrides are available for model-specific routing, but there is no model capability registry yet
 gateway config is intentionally minimal; routes can disambiguate same-provider endpoints with provider_api, but there is no full registry yet
 OpenAI provider is stream-first and covers smoke-tested text and tool-use paths
 OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
@@ -207,8 +213,8 @@ MiniMax Chat is currently marked text-streaming capable only; MiniMax Messages i
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
 Provider support is currently strong for text + function-tool loops, OpenAI-family structured-output requests, and basic image input passthrough; broad multimodal/media conformance is not complete
-OpenRouter extension passthrough is raw JSON preservation; extension schemas and validation are intentionally deferred
-streaming provider errors after response start need a final policy
+OpenRouter extension passthrough is centralized raw JSON preservation; extension schemas and validation are intentionally deferred
+streaming provider errors after response start need a final policy; current behavior marks the route unhealthy and returns because the endpoint-shaped response has already started
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
 ```
 

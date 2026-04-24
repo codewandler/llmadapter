@@ -2,6 +2,7 @@ package unified
 
 import (
 	"encoding/json"
+	"errors"
 	"sort"
 )
 
@@ -25,6 +26,17 @@ type Extensions struct {
 	values map[string]json.RawMessage
 }
 
+type OpenRouterRawExtensions struct {
+	Models        json.RawMessage
+	Route         json.RawMessage
+	Provider      json.RawMessage
+	ProviderPrefs json.RawMessage
+	Plugins       json.RawMessage
+	Debug         json.RawMessage
+	Trace         json.RawMessage
+	SessionID     json.RawMessage
+}
+
 func (e *Extensions) Set(key string, value any) error {
 	if e.values == nil {
 		e.values = make(map[string]json.RawMessage)
@@ -35,6 +47,28 @@ func (e *Extensions) Set(key string, value any) error {
 	}
 	e.values[key] = b
 	return nil
+}
+
+func (e *Extensions) SetRaw(key string, raw json.RawMessage) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	if !json.Valid(raw) {
+		return errors.New("invalid raw extension JSON")
+	}
+	if e.values == nil {
+		e.values = make(map[string]json.RawMessage)
+	}
+	e.values[key] = append(json.RawMessage(nil), raw...)
+	return nil
+}
+
+func (e Extensions) Raw(key string) json.RawMessage {
+	raw, ok := e.values[key]
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), raw...)
 }
 
 func (e Extensions) Has(key string) bool {
@@ -62,4 +96,42 @@ func GetExtension[T any](e Extensions, key string) (T, bool, error) {
 		return zero, true, err
 	}
 	return out, true, nil
+}
+
+func OpenRouterRawExtensionsFrom(e Extensions) OpenRouterRawExtensions {
+	return OpenRouterRawExtensions{
+		Models:        e.Raw(ExtOpenRouterModels),
+		Route:         e.Raw(ExtOpenRouterRoute),
+		Provider:      e.Raw(ExtOpenRouterProvider),
+		ProviderPrefs: e.Raw(ExtOpenRouterProviderPrefs),
+		Plugins:       e.Raw(ExtOpenRouterPlugins),
+		Debug:         e.Raw(ExtOpenRouterDebug),
+		Trace:         e.Raw(ExtOpenRouterTrace),
+		SessionID:     e.Raw(ExtOpenRouterSessionID),
+	}
+}
+
+func SetOpenRouterRawExtensions(e *Extensions, raw OpenRouterRawExtensions) error {
+	if err := e.SetRaw(ExtOpenRouterModels, raw.Models); err != nil {
+		return err
+	}
+	if err := e.SetRaw(ExtOpenRouterRoute, raw.Route); err != nil {
+		return err
+	}
+	if err := e.SetRaw(ExtOpenRouterProvider, raw.Provider); err != nil {
+		return err
+	}
+	if err := e.SetRaw(ExtOpenRouterProviderPrefs, raw.ProviderPrefs); err != nil {
+		return err
+	}
+	if err := e.SetRaw(ExtOpenRouterPlugins, raw.Plugins); err != nil {
+		return err
+	}
+	if err := e.SetRaw(ExtOpenRouterDebug, raw.Debug); err != nil {
+		return err
+	}
+	if err := e.SetRaw(ExtOpenRouterTrace, raw.Trace); err != nil {
+		return err
+	}
+	return e.SetRaw(ExtOpenRouterSessionID, raw.SessionID)
 }
