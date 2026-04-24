@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.1] - 2026-04-24
+
+### Changed
+
+- Internal refactor: `providerregistry` now builds both `anthropic` and `claude_messages` clients through a shared Anthropic client construction path while preserving Claude-compatible options as a provider variant.
+
 ## [0.48.0] - 2026-04-24
 
 ### Added
