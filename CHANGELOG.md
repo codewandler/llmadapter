@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-04-24
+
+### Added
+
+- Added `TEST_INTEGRATION`-gated reasoning stream smoke coverage for Anthropic, Claude Code-compatible Messages, MiniMax Messages, and OpenRouter Messages.
+- MiniMax Messages now advertises canonical reasoning capability.
+
 ## [0.46.0] - 2026-04-24
 
 ### Added
@@ -408,7 +415,8 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.46.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.47.0...HEAD
+[0.47.0]: https://github.com/codewandler/llmadapter/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/codewandler/llmadapter/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/codewandler/llmadapter/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/codewandler/llmadapter/compare/v0.43.0...v0.44.0

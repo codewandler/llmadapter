@@ -286,7 +286,7 @@ Next planned phase:
 Priority: provider registry/CLI, in-process mux client, modeldb, Claude compatibility, caching, usage/pricing, provider parity, and broader live conformance tracks below are the highest-priority work items for the next implementation rounds.
 Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, explicit route alias resolution, and dynamic per-request pricing are in place. Dynamic per-request capability metadata remains a future routing enhancement.
 Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, fixed-route gateway pricing, and dynamic request-scoped pricing wiring are in place.
-Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, Anthropic extended-thinking request mapping, and live prompt-cache/tool/gateway smokes are in place.
+Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, Anthropic extended-thinking request mapping, and live prompt-cache/tool/reasoning/gateway smokes are in place. MiniMax Messages also advertises and live-verifies reasoning on its Anthropic-compatible surface.
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
 Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
 CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, serve, and smoke requests; `cmd/llmadapter-gateway` remains as a compatibility binary over the same gateway server path.
@@ -460,7 +460,7 @@ Implementation pieces:
 5. Add gateway config provider type "claude_messages". (implemented)
 6. Add e2e tests gated by TEST_INTEGRATION and local Claude credentials:
    - text stream (implemented)
-   - thinking stream request encoding is unit-tested; live e2e coverage is still pending
+   - thinking stream for Anthropic, Claude Code-compatible access, MiniMax Messages, and OpenRouter Messages (implemented)
    - prompt cache write/read behavior (implemented)
    - tool use/tool result continuation if Claude OAuth account supports it (implemented as regular tool smoke entries)
 

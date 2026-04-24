@@ -353,7 +353,7 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 	case "minimax_chat":
 		return adapt.ApiMiniMaxChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true}, nil
 	case "minimax_messages":
-		return adapt.ApiMiniMaxAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true}, nil
+		return adapt.ApiMiniMaxAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true, ReasoningDeltas: true}, nil
 	default:
 		return "", "", router.CapabilitySet{}, fmt.Errorf("unsupported provider type %q", providerType)
 	}

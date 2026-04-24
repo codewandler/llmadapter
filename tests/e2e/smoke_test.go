@@ -28,6 +28,7 @@ type smokeProvider struct {
 	modelEnv              string
 	model                 string
 	tools                 bool
+	reasoning             bool
 	promptCache           bool
 	responsesContinuation bool
 	maxOutputTokens       int
@@ -80,6 +81,55 @@ func TestSmokeTextStream(t *testing.T) {
 			}
 			if resp.Usage.TotalTokens() == 0 && resp.Usage.InputTokens() == 0 && resp.Usage.OutputTokens() == 0 {
 				t.Fatalf("missing usage in response: %+v", resp)
+			}
+		})
+	}
+}
+
+func TestSmokeReasoningStream(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+
+	for _, provider := range smokeProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			if !provider.reasoning {
+				t.Skipf("%s does not advertise reasoning smoke support in this slice", provider.name)
+			}
+			client, model := newSmokeClient(t, provider)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			maxTokens := provider.maxTokens(2048)
+			if maxTokens < 2048 {
+				maxTokens = 2048
+			}
+			budget := 1024
+			events, err := client.Request(ctx, unified.Request{
+				Model:           model,
+				MaxOutputTokens: &maxTokens,
+				Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh, MaxTokens: &budget, Expose: true},
+				Messages: []unified.Message{{
+					Role: unified.RoleUser,
+					Content: []unified.ContentPart{
+						unified.TextPart{Text: "What is 1+1? After thinking, answer with exactly: 2"},
+					},
+				}},
+				Stream: true,
+			})
+			if err != nil {
+				t.Fatalf("request: %v", err)
+			}
+
+			resp, err := unified.Collect(ctx, events)
+			if err != nil {
+				t.Fatalf("collect: %v", err)
+			}
+			if !strings.Contains(responseText(resp), "2") {
+				t.Fatalf("response text %q does not contain expected answer; response=%+v", responseText(resp), resp)
+			}
+			if responseReasoningText(resp) == "" && resp.Usage.ReasoningTokens() == 0 {
+				t.Fatalf("missing reasoning evidence: response=%+v usage=%+v", resp, resp.Usage)
 			}
 		})
 	}
@@ -373,6 +423,7 @@ func smokeProviders() []smokeProvider {
 			modelEnv:    "ANTHROPIC_MODEL",
 			model:       "claude-haiku-4-5-20251001",
 			tools:       true,
+			reasoning:   true,
 			promptCache: true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return anthropic.NewClient(anthropic.WithAPIKey(apiKey))
@@ -385,6 +436,7 @@ func smokeProviders() []smokeProvider {
 			modelEnv:         "CLAUDE_MODEL",
 			model:            "claude-haiku-4-5-20251001",
 			tools:            true,
+			reasoning:        true,
 			promptCache:      true,
 			newClient:        newClaudeSmokeClient,
 		},
@@ -443,6 +495,7 @@ func smokeProviders() []smokeProvider {
 			modelEnv:  "MINIMAX_MESSAGES_MODEL",
 			model:     "MiniMax-M2.7",
 			tools:     true,
+			reasoning: true,
 			// MiniMax emits reasoning before final text on the Anthropic-compatible surface.
 			maxOutputTokens: 512,
 			newClient: func(apiKey string) (unified.Client, error) {
@@ -465,6 +518,7 @@ func smokeProviders() []smokeProvider {
 			modelEnv:  "OPENROUTER_MESSAGES_MODEL",
 			model:     "anthropic/claude-sonnet-4",
 			tools:     true,
+			reasoning: true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openroutermessages.NewClient(openroutermessages.WithAPIKey(apiKey))
 			},
@@ -545,6 +599,18 @@ func responseText(resp unified.Response) string {
 	var b strings.Builder
 	for _, part := range resp.Content {
 		text, ok := part.(unified.TextPart)
+		if !ok {
+			continue
+		}
+		b.WriteString(text.Text)
+	}
+	return b.String()
+}
+
+func responseReasoningText(resp unified.Response) string {
+	var b strings.Builder
+	for _, part := range resp.Content {
+		text, ok := part.(unified.ReasoningPart)
 		if !ok {
 			continue
 		}

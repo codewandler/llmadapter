@@ -122,7 +122,7 @@ var descriptors = []Descriptor{
 		Type:              "minimax_messages",
 		APIKind:           adapt.ApiMiniMaxAnthropicMessages,
 		Family:            adapt.FamilyAnthropicMessages,
-		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true},
+		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true, ReasoningDeltas: true},
 		DefaultAPIKeyEnvs: []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
 		DefaultModelEnv:   "MINIMAX_MESSAGES_MODEL",
 		DefaultModel:      "MiniMax-M2.7",
