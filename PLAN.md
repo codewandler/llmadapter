@@ -40,6 +40,7 @@ Routing hardening slice: static router now checks request capabilities before se
 Mapping warnings slice: Anthropic-family provider best-effort request mapping emits canonical warning events for dropped unsupported fields
 Mapping warnings slice: OpenAI Chat, OpenRouter Chat, and OpenRouter Responses provider mappings emit canonical warning events for dropped non-text content and unsupported tool kinds
 Endpoint decode warnings slice: OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages endpoint codecs retain warnings on adapt.Request for unsupported inbound fields dropped during canonical decode
+OpenRouter extension passthrough slice: endpoint codecs preserve OpenRouter routing/provider/plugin/debug/trace/session controls in unified.Request.Extensions and OpenRouter Chat, Responses, and Messages providers encode those controls upstream
 ```
 
 Verified:
@@ -198,6 +199,7 @@ MiniMax Chat is currently marked text-streaming capable only; MiniMax Messages i
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
 Provider support is currently strong for text + function-tool loops, not broad multimodal or media APIs
+OpenRouter extension passthrough is raw JSON preservation; extension schemas and validation are intentionally deferred
 streaming provider errors after response start need a final policy
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
 ```
@@ -208,7 +210,7 @@ Implementation assessment:
 Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, fake transport unit tests, and live outside-in e2e tests are all working.
 Main intentional shortcuts are static first-match routing, hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
-Important remaining test gaps: invalid credentials/models, weighted fallback routing, parallel tool calls, malformed tool args, full JSON/schema mode behavior, deeper endpoint-codec conformance, broader reasoning/citations conformance, multimodal input, and provider-specific extension passthrough.
+Important remaining test gaps: invalid credentials/models, weighted fallback routing, parallel tool calls, malformed tool args, full JSON/schema mode behavior, deeper endpoint-codec conformance, broader reasoning/citations conformance, multimodal input, and provider-specific extension schema validation.
 ```
 
 Next planned phase:

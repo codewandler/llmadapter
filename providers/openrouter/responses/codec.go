@@ -88,7 +88,27 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 	if req.ToolChoice != nil {
 		out.ToolChoice = encodeToolChoice(*req.ToolChoice)
 	}
+	applyOpenRouterExtensions(&out, req.Extensions)
 	return out, warnings
+}
+
+func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions) {
+	out.OpenRouterModels = rawExtension(extensions, unified.ExtOpenRouterModels)
+	out.OpenRouterRoute = rawExtension(extensions, unified.ExtOpenRouterRoute)
+	out.OpenRouterProvider = rawExtension(extensions, unified.ExtOpenRouterProvider)
+	out.OpenRouterPrefs = rawExtension(extensions, unified.ExtOpenRouterProviderPrefs)
+	out.OpenRouterPlugins = rawExtension(extensions, unified.ExtOpenRouterPlugins)
+	out.OpenRouterDebug = rawExtension(extensions, unified.ExtOpenRouterDebug)
+	out.OpenRouterTrace = rawExtension(extensions, unified.ExtOpenRouterTrace)
+	out.OpenRouterSessionID = rawExtension(extensions, unified.ExtOpenRouterSessionID)
+}
+
+func rawExtension(extensions unified.Extensions, key string) json.RawMessage {
+	raw, ok, err := unified.GetExtension[json.RawMessage](extensions, key)
+	if err != nil || !ok || len(raw) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), raw...)
 }
 
 func encodeToolChoice(choice unified.ToolChoice) any {

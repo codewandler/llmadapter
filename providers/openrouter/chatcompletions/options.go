@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/codewandler/llmadapter/adapt"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
@@ -36,6 +37,7 @@ func NewClient(opts ...Option) (unified.Client, error) {
 	openAIOpts := []openai.Option{
 		openai.WithAPIKey(cfg.apiKey),
 		openai.WithBaseURL(cfg.baseURL),
+		openai.WithAPIKind(adapt.ApiOpenRouterChatCompletions),
 	}
 	if cfg.transport != nil {
 		openAIOpts = append(openAIOpts, openai.WithTransport(cfg.transport))

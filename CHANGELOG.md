@@ -13,6 +13,7 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - **Endpoint decode warnings** - OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages endpoint codecs now store best-effort decode warnings on `adapt.Request` when unsupported inbound fields are dropped.
+- **OpenRouter extension passthrough** - Endpoint codecs preserve OpenRouter routing/provider/plugin/debug/trace/session controls in `unified.Request.Extensions`, and OpenRouter Chat, Responses, and Messages providers encode those controls back to upstream requests.
 
 ## [0.15.0] - 2026-04-24
 

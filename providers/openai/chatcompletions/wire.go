@@ -3,17 +3,25 @@ package chatcompletions
 import "encoding/json"
 
 type requestWire struct {
-	Model         string             `json:"model"`
-	Messages      []messageWire      `json:"messages"`
-	MaxTokens     *int               `json:"max_tokens,omitempty"`
-	Temperature   *float64           `json:"temperature,omitempty"`
-	TopP          *float64           `json:"top_p,omitempty"`
-	Stop          []string           `json:"stop,omitempty"`
-	Stream        bool               `json:"stream,omitempty"`
-	StreamOptions *streamOptionsWire `json:"stream_options,omitempty"`
-	Tools         []toolWire         `json:"tools,omitempty"`
-	ToolChoice    any                `json:"tool_choice,omitempty"`
-	User          string             `json:"user,omitempty"`
+	Model               string             `json:"model"`
+	Messages            []messageWire      `json:"messages"`
+	MaxTokens           *int               `json:"max_tokens,omitempty"`
+	Temperature         *float64           `json:"temperature,omitempty"`
+	TopP                *float64           `json:"top_p,omitempty"`
+	Stop                []string           `json:"stop,omitempty"`
+	Stream              bool               `json:"stream,omitempty"`
+	StreamOptions       *streamOptionsWire `json:"stream_options,omitempty"`
+	Tools               []toolWire         `json:"tools,omitempty"`
+	ToolChoice          any                `json:"tool_choice,omitempty"`
+	User                string             `json:"user,omitempty"`
+	OpenRouterModels    json.RawMessage    `json:"models,omitempty"`
+	OpenRouterRoute     json.RawMessage    `json:"route,omitempty"`
+	OpenRouterProvider  json.RawMessage    `json:"provider,omitempty"`
+	OpenRouterPrefs     json.RawMessage    `json:"provider_preferences,omitempty"`
+	OpenRouterPlugins   json.RawMessage    `json:"plugins,omitempty"`
+	OpenRouterDebug     json.RawMessage    `json:"debug,omitempty"`
+	OpenRouterTrace     json.RawMessage    `json:"trace,omitempty"`
+	OpenRouterSessionID json.RawMessage    `json:"session_id,omitempty"`
 }
 
 type streamOptionsWire struct {

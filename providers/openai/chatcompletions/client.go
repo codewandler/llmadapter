@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -19,6 +20,7 @@ const defaultBaseURL = "https://api.openai.com"
 type Client struct {
 	apiKey    string
 	baseURL   string
+	apiKind   adapt.ApiKind
 	transport transport.ByteStreamTransport
 }
 
@@ -33,11 +35,14 @@ func NewClient(opts ...Option) (unified.Client, error) {
 	if cfg.transport == nil {
 		cfg.transport = transport.NewHTTPByteStreamTransport(transport.HTTPTransportConfig{FrameFormat: transport.FrameFormatSSE})
 	}
-	return &Client{apiKey: cfg.apiKey, baseURL: cfg.baseURL, transport: cfg.transport}, nil
+	if cfg.apiKind == "" {
+		cfg.apiKind = adapt.ApiOpenAIChatCompletions
+	}
+	return &Client{apiKey: cfg.apiKey, baseURL: cfg.baseURL, apiKind: cfg.apiKind, transport: cfg.transport}, nil
 }
 
 func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unified.Event, error) {
-	wire, warnings, err := encodeRequest(req)
+	wire, warnings, err := encodeRequestForAPI(req, c.apiKind)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +77,7 @@ func (c *Client) readStream(ctx context.Context, warnings []mappingWarning, stre
 		select {
 		case <-ctx.Done():
 			return
-		case out <- warning.event("openai.chat_completions"):
+		case out <- warning.event(string(c.apiKind)):
 		}
 	}
 	decoder := streamDecoder{}

@@ -3,6 +3,7 @@ package chatcompletions
 import (
 	"strings"
 
+	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/transport"
 )
 
@@ -13,6 +14,7 @@ type Option interface {
 type config struct {
 	apiKey    string
 	baseURL   string
+	apiKind   adapt.ApiKind
 	transport transport.ByteStreamTransport
 }
 
@@ -35,5 +37,11 @@ func WithBaseURL(url string) Option {
 func WithTransport(t transport.ByteStreamTransport) Option {
 	return optionFunc(func(c *config) {
 		c.transport = t
+	})
+}
+
+func WithAPIKind(kind adapt.ApiKind) Option {
+	return optionFunc(func(c *config) {
+		c.apiKind = kind
 	})
 }

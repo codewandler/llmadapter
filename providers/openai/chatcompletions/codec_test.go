@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -84,6 +85,32 @@ func TestEncodeRequestWarnings(t *testing.T) {
 	}
 	if len(warnings) != 2 {
 		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
+func TestEncodeOpenRouterExtensions(t *testing.T) {
+	req := unified.Request{Model: "openrouter/test"}
+	if err := req.Extensions.Set(unified.ExtOpenRouterProvider, map[string]any{"order": []string{"anthropic"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenRouterPlugins, []map[string]any{{"id": "web"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenRouterSessionID, "sess_1"); err != nil {
+		t.Fatal(err)
+	}
+	wire, _, err := encodeRequestForAPI(req, adapt.ApiOpenRouterChatCompletions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(wire.OpenRouterProvider) != `{"order":["anthropic"]}` {
+		t.Fatalf("provider = %s", wire.OpenRouterProvider)
+	}
+	if string(wire.OpenRouterPlugins) != `[{"id":"web"}]` {
+		t.Fatalf("plugins = %s", wire.OpenRouterPlugins)
+	}
+	if string(wire.OpenRouterSessionID) != `"sess_1"` {
+		t.Fatalf("session_id = %s", wire.OpenRouterSessionID)
 	}
 }
 

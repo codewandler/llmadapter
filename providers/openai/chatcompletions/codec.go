@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -26,6 +27,10 @@ func (w mappingWarning) event(source string) unified.WarningEvent {
 }
 
 func encodeRequest(req unified.Request) (requestWire, []mappingWarning, error) {
+	return encodeRequestForAPI(req, adapt.ApiOpenAIChatCompletions)
+}
+
+func encodeRequestForAPI(req unified.Request, apiKind adapt.ApiKind) (requestWire, []mappingWarning, error) {
 	var warnings []mappingWarning
 	out := requestWire{
 		Model:       req.Model,
@@ -79,7 +84,29 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning, error) {
 	if req.ToolChoice != nil {
 		out.ToolChoice = encodeToolChoice(*req.ToolChoice)
 	}
+	if apiKind == adapt.ApiOpenRouterChatCompletions {
+		applyOpenRouterExtensions(&out, req.Extensions)
+	}
 	return out, warnings, nil
+}
+
+func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions) {
+	out.OpenRouterModels = rawExtension(extensions, unified.ExtOpenRouterModels)
+	out.OpenRouterRoute = rawExtension(extensions, unified.ExtOpenRouterRoute)
+	out.OpenRouterProvider = rawExtension(extensions, unified.ExtOpenRouterProvider)
+	out.OpenRouterPrefs = rawExtension(extensions, unified.ExtOpenRouterProviderPrefs)
+	out.OpenRouterPlugins = rawExtension(extensions, unified.ExtOpenRouterPlugins)
+	out.OpenRouterDebug = rawExtension(extensions, unified.ExtOpenRouterDebug)
+	out.OpenRouterTrace = rawExtension(extensions, unified.ExtOpenRouterTrace)
+	out.OpenRouterSessionID = rawExtension(extensions, unified.ExtOpenRouterSessionID)
+}
+
+func rawExtension(extensions unified.Extensions, key string) json.RawMessage {
+	raw, ok, err := unified.GetExtension[json.RawMessage](extensions, key)
+	if err != nil || !ok || len(raw) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), raw...)
 }
 
 func encodeToolChoice(choice unified.ToolChoice) any {

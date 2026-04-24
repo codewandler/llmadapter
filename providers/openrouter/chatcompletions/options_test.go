@@ -2,6 +2,8 @@ package chatcompletions
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"testing"
 
 	"github.com/codewandler/llmadapter/transport"
@@ -54,6 +56,45 @@ func TestNewClientUsesOpenRouterBaseURL(t *testing.T) {
 	}
 	if fake.Seen[0].Header.Get("Authorization") != "Bearer key" {
 		t.Fatalf("missing authorization header: %+v", fake.Seen[0].Header)
+	}
+}
+
+func TestNewClientEncodesOpenRouterExtensions(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"id":"chatcmpl","model":"openrouter-test","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := unified.Request{Model: "openai/gpt-test", Stream: true}
+	if err := req.Extensions.Set(unified.ExtOpenRouterProvider, map[string]any{"order": []string{"anthropic"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenRouterSessionID, "sess_1"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unified.Collect(context.Background(), events); err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(fake.Seen[0].Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if string(wire["provider"]) != `{"order":["anthropic"]}` {
+		t.Fatalf("provider = %s body=%s", wire["provider"], body)
+	}
+	if string(wire["session_id"]) != `"sess_1"` {
+		t.Fatalf("session_id = %s body=%s", wire["session_id"], body)
 	}
 }
 

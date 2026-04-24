@@ -143,6 +143,29 @@ func TestEncodeRequestWarnings(t *testing.T) {
 	}
 }
 
+func TestEncodeOpenRouterExtensions(t *testing.T) {
+	req := unified.Request{Model: "openai/test"}
+	if err := req.Extensions.Set(unified.ExtOpenRouterProvider, map[string]any{"allow_fallbacks": true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenRouterDebug, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenRouterSessionID, "sess_1"); err != nil {
+		t.Fatal(err)
+	}
+	wire, _ := encodeRequest(req)
+	if string(wire.OpenRouterProvider) != `{"allow_fallbacks":true}` {
+		t.Fatalf("provider = %s", wire.OpenRouterProvider)
+	}
+	if string(wire.OpenRouterDebug) != `true` {
+		t.Fatalf("debug = %s", wire.OpenRouterDebug)
+	}
+	if string(wire.OpenRouterSessionID) != `"sess_1"` {
+		t.Fatalf("session_id = %s", wire.OpenRouterSessionID)
+	}
+}
+
 func TestClientEmitsEncodeWarnings(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"openai/test","status":"in_progress"}}`),

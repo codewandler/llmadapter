@@ -142,7 +142,26 @@ func decodeRequest(wire Request) (unified.Request, []adapt.Warning, error) {
 		out.ToolChoice = toolChoice
 		warnings = append(warnings, toolChoiceWarnings...)
 	}
+	copyOpenRouterExtensions(&out.Extensions, wire)
 	return out, warnings, nil
+}
+
+func copyOpenRouterExtensions(extensions *unified.Extensions, wire Request) {
+	setRawExtension(extensions, unified.ExtOpenRouterModels, wire.OpenRouterModels)
+	setRawExtension(extensions, unified.ExtOpenRouterRoute, wire.OpenRouterRoute)
+	setRawExtension(extensions, unified.ExtOpenRouterProvider, wire.OpenRouterProvider)
+	setRawExtension(extensions, unified.ExtOpenRouterProviderPrefs, wire.OpenRouterPrefs)
+	setRawExtension(extensions, unified.ExtOpenRouterPlugins, wire.OpenRouterPlugins)
+	setRawExtension(extensions, unified.ExtOpenRouterDebug, wire.OpenRouterDebug)
+	setRawExtension(extensions, unified.ExtOpenRouterTrace, wire.OpenRouterTrace)
+	setRawExtension(extensions, unified.ExtOpenRouterSessionID, wire.OpenRouterSessionID)
+}
+
+func setRawExtension(extensions *unified.Extensions, key string, raw json.RawMessage) {
+	if len(raw) == 0 {
+		return
+	}
+	_ = extensions.Set(key, raw)
 }
 
 func decodeMessage(msg Message, field string) (unified.Message, []unified.Instruction, []adapt.Warning, error) {

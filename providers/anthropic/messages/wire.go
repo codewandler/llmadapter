@@ -3,18 +3,26 @@ package messages
 import "encoding/json"
 
 type MessageRequest struct {
-	Model         string           `json:"model"`
-	MaxTokens     int              `json:"max_tokens"`
-	Messages      []InputMessage   `json:"messages,omitempty"`
-	System        string           `json:"system,omitempty"`
-	Temperature   *float64         `json:"temperature,omitempty"`
-	TopP          *float64         `json:"top_p,omitempty"`
-	TopK          *int             `json:"top_k,omitempty"`
-	StopSequences []string         `json:"stop_sequences,omitempty"`
-	Stream        bool             `json:"stream,omitempty"`
-	Tools         []ToolDefinition `json:"tools,omitempty"`
-	ToolChoice    *ToolChoiceWire  `json:"tool_choice,omitempty"`
-	Metadata      map[string]any   `json:"metadata,omitempty"`
+	Model               string           `json:"model"`
+	MaxTokens           int              `json:"max_tokens"`
+	Messages            []InputMessage   `json:"messages,omitempty"`
+	System              string           `json:"system,omitempty"`
+	Temperature         *float64         `json:"temperature,omitempty"`
+	TopP                *float64         `json:"top_p,omitempty"`
+	TopK                *int             `json:"top_k,omitempty"`
+	StopSequences       []string         `json:"stop_sequences,omitempty"`
+	Stream              bool             `json:"stream,omitempty"`
+	Tools               []ToolDefinition `json:"tools,omitempty"`
+	ToolChoice          *ToolChoiceWire  `json:"tool_choice,omitempty"`
+	Metadata            map[string]any   `json:"metadata,omitempty"`
+	OpenRouterModels    json.RawMessage  `json:"models,omitempty"`
+	OpenRouterRoute     json.RawMessage  `json:"route,omitempty"`
+	OpenRouterProvider  json.RawMessage  `json:"provider,omitempty"`
+	OpenRouterPrefs     json.RawMessage  `json:"provider_preferences,omitempty"`
+	OpenRouterPlugins   json.RawMessage  `json:"plugins,omitempty"`
+	OpenRouterDebug     json.RawMessage  `json:"debug,omitempty"`
+	OpenRouterTrace     json.RawMessage  `json:"trace,omitempty"`
+	OpenRouterSessionID json.RawMessage  `json:"session_id,omitempty"`
 }
 
 type InputMessage struct {

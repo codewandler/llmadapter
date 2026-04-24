@@ -70,7 +70,10 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 			{"type":"image","source":{"type":"url","url":"x"}},
 			{"type":"tool_result","tool_use_id":"toolu","content":[{"type":"text","text":"ok"},{"type":"image"}]}
 		]}],
-		"tool_choice":{"type":"unknown"}
+		"tool_choice":{"type":"unknown"},
+		"provider":{"order":["openai"]},
+		"trace":{"enabled":true},
+		"session_id":"sess_1"
 	}`
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
 	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
@@ -80,6 +83,9 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 	assertWarning(t, req.Warnings, "messages.0.content.1.type")
 	assertWarning(t, req.Warnings, "messages.0.content.2.content.1")
 	assertWarning(t, req.Warnings, "tool_choice.type")
+	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterProvider, `{"order":["openai"]}`)
+	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterTrace, `{"enabled":true}`)
+	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterSessionID, `"sess_1"`)
 }
 
 func TestWriteEventsNonStreaming(t *testing.T) {
@@ -161,4 +167,18 @@ func assertWarning(t *testing.T, warnings []adapt.Warning, field string) {
 		}
 	}
 	t.Fatalf("missing warning for %s: %+v", field, warnings)
+}
+
+func assertRawExtension(t *testing.T, extensions unified.Extensions, key, want string) {
+	t.Helper()
+	raw, ok, err := unified.GetExtension[json.RawMessage](extensions, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatalf("missing extension %s", key)
+	}
+	if string(raw) != want {
+		t.Fatalf("extension %s = %s, want %s", key, raw, want)
+	}
 }

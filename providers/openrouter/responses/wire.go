@@ -3,17 +3,25 @@ package responses
 import "encoding/json"
 
 type requestWire struct {
-	Model           string          `json:"model"`
-	Input           []inputItemWire `json:"input,omitempty"`
-	Instructions    string          `json:"instructions,omitempty"`
-	MaxOutputTokens *int            `json:"max_output_tokens,omitempty"`
-	Temperature     *float64        `json:"temperature,omitempty"`
-	TopP            *float64        `json:"top_p,omitempty"`
-	TopK            *int            `json:"top_k,omitempty"`
-	Stream          bool            `json:"stream,omitempty"`
-	User            string          `json:"user,omitempty"`
-	Tools           []toolWire      `json:"tools,omitempty"`
-	ToolChoice      any             `json:"tool_choice,omitempty"`
+	Model               string          `json:"model"`
+	Input               []inputItemWire `json:"input,omitempty"`
+	Instructions        string          `json:"instructions,omitempty"`
+	MaxOutputTokens     *int            `json:"max_output_tokens,omitempty"`
+	Temperature         *float64        `json:"temperature,omitempty"`
+	TopP                *float64        `json:"top_p,omitempty"`
+	TopK                *int            `json:"top_k,omitempty"`
+	Stream              bool            `json:"stream,omitempty"`
+	User                string          `json:"user,omitempty"`
+	Tools               []toolWire      `json:"tools,omitempty"`
+	ToolChoice          any             `json:"tool_choice,omitempty"`
+	OpenRouterModels    json.RawMessage `json:"models,omitempty"`
+	OpenRouterRoute     json.RawMessage `json:"route,omitempty"`
+	OpenRouterProvider  json.RawMessage `json:"provider,omitempty"`
+	OpenRouterPrefs     json.RawMessage `json:"provider_preferences,omitempty"`
+	OpenRouterPlugins   json.RawMessage `json:"plugins,omitempty"`
+	OpenRouterDebug     json.RawMessage `json:"debug,omitempty"`
+	OpenRouterTrace     json.RawMessage `json:"trace,omitempty"`
+	OpenRouterSessionID json.RawMessage `json:"session_id,omitempty"`
 }
 
 type inputItemWire struct {

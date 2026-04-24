@@ -36,6 +36,7 @@ func NewClient(opts ...Option) (unified.Client, error) {
 		anthropic.WithBaseURL(cfg.baseURL),
 		anthropic.WithHeader("Authorization", "Bearer "+cfg.apiKey),
 		anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
+			req.SourceAPI = adapt.ApiOpenRouterAnthropicMessages
 			req.Unified.Stream = true
 			return nil
 		})),

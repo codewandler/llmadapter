@@ -87,7 +87,29 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 		}
 		out.ToolChoice = choice
 	}
+	if req.SourceAPI == adapt.ApiOpenRouterAnthropicMessages {
+		applyOpenRouterExtensions(&out, ureq.Extensions)
+	}
 	return out, nil
+}
+
+func applyOpenRouterExtensions(out *MessageRequest, extensions unified.Extensions) {
+	out.OpenRouterModels = rawExtension(extensions, unified.ExtOpenRouterModels)
+	out.OpenRouterRoute = rawExtension(extensions, unified.ExtOpenRouterRoute)
+	out.OpenRouterProvider = rawExtension(extensions, unified.ExtOpenRouterProvider)
+	out.OpenRouterPrefs = rawExtension(extensions, unified.ExtOpenRouterProviderPrefs)
+	out.OpenRouterPlugins = rawExtension(extensions, unified.ExtOpenRouterPlugins)
+	out.OpenRouterDebug = rawExtension(extensions, unified.ExtOpenRouterDebug)
+	out.OpenRouterTrace = rawExtension(extensions, unified.ExtOpenRouterTrace)
+	out.OpenRouterSessionID = rawExtension(extensions, unified.ExtOpenRouterSessionID)
+}
+
+func rawExtension(extensions unified.Extensions, key string) json.RawMessage {
+	raw, ok, err := unified.GetExtension[json.RawMessage](extensions, key)
+	if err != nil || !ok || len(raw) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), raw...)
 }
 
 func unsupported(req *adapt.Request, field string, condition bool) error {

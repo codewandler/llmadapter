@@ -16,6 +16,14 @@ type Request struct {
 	Tools               []Tool          `json:"tools,omitempty"`
 	ToolChoice          json.RawMessage `json:"tool_choice,omitempty"`
 	User                string          `json:"user,omitempty"`
+	OpenRouterModels    json.RawMessage `json:"models,omitempty"`
+	OpenRouterRoute     json.RawMessage `json:"route,omitempty"`
+	OpenRouterProvider  json.RawMessage `json:"provider,omitempty"`
+	OpenRouterPrefs     json.RawMessage `json:"provider_preferences,omitempty"`
+	OpenRouterPlugins   json.RawMessage `json:"plugins,omitempty"`
+	OpenRouterDebug     json.RawMessage `json:"debug,omitempty"`
+	OpenRouterTrace     json.RawMessage `json:"trace,omitempty"`
+	OpenRouterSessionID json.RawMessage `json:"session_id,omitempty"`
 }
 
 type Message struct {
