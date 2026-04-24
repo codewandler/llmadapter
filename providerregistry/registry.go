@@ -22,6 +22,7 @@ import (
 
 type Descriptor struct {
 	Type              string               `json:"type"`
+	InstanceName      string               `json:"instance_name,omitempty"`
 	APIKind           adapt.ApiKind        `json:"api_kind"`
 	Family            adapt.ApiFamily      `json:"family"`
 	Capabilities      router.CapabilitySet `json:"capabilities"`
@@ -39,6 +40,7 @@ type ClientConfig struct {
 var descriptors = []Descriptor{
 	{
 		Type:              "anthropic",
+		InstanceName:      "anthropic",
 		APIKind:           adapt.ApiAnthropicMessages,
 		Family:            adapt.FamilyAnthropicMessages,
 		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true, Vision: true, Reasoning: true, ReasoningDeltas: true},
@@ -48,10 +50,11 @@ var descriptors = []Descriptor{
 	},
 	{
 		Type:              "claude_messages",
+		InstanceName:      "claude",
 		APIKind:           adapt.ApiAnthropicMessages,
 		Family:            adapt.FamilyAnthropicMessages,
 		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true, Vision: true, Reasoning: true, ReasoningDeltas: true},
-		DefaultAPIKeyEnvs: []string{"CLAUDE_ACCESS_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"},
+		DefaultAPIKeyEnvs: nil,
 		DefaultModelEnv:   "CLAUDE_MODEL",
 		DefaultModel:      "claude-haiku-4-5-20251001",
 	},

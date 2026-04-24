@@ -431,7 +431,7 @@ func smokeProviders() []smokeProvider {
 		},
 		{
 			name:             "claude_messages",
-			apiKeyEnv:        []string{"CLAUDE_ACCESS_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"},
+			apiKeyEnv:        nil,
 			localClaudeOAuth: true,
 			modelEnv:         "CLAUDE_MODEL",
 			model:            "claude-haiku-4-5-20251001",
@@ -555,6 +555,9 @@ func newSmokeClient(t *testing.T, provider smokeProvider) (unified.Client, strin
 	t.Helper()
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
 	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) && !(provider.localCodexOAuth && codex.LocalAvailable()) {
+		if len(provider.apiKeyEnv) == 0 && provider.localClaudeOAuth {
+			t.Skipf("Claude provider %s requires local Claude credentials, expected ~/.claude/.credentials.json or CLAUDE_CONFIG_DIR to point to a token file", provider.name)
+		}
 		t.Skipf("set one of %s to run %s e2e smoke test", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
 	model := provider.model

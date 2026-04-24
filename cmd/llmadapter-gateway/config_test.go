@@ -178,7 +178,10 @@ func TestBuildProviderMiniMaxRequiresKey(t *testing.T) {
 }
 
 func TestBuildProviderClaudeMessagesAuthSources(t *testing.T) {
-	t.Setenv("CLAUDE_ACCESS_TOKEN", "token")
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	if err := os.WriteFile(filepath.Join(os.Getenv("CLAUDE_CONFIG_DIR"), ".credentials.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	client, err := buildProvider(providerConfig{Name: "claude", Type: "claude_messages"})
 	if err != nil {
 		t.Fatalf("unexpected claude provider error: %v", err)
@@ -187,8 +190,6 @@ func TestBuildProviderClaudeMessagesAuthSources(t *testing.T) {
 		t.Fatalf("expected client")
 	}
 
-	t.Setenv("CLAUDE_ACCESS_TOKEN", "")
-	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "")
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	_, err = buildProvider(providerConfig{Name: "claude", Type: "claude_messages"})
 	if err == nil {

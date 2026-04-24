@@ -179,7 +179,7 @@ match these entries as the project starts publishing releases.
 
 - Added `claude_messages` as a Claude Code-compatible Anthropic Messages provider endpoint with bearer/local OAuth auth, Claude CLI headers, `beta=true` request shaping, and request preflight metadata.
 - Claude Code-compatible providers now default `modeldb_service_id` to `anthropic` so fixed-route pricing and capability metadata continue to use Anthropic Claude offerings.
-- Added `claude_messages` to the shared live text/tool/gateway smoke matrices, gated by `CLAUDE_ACCESS_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, or local Claude Code OAuth credentials.
+- Added `claude_messages` to the shared live text/tool/gateway smoke matrices, gated by local Claude Code OAuth credentials.
 - Added a default decompressing HTTP transport that advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression.
 
 ## [0.26.0] - 2026-04-24

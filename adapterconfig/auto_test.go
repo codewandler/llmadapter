@@ -60,7 +60,7 @@ func TestAutoMuxClientDetectsLocalClaudeOAuth(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected Anthropic Messages route: %+v", result.Config.Routes)
 	}
-	if route.Provider != "claude_messages" {
+	if route.Provider != "claude" {
 		t.Fatalf("unexpected route: %+v", route)
 	}
 }
@@ -154,7 +154,7 @@ func TestAutoMuxClientModelDBIntentPrefersMatchingProvider(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing opus route: %+v", result.Config.Routes)
 	}
-	if route.Model != "opus" || route.Provider != "claude_messages" || route.ModelDBModel != "opus" || route.NativeModel != "" {
+	if route.Model != "opus" || route.Provider != "claude" || route.ModelDBModel != "opus" || route.NativeModel != "" {
 		t.Fatalf("unexpected modeldb intent route: %+v", route)
 	}
 	if route.ProviderAPI != adapt.ApiAnthropicMessages {
@@ -175,7 +175,7 @@ func TestAutoMuxClientModelDBIntentPrefersMatchingProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if selected.ProviderName != "claude_messages" || selected.NativeModel == "opus" || selected.NativeModel == "" || !selected.Capabilities.Reasoning {
+	if selected.ProviderName != "claude" || selected.NativeModel == "opus" || selected.NativeModel == "" || !selected.Capabilities.Reasoning {
 		t.Fatalf("unexpected selected route: %+v", selected)
 	}
 }
@@ -272,7 +272,7 @@ func TestAutoMuxClientAddsDefaultModelAliasRoutes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if selected.ProviderName != "claude_messages" || selected.NativeModel != tt.wire {
+			if selected.ProviderName != "claude" || selected.NativeModel != tt.wire {
 				t.Fatalf("unexpected alias route: %+v", selected)
 			}
 		})
@@ -372,8 +372,6 @@ func clearAutoEnv(t *testing.T) {
 	for _, key := range []string{
 		"ANTHROPIC_API_KEY",
 		"ANTHROPIC_MODEL",
-		"CLAUDE_ACCESS_TOKEN",
-		"CLAUDE_CODE_OAUTH_TOKEN",
 		"CLAUDE_CONFIG_DIR",
 		"CLAUDE_MODEL",
 		"CODEX_ACCESS_TOKEN",

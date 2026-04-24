@@ -81,19 +81,14 @@ func AutoMuxClient(opts AutoOptions) (AutoResult, error) {
 
 func autoProvider(descriptor providerregistry.Descriptor, opts AutoOptions) (ProviderConfig, AutoProvider, bool) {
 	model := modelFromEnv(descriptor)
-	status := AutoProvider{Name: descriptor.Type, Type: descriptor.Type, API: descriptor.APIKind, Model: model}
+	instanceName := autoProviderInstanceName(descriptor)
+	status := AutoProvider{Name: instanceName, Type: descriptor.Type, API: descriptor.APIKind, Model: model}
 	if descriptor.Type == "claude_messages" {
-		if opts.EnableEnv {
-			if key, envName := firstEnvWithName(descriptor.DefaultAPIKeyEnvs...); key != "" {
-				status.Reason = "env:" + envName
-				return autoProviderConfig(descriptor, envName, model, opts), status, true
-			}
-		}
 		if opts.EnableLocalClaude && anthropic.LocalTokenStoreAvailable() {
 			status.Reason = "local_claude_oauth"
 			return autoProviderConfig(descriptor, "", model, opts), status, true
 		}
-		status.Reason = "missing Claude OAuth env/local credentials"
+		status.Reason = "missing local Claude OAuth credentials"
 		return ProviderConfig{}, status, false
 	}
 	if descriptor.Type == "codex_responses" {
@@ -123,13 +118,21 @@ func autoProvider(descriptor providerregistry.Descriptor, opts AutoOptions) (Pro
 }
 
 func autoProviderConfig(descriptor providerregistry.Descriptor, apiKeyEnv string, model string, opts AutoOptions) ProviderConfig {
+	name := autoProviderInstanceName(descriptor)
 	return ProviderConfig{
-		Name:             descriptor.Type,
+		Name:             name,
 		Type:             descriptor.Type,
 		APIKeyEnv:        apiKeyEnv,
 		Model:            model,
 		ModelDBServiceID: autoModelDBServiceID(descriptor.Type, opts.UseModelDB),
 	}
+}
+
+func autoProviderInstanceName(descriptor providerregistry.Descriptor) string {
+	if descriptor.InstanceName != "" {
+		return descriptor.InstanceName
+	}
+	return descriptor.Type
 }
 
 func autoRoutes(cfg Config, opts AutoOptions) ([]RouteConfig, error) {

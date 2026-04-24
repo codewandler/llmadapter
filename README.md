@@ -47,7 +47,7 @@ Live tests skip when credentials are missing. Supported credential env vars:
 - `OPENAI_API_KEY` or `OPENAI_KEY`
 - `OPENROUTER_API_KEY` or `OPENROUTER_KEY`
 - `MINIMAX_API_KEY` or `MINIMAX_KEY`
-- `CLAUDE_ACCESS_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, or local Claude Code OAuth credentials in `~/.claude/.credentials.json`; set `CLAUDE_CONFIG_DIR` to override the local Claude config directory.
+- local Claude Code OAuth credentials in `~/.claude/.credentials.json`; set `CLAUDE_CONFIG_DIR` to override the local Claude config directory.
 - `CODEX_ACCESS_TOKEN`, `CODEX_CODE_OAUTH_TOKEN`, or local Codex OAuth credentials in `~/.codex/auth.json`; set `CODEX_AUTH_PATH` to override the local auth file.
 
 Provider model override env vars:

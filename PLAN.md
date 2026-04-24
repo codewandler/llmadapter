@@ -233,7 +233,7 @@ MINIMAX_MODEL overrides the default MiniMax smoke-test model
 default MiniMax smoke-test model: MiniMax-M2.7
 MINIMAX_MESSAGES_MODEL overrides the default MiniMax Messages smoke-test model
 default MiniMax Messages smoke-test model: MiniMax-M2.7
-CLAUDE_ACCESS_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, or local Claude Code OAuth credentials provide claude_messages credentials when that provider type is configured
+Local Claude Code OAuth credentials in `~/.claude/.credentials.json` (or `CLAUDE_CONFIG_DIR`) provide claude_messages credentials when that provider type is configured
 CLAUDE_MODEL overrides the default claude_messages smoke-test model
 CODEX_ACCESS_TOKEN, CODEX_CODE_OAUTH_TOKEN, or local Codex OAuth credentials provide codex_responses credentials when that provider type is configured
 CODEX_AUTH_PATH overrides the Codex local auth file path, otherwise ~/.codex/auth.json is used

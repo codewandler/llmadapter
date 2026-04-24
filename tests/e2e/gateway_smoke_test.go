@@ -135,7 +135,7 @@ func gatewayProviders() []gatewayProvider {
 			apiKind:          adapt.ApiAnthropicMessages,
 			family:           adapt.FamilyAnthropicMessages,
 			capabilities:     router.CapabilitySet{Streaming: true, Tools: true},
-			apiKeyEnv:        []string{"CLAUDE_ACCESS_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"},
+			apiKeyEnv:        nil,
 			localClaudeOAuth: true,
 			modelEnv:         "CLAUDE_MODEL",
 			model:            "claude-haiku-4-5-20251001",
@@ -280,6 +280,9 @@ func newGateway(t *testing.T, provider gatewayProvider) (http.Handler, string) {
 	}
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
 	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) && !(provider.localCodexOAuth && codex.LocalAvailable()) {
+		if len(provider.apiKeyEnv) == 0 && provider.localClaudeOAuth {
+			t.Skipf("Claude provider %s requires local Claude credentials, expected ~/.claude/.credentials.json or CLAUDE_CONFIG_DIR to point to a token file", provider.name)
+		}
 		t.Skipf("set one of %s to run %s gateway e2e smoke tests", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
 	model := provider.model

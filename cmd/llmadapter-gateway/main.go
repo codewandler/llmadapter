@@ -398,7 +398,7 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 		}
 		return anthropic.NewClient(opts...)
 	case "claude_messages":
-		apiKey := providerAPIKey(provider, "CLAUDE_ACCESS_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
+		apiKey := providerAPIKey(provider)
 		opts := []anthropic.Option{
 			anthropic.WithClaudeHeaders(),
 			anthropic.WithClaudeCodePreflight(),

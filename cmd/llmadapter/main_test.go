@@ -76,8 +76,6 @@ func clearProviderStatusEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
 		"ANTHROPIC_API_KEY",
-		"CLAUDE_ACCESS_TOKEN",
-		"CLAUDE_CODE_OAUTH_TOKEN",
 		"CLAUDE_CONFIG_DIR",
 		"CODEX_ACCESS_TOKEN",
 		"CODEX_CODE_OAUTH_TOKEN",
@@ -184,11 +182,11 @@ func TestResolveCommandShowsRankedCandidates(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"Matches: 3 candidates",
-		"[01] role=claude source=anthropic.messages provider=claude type=claude_messages api=anthropic.messages",
+		"[01] provider=claude type=claude_messages source=anthropic.messages api=anthropic.messages",
 		"Provider type: claude_messages",
-		"[02] role=anthropic source=anthropic.messages provider=anthropic type=anthropic api=anthropic.messages",
+		"[02] provider=anthropic type=anthropic source=anthropic.messages api=anthropic.messages",
 		"Provider type: anthropic",
-		"[03] role=openrouter_responses source=openai.responses provider=openrouter type=openrouter_responses api=openrouter.responses",
+		"[03] provider=openrouter type=openrouter_responses source=openrouter.responses api=openai.responses",
 		"Provider type: openrouter_responses",
 	} {
 		if !strings.Contains(got, want) {
