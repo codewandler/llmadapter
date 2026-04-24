@@ -18,6 +18,7 @@ Completed:
 Phase 1: unified, adapt, and pipeline core packages
 Phase 2: transport package with SSE, NDJSON, HTTP, fake, retry, and rate-limit wrappers
 Phase 3: Anthropic Messages programmatic client path
+Phase 4 first slice: /v1/chat/completions endpoint codec and minimal gateway handler
 ```
 
 Verified:
@@ -38,6 +39,8 @@ pipeline/
 transport/
 providers/anthropic/messages/
 tests/e2e/
+endpoints/openaichatcompletions/
+gateway/
 ```
 
 Anthropic path coverage:
@@ -54,6 +57,16 @@ usage and finish-reason mapping
 unified.Collect(...)
 fake transport integration tests
 live Anthropic smoke test through unified.Client
+```
+
+Gateway path coverage:
+
+```text
+OpenAI Chat Completions HTTP request -> unified.Request
+unified.Event -> OpenAI Chat Completions non-streaming JSON response
+unified.Event -> OpenAI Chat Completions SSE chunks
+minimal gateway handler with configured unified.Client
+endpoint-shaped errors before response start
 ```
 
 Live e2e defaults:
@@ -73,12 +86,15 @@ Anthropic request mapping covers the phase-3 vertical slice, not the full Messag
 non-streaming Anthropic response bodies are not yet modeled separately from stream events
 SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
 Raw/unmapped event preservation is minimal and should be expanded before gateway work
+Phase 4 does not yet include router/model registry integration
+OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
+streaming provider errors after response start need a final policy
 ```
 
 Next planned phase:
 
 ```text
-Phase 4: one HTTP compatibility endpoint, likely /v1/chat/completions -> unified -> Anthropic Messages
+Phase 4 continuation: route /v1/chat/completions through Anthropic with broader endpoint compatibility tests
 ```
 
 ---
