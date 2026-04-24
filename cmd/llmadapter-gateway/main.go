@@ -335,9 +335,9 @@ func pricingWireModel(route routeConfig) string {
 func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFamily, router.CapabilitySet, error) {
 	switch providerType {
 	case "anthropic":
-		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true}, nil
+		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, Reasoning: true, ReasoningDeltas: true}, nil
 	case "claude_messages":
-		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true}, nil
+		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, Reasoning: true, ReasoningDeltas: true}, nil
 	case "openai_chat":
 		return adapt.ApiOpenAIChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
 	case "openai_responses":
@@ -349,7 +349,7 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 	case "openrouter_responses":
 		return adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
 	case "openrouter_messages":
-		return adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true}, nil
+		return adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, Reasoning: true, ReasoningDeltas: true}, nil
 	case "minimax_chat":
 		return adapt.ApiMiniMaxChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true}, nil
 	case "minimax_messages":

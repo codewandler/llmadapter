@@ -89,6 +89,42 @@ func TestCodecEncodeSystemCacheControl(t *testing.T) {
 	}
 }
 
+func TestCodecEncodeReasoningThinking(t *testing.T) {
+	maxTokens := 4096
+	temperature := 0.2
+	topK := 5
+	budget := 2048
+	req := adapt.Request{Unified: unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Temperature:     &temperature,
+		TopK:            &topK,
+		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh, MaxTokens: &budget},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "think"}},
+		}},
+		Stream: true,
+	}}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.Thinking == nil || wire.Thinking.Type != "enabled" || wire.Thinking.BudgetTokens != 2048 {
+		t.Fatalf("unexpected thinking config: %+v", wire.Thinking)
+	}
+	if wire.Temperature == nil || *wire.Temperature != 1 {
+		t.Fatalf("temperature = %v, want 1", wire.Temperature)
+	}
+	if wire.TopK != nil {
+		t.Fatalf("top_k should be dropped with thinking: %v", *wire.TopK)
+	}
+	if len(req.Warnings) != 2 {
+		t.Fatalf("warnings = %+v", req.Warnings)
+	}
+}
+
 func TestCodecStrictUnsupported(t *testing.T) {
 	maxTokens := 128
 	seed := int64(1)

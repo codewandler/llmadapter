@@ -10,6 +10,14 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-04-24
+
+### Added
+
+- Anthropic-compatible providers now encode canonical reasoning requests as Anthropic extended thinking with request-side temperature/top-k compatibility handling.
+- Anthropic, Claude Code-compatible, and OpenRouter Messages endpoints now advertise reasoning capability.
+- Auto mux model intents with `UseModelDB` now prefer a provider whose catalog can resolve the requested intent, so aliases like `opus` can route to Claude-compatible endpoints instead of a default OpenAI model.
+
 ## [0.45.0] - 2026-04-24
 
 ### Added
@@ -400,7 +408,8 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.45.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.46.0...HEAD
+[0.46.0]: https://github.com/codewandler/llmadapter/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/codewandler/llmadapter/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/codewandler/llmadapter/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/codewandler/llmadapter/compare/v0.42.0...v0.43.0

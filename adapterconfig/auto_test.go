@@ -1,11 +1,13 @@
 package adapterconfig
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/unified"
 )
 
 func TestAutoMuxClientDetectsOpenAIEnv(t *testing.T) {
@@ -126,6 +128,54 @@ func TestAutoMuxClientIntentsCreatePublicRoutes(t *testing.T) {
 	}
 	if result.Config.Routes[0].Model != "fast" || result.Config.Routes[0].NativeModel == "" {
 		t.Fatalf("unexpected intent route: %+v", result.Config.Routes[0])
+	}
+}
+
+func TestAutoMuxClientModelDBIntentPrefersMatchingProvider(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("OPENAI_API_KEY", "test-openai-key")
+	claudeDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	if err := os.WriteFile(filepath.Join(claudeDir, ".credentials.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:         true,
+		EnableLocalClaude: true,
+		UseModelDB:        true,
+		Intents:           []AutoIntent{{Name: "opus", SourceAPI: adapt.ApiOpenAIResponses}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Config.Routes) != 1 {
+		t.Fatalf("expected one route, got %+v", result.Config.Routes)
+	}
+	route := result.Config.Routes[0]
+	if route.Model != "opus" || route.Provider != "claude_messages" || route.ModelDBModel != "opus" || route.NativeModel != "" {
+		t.Fatalf("unexpected modeldb intent route: %+v", route)
+	}
+	if route.ProviderAPI != adapt.ApiAnthropicMessages {
+		t.Fatalf("provider api = %q", route.ProviderAPI)
+	}
+	r, err := BuildRouter(result.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified: unified.Request{
+			Model:     "opus",
+			Stream:    true,
+			Reasoning: &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ProviderName != "claude_messages" || selected.NativeModel == "opus" || selected.NativeModel == "" || !selected.Capabilities.Reasoning {
+		t.Fatalf("unexpected selected route: %+v", selected)
 	}
 }
 

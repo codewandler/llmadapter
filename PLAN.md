@@ -63,9 +63,10 @@ Adapter config slice: `adapterconfig` exposes JSON config loading/defaulting/val
 CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types, inspect redacted provider credential status, inspect configured/auto-detected routes and models, explain route resolution, run the gateway server, and run minimal direct, manual mux-routed, config-driven mux, or auto-detected mux text smoke requests
 Container slice: Dockerfile builds a standalone `llmadapter` image that runs `llmadapter serve`
 Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled
+Auto mux modeldb intent slice: when `UseModelDB` is enabled, auto intents choose a provider whose catalog service can resolve the requested model alias before falling back to provider defaults
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
-Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, and Anthropic modeldb service identity
+Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, Anthropic modeldb service identity, and Anthropic extended-thinking request mapping
 Codex compatibility slice: `codex_responses` registers a Codex/ChatGPT OAuth-backed Responses endpoint with API kind `codex.responses`, OpenAI Responses family routing, Codex-specific URL/header/body handling, local auth detection, and Codex modeldb service identity
 Prompt cache slice: canonical TextPart cache_control hints encode through Anthropic-family system/content blocks and live prompt-cache smoke verifies provider-reported cache write/read usage for Anthropic and Claude Code-compatible access
 OpenAI Responses provider slice: native OpenAI Responses provider endpoint is registered and live-verified for text, tools, gateway routing, and previous_response_id continuation
@@ -285,7 +286,7 @@ Next planned phase:
 Priority: provider registry/CLI, in-process mux client, modeldb, Claude compatibility, caching, usage/pricing, provider parity, and broader live conformance tracks below are the highest-priority work items for the next implementation rounds.
 Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, explicit route alias resolution, and dynamic per-request pricing are in place. Dynamic per-request capability metadata remains a future routing enhancement.
 Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, fixed-route gateway pricing, and dynamic request-scoped pricing wiring are in place.
-Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, and live prompt-cache/tool/gateway smokes are in place.
+Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, Anthropic extended-thinking request mapping, and live prompt-cache/tool/gateway smokes are in place.
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
 Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
 CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, serve, and smoke requests; `cmd/llmadapter-gateway` remains as a compatibility binary over the same gateway server path.
@@ -455,11 +456,11 @@ Implementation pieces:
    - prepend Claude billing/system preflight system blocks (implemented)
    - set metadata user_id derived from ~/.claude.json device/account/session data when available (implemented)
    - optionally add cache_control to the last system block with default TTL (implemented)
-   - coerce thinking temperature to an Anthropic-valid value when extended thinking is enabled (pending)
+   - coerce thinking temperature to an Anthropic-valid value when extended thinking is enabled (implemented)
 5. Add gateway config provider type "claude_messages". (implemented)
 6. Add e2e tests gated by TEST_INTEGRATION and local Claude credentials:
    - text stream (implemented)
-   - thinking stream
+   - thinking stream request encoding is unit-tested; live e2e coverage is still pending
    - prompt cache write/read behavior (implemented)
    - tool use/tool result continuation if Claude OAuth account supports it (implemented as regular tool smoke entries)
 

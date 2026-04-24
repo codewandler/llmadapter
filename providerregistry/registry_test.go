@@ -19,6 +19,18 @@ func TestLookup(t *testing.T) {
 	}
 }
 
+func TestAnthropicFamilyDescriptorsAdvertiseReasoning(t *testing.T) {
+	for _, providerType := range []string{"anthropic", "claude_messages", "openrouter_messages"} {
+		descriptor, ok := Lookup(providerType)
+		if !ok {
+			t.Fatalf("missing descriptor %q", providerType)
+		}
+		if !descriptor.Capabilities.Reasoning || !descriptor.Capabilities.ReasoningDeltas {
+			t.Fatalf("%s should advertise reasoning: %+v", providerType, descriptor.Capabilities)
+		}
+	}
+}
+
 func TestListSorted(t *testing.T) {
 	list := List()
 	if len(list) == 0 {

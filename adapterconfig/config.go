@@ -115,7 +115,7 @@ func ApplyDefaults(cfg *Config) {
 		if cfg.Routes[i].SourceAPI == "" {
 			cfg.Routes[i].SourceAPI = adapt.ApiOpenAIChatCompletions
 		}
-		if cfg.Routes[i].NativeModel == "" && !cfg.Routes[i].DynamicModels {
+		if cfg.Routes[i].NativeModel == "" && cfg.Routes[i].ModelDBModel == "" && !cfg.Routes[i].DynamicModels {
 			if provider, ok := findProviderForRoute(*cfg, cfg.Routes[i]); ok {
 				cfg.Routes[i].NativeModel = provider.Model
 			}

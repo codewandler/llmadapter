@@ -1,13 +1,16 @@
 package adapterconfig
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/modelmeta"
 	"github.com/codewandler/llmadapter/providerregistry"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	codex "github.com/codewandler/llmadapter/providers/openai/codex"
 	"github.com/codewandler/llmadapter/unified"
+	"github.com/codewandler/modeldb"
 )
 
 type AutoOptions struct {
@@ -58,7 +61,11 @@ func AutoMuxClient(opts AutoOptions) (AutoResult, error) {
 		cfg.Providers = append(cfg.Providers, provider)
 		enabled = append(enabled, status)
 	}
-	cfg.Routes = autoRoutes(cfg, opts)
+	routes, err := autoRoutes(cfg, opts)
+	if err != nil {
+		return AutoResult{Config: cfg, Enabled: enabled, Skipped: skipped}, err
+	}
+	cfg.Routes = routes
 	ApplyDefaults(&cfg)
 	sourceAPI := opts.SourceAPI
 	if sourceAPI == "" {
@@ -124,12 +131,16 @@ func autoProviderConfig(descriptor providerregistry.Descriptor, apiKeyEnv string
 	}
 }
 
-func autoRoutes(cfg Config, opts AutoOptions) []RouteConfig {
+func autoRoutes(cfg Config, opts AutoOptions) ([]RouteConfig, error) {
+	catalog, modelDBEnabled, err := autoModelDBCatalog(opts)
+	if err != nil {
+		return nil, err
+	}
 	if len(opts.Intents) > 0 {
 		var out []RouteConfig
 		dynamic := map[adapt.ApiKind]bool{}
 		for _, intent := range opts.Intents {
-			route, ok := routeForIntent(cfg, intent)
+			route, ok := routeForIntent(cfg, intent, opts, catalog, modelDBEnabled)
 			if ok {
 				out = append(out, route)
 				if opts.DynamicModels && !dynamic[route.SourceAPI] {
@@ -138,7 +149,7 @@ func autoRoutes(cfg Config, opts AutoOptions) []RouteConfig {
 				}
 			}
 		}
-		return out
+		return out, nil
 	}
 	var routes []RouteConfig
 	for _, sourceAPI := range []adapt.ApiKind{adapt.ApiOpenAIResponses, adapt.ApiOpenAIChatCompletions, adapt.ApiAnthropicMessages} {
@@ -150,7 +161,7 @@ func autoRoutes(cfg Config, opts AutoOptions) []RouteConfig {
 			}
 		}
 	}
-	return routes
+	return routes, nil
 }
 
 func dynamicRoute(route RouteConfig) RouteConfig {
@@ -165,10 +176,15 @@ func dynamicRoute(route RouteConfig) RouteConfig {
 	return route
 }
 
-func routeForIntent(cfg Config, intent AutoIntent) (RouteConfig, bool) {
+func routeForIntent(cfg Config, intent AutoIntent, opts AutoOptions, catalog modeldb.Catalog, modelDBEnabled bool) (RouteConfig, bool) {
 	sourceAPI := intent.SourceAPI
 	if sourceAPI == "" {
 		sourceAPI = adapt.ApiOpenAIResponses
+	}
+	if opts.UseModelDB && modelDBEnabled {
+		if route, ok := modelDBRouteForIntent(cfg, intent.Name, sourceAPI, catalog); ok {
+			return route, true
+		}
 	}
 	route, ok := bestRouteForAPI(cfg, sourceAPI)
 	if !ok {
@@ -176,6 +192,51 @@ func routeForIntent(cfg Config, intent AutoIntent) (RouteConfig, bool) {
 	}
 	route.Model = intent.Name
 	return route, true
+}
+
+func modelDBRouteForIntent(cfg Config, intentName string, sourceAPI adapt.ApiKind, catalog modeldb.Catalog) (RouteConfig, bool) {
+	for _, providerType := range preferredProviderTypes(sourceAPI) {
+		for _, provider := range cfg.Providers {
+			if provider.Type != providerType {
+				continue
+			}
+			descriptor, ok := descriptorForProvider(provider)
+			if !ok {
+				continue
+			}
+			serviceID := providerModelDBServiceID(provider)
+			if serviceID == "" {
+				continue
+			}
+			apiType, ok := modelmeta.APITypeForFamily(descriptor.Family)
+			if !ok {
+				continue
+			}
+			if _, ok := resolveModelDBItem(catalog, cfg.ModelDB, serviceID, apiType, intentName); !ok {
+				continue
+			}
+			return RouteConfig{
+				SourceAPI:    sourceAPI,
+				Model:        intentName,
+				Provider:     provider.Name,
+				ProviderAPI:  descriptor.APIKind,
+				ModelDBModel: intentName,
+				Weight:       100,
+			}, true
+		}
+	}
+	return RouteConfig{}, false
+}
+
+func autoModelDBCatalog(opts AutoOptions) (modeldb.Catalog, bool, error) {
+	if !opts.UseModelDB {
+		return modeldb.Catalog{}, false, nil
+	}
+	catalog, err := LoadModelDBCatalog(ModelDBConfig{})
+	if err != nil {
+		return modeldb.Catalog{}, false, fmt.Errorf("load modeldb catalog for auto routes: %w", err)
+	}
+	return catalog, true, nil
 }
 
 func bestRouteForAPI(cfg Config, sourceAPI adapt.ApiKind) (RouteConfig, bool) {

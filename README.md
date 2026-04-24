@@ -221,7 +221,7 @@ Conversation/session state belongs above llmadapter, for example in `agentsdk`. 
 
 The in-process mux client is a stateless library layer over provider endpoints and router selection. `adapterconfig.NewMuxClient` can build it from llmadapter JSON config, including modeldb-backed model alias resolution, capability metadata, and pricing processors, without requiring an HTTP gateway process.
 
-`adapterconfig.AutoMuxClient` can build the same stateless mux client from detected credentials. It checks registered provider endpoint env vars such as `OPENAI_API_KEY`/`OPENAI_KEY`, Anthropic/OpenRouter/MiniMax keys, Claude bearer token env vars, and local Claude Code OAuth credentials when enabled. With `UseModelDB`, detected providers are tagged with their default modeldb service IDs so fixed-route capability metadata and fixed or dynamic-route pricing enrichment can work without hand-written provider config.
+`adapterconfig.AutoMuxClient` can build the same stateless mux client from detected credentials. It checks registered provider endpoint env vars such as `OPENAI_API_KEY`/`OPENAI_KEY`, Anthropic/OpenRouter/MiniMax keys, Claude bearer token env vars, and local Claude Code OAuth credentials when enabled. With `UseModelDB`, detected providers are tagged with their default modeldb service IDs so fixed-route capability metadata and fixed or dynamic-route pricing enrichment can work without hand-written provider config. Auto intents also use modeldb aliases to choose a provider that can resolve the requested model name, for example routing `opus` to a Claude-compatible endpoint when available.
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 
@@ -233,7 +233,7 @@ The `pricing` package can enrich `unified.UsageEvent` values with `CostItems` us
 
 Codex is modeled as provider endpoint type `codex_responses` with API kind `codex.responses` and family `openai.responses`. It uses Codex/ChatGPT OAuth credentials and `https://chatgpt.com/backend-api/codex/responses`, not the normal OpenAI platform API URL. Its default modeldb service ID is `codex`.
 
-The `claude_messages` provider type is an Anthropic Messages-compatible endpoint variant for Claude Code-style access. It uses bearer/OAuth auth instead of `x-api-key`, adds Claude CLI compatibility headers and `beta=true`, reads local Claude OAuth credentials when no bearer token env var is configured, and applies Claude Code request preflight system blocks with cache control.
+The `claude_messages` provider type is an Anthropic Messages-compatible endpoint variant for Claude Code-style access. It uses bearer/OAuth auth instead of `x-api-key`, adds Claude CLI compatibility headers and `beta=true`, reads local Claude OAuth credentials when no bearer token env var is configured, applies Claude Code request preflight system blocks with cache control, and maps canonical reasoning requests to Anthropic extended thinking.
 
 The default HTTP byte-stream transport advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression. Custom HTTP clients can preserve that behavior by starting from `transport.CloneDefaultHTTPClient()`.
 

@@ -16,6 +16,7 @@ type MessageRequest struct {
 	TopK                *int             `json:"top_k,omitempty"`
 	StopSequences       []string         `json:"stop_sequences,omitempty"`
 	Stream              bool             `json:"stream,omitempty"`
+	Thinking            *ThinkingConfig  `json:"thinking,omitempty"`
 	Tools               []ToolDefinition `json:"tools,omitempty"`
 	ToolChoice          *ToolChoiceWire  `json:"tool_choice,omitempty"`
 	Metadata            map[string]any   `json:"metadata,omitempty"`
@@ -27,6 +28,11 @@ type MessageRequest struct {
 	OpenRouterDebug     json.RawMessage  `json:"debug,omitempty"`
 	OpenRouterTrace     json.RawMessage  `json:"trace,omitempty"`
 	OpenRouterSessionID json.RawMessage  `json:"session_id,omitempty"`
+}
+
+type ThinkingConfig struct {
+	Type         string `json:"type"`
+	BudgetTokens int    `json:"budget_tokens"`
 }
 
 type InputMessage struct {

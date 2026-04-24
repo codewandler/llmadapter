@@ -41,6 +41,9 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 		StopSequences: append([]string(nil), ureq.Stop...),
 		Stream:        ureq.Stream,
 	}
+	if err := applyReasoning(req, &out); err != nil {
+		return MessageRequest{}, err
+	}
 
 	system, err := encodeInstructions(ureq.Instructions)
 	if err != nil {
@@ -91,6 +94,56 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 		applyOpenRouterExtensions(&out, ureq.Extensions)
 	}
 	return out, nil
+}
+
+func applyReasoning(req *adapt.Request, out *MessageRequest) error {
+	reasoning := req.Unified.Reasoning
+	if reasoning == nil {
+		return nil
+	}
+	budget := thinkingBudget(*reasoning, out.MaxTokens)
+	if budget < 1024 {
+		return &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "reasoning.max_tokens", Reason: "Anthropic thinking requires at least 1024 budget tokens and max_tokens greater than the budget"}
+	}
+	if out.MaxTokens <= budget {
+		out.MaxTokens = budget + 1
+		req.AddWarning("field_coerced", "max_output_tokens", "max_output_tokens was increased because Anthropic thinking budget must be less than max_tokens")
+	}
+	one := 1.0
+	if out.Temperature == nil || *out.Temperature != one {
+		out.Temperature = &one
+		req.AddWarning("field_coerced", "temperature", "temperature was set to 1 because Anthropic extended thinking requires temperature 1")
+	}
+	if out.TopK != nil {
+		if err := unsupported(req, "top_k", true); err != nil {
+			return err
+		}
+		out.TopK = nil
+	}
+	out.Thinking = &ThinkingConfig{Type: "enabled", BudgetTokens: budget}
+	return nil
+}
+
+func thinkingBudget(reasoning unified.ReasoningConfig, maxTokens int) int {
+	if reasoning.MaxTokens != nil {
+		return *reasoning.MaxTokens
+	}
+	switch reasoning.Effort {
+	case unified.ReasoningEffortLow:
+		return 1024
+	case unified.ReasoningEffortHigh:
+		if maxTokens > 8192 {
+			return 8192
+		}
+	case unified.ReasoningEffortMedium:
+		if maxTokens > 4096 {
+			return 4096
+		}
+	}
+	if maxTokens > 2048 {
+		return maxTokens / 2
+	}
+	return 1024
 }
 
 func applyOpenRouterExtensions(out *MessageRequest, extensions unified.Extensions) {
