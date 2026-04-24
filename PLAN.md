@@ -26,6 +26,7 @@ Verified:
 env GOCACHE=/tmp/go-cache go test ./...
 env GOCACHE=/tmp/go-cache go build ./...
 env GOCACHE=/tmp/go-cache go vet ./...
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestSmokeTextStream -v
 ```
 
 Implemented package surface:
@@ -36,6 +37,7 @@ adapt/
 pipeline/
 transport/
 providers/anthropic/messages/
+tests/e2e/
 ```
 
 Anthropic path coverage:
@@ -51,6 +53,16 @@ tool-use streaming with argument deltas
 usage and finish-reason mapping
 unified.Collect(...)
 fake transport integration tests
+live Anthropic smoke test through unified.Client
+```
+
+Live e2e defaults:
+
+```text
+TEST_INTEGRATION=1 enables live e2e tests
+ANTHROPIC_API_KEY provides Anthropic credentials
+ANTHROPIC_MODEL overrides the default Anthropic smoke-test model
+default Anthropic smoke-test model: claude-haiku-4-5-20251001
 ```
 
 Known follow-up gaps:

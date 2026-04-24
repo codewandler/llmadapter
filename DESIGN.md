@@ -2362,6 +2362,33 @@ Test:
 
 Assert endpoint-specific response shape.
 
+### Live backend smoke tests
+
+Live provider tests should exercise the public `unified.Client` entrypoint from outside the provider package.
+
+They are intentionally environment-gated, not build-tag-gated:
+
+```text
+TEST_INTEGRATION=1
+```
+
+Provider credentials and model overrides are passed through provider-specific environment variables.
+
+Example:
+
+```text
+ANTHROPIC_API_KEY=...
+ANTHROPIC_MODEL=claude-haiku-4-5-20251001
+```
+
+Live smoke tests live under:
+
+```text
+tests/e2e/
+```
+
+They should use table-driven provider setup so the same smoke scenarios can run against additional providers with minimal boilerplate.
+
 ### Lossiness tests
 
 For every unsupported feature:
