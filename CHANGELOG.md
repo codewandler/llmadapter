@@ -1,46 +1,118 @@
 # Changelog
 
-All notable project changes are tracked here.
+All notable changes to this project will be documented in this file.
 
-This project does not have tagged releases yet. Entries below group the commit history into milestone-level changes.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+Versions below are backfilled from the repository's implementation milestones. Tags
+can be created to match these entries as the project starts publishing releases.
 
-### Architecture And Planning
+## [Unreleased]
 
-- Added the initial architecture design for the canonical request/event model, provider routing, stream pipeline, transport abstraction, provider endpoints, capabilities, and testing strategy. (`eb25315`, `3a70b88`)
-- Added and refined the implementation plan for phases 1-3, then expanded it as the project moved into gateway, routing, provider, and e2e work. (`f10978c`)
-- Added minimal repo onboarding docs and a provider-extension agent skill. (`2ffafd9`)
+No unreleased changes yet.
 
-### Core Adapter Slice
+## [0.8.0] - 2026-04-24
 
-- Implemented the first working vertical slice across `unified`, `adapt`, `pipeline`, `transport`, and Anthropic Messages. (`f2012a1`)
-- Added reusable SSE/NDJSON/HTTP/fake transport primitives, retry/rate-limit wrappers, provider event decoding, and `unified.Collect`.
-- Added the first live e2e smoke harness gated by `TEST_INTEGRATION`. (`8b57bdd`)
+### Added
 
-### Gateway And Routing
+- **Agent onboarding** - Added minimal `README.md` and `AGENTS.md` files for repository orientation.
+- **Provider extension skill** - Added `.agents/skills/llmadapter-provider-extension/SKILL.md` to guide future provider, API kind, endpoint codec, and e2e smoke extensions.
+- **MiniMax planning** - Added MiniMax as the next planned provider integration, including notes for its OpenAI-compatible chat and Anthropic-compatible messages surfaces.
 
-- Added the OpenAI-compatible `/v1/chat/completions` endpoint codec and minimal gateway handler. (`d2e5d80`)
-- Added live gateway smoke coverage for streaming and non-streaming requests. (`9b9c0b0`)
-- Added static gateway routing with source API/model matching and native model rewrite. (`25182e5`)
-- Added minimal JSON gateway config with providers, routes, `api_key` / `api_key_env`, `provider_api`, and model override support. (`a6aa676`, `3b47ba2`)
-- Modeled routes as provider endpoints with provider name, API kind, API family, client, and capability metadata. (`3b47ba2`)
+### Changed
 
-### Provider Support
+- **Project plan status** - Updated `PLAN.md` with current implementation progress, technical debt, test gaps, and next provider-support work.
+- **Changelog policy** - Introduced this versioned changelog as the source of milestone-level release history.
 
-- Added OpenAI Chat Completions provider support, including `OPENAI_API_KEY` / `OPENAI_KEY` lookup and gateway route coverage. (`fff8ac8`, `9d88990`)
-- Added OpenAI Chat streamed tool-call decoding and live shared tool-use coverage. (`45bb30c`)
-- Added live tool-result continuation smoke coverage across supported tool-capable providers. (`9961e5d`)
-- Added OpenRouter Chat Completions provider support as a distinct OpenRouter API kind in the OpenAI Chat family. (`f3099b8`)
-- Added OpenRouter Responses and OpenRouter Anthropic-compatible Messages providers. (`74678ee`)
-- Added OpenRouter Responses function-call streaming and tool-result continuation support. (`e482cbd`)
+## [0.7.0] - 2026-04-24
 
-### Test Coverage
+### Added
 
-- Added shared live e2e smoke tests for text streaming, tool calls, tool-result continuation, and gateway routing.
-- Expanded the live matrix across Anthropic Messages, OpenAI Chat Completions, OpenRouter Chat Completions, OpenRouter Responses, and OpenRouter Anthropic-compatible Messages.
-- Added fake transport unit coverage for provider request construction and stream decoding paths.
+- **OpenRouter Responses tool calls** - Added streaming function-call decoding for the OpenRouter Responses endpoint.
+- **OpenRouter tool-result continuation** - Added request encoding for continuing OpenRouter Responses conversations with tool results.
 
-### Tooling
+### Changed
 
-- Added `.gitignore` entries for local workspace files. (`1c1bbeb`)
+- **Capability metadata** - Marked OpenRouter Responses as tool-call capable so shared smoke tests and routing decisions can target it correctly.
+
+## [0.6.0] - 2026-04-24
+
+### Added
+
+- **OpenRouter Chat Completions provider** - Added OpenRouter's `/api/v1/chat/completions` support as an OpenAI Chat Completions-family endpoint.
+- **OpenRouter Responses provider** - Added OpenRouter's `/api/v1/responses` support as an OpenAI Responses-family endpoint.
+- **OpenRouter Messages provider** - Added OpenRouter's Anthropic-compatible `/api/v1/messages` support as an Anthropic Messages-family endpoint.
+- **Provider endpoint model** - Added explicit provider endpoint registration with provider name, API kind, API family, client, and capabilities.
+
+### Changed
+
+- **Routing model** - Shifted routing from provider-only targets to provider endpoint targets, allowing one provider to expose multiple protocol shapes.
+- **OpenRouter architecture** - Modeled OpenRouter as one upstream provider with multiple API kinds instead of collapsing it into a single provider-specific API kind.
+
+## [0.5.0] - 2026-04-24
+
+### Added
+
+- **OpenAI Chat Completions provider** - Added OpenAI `/v1/chat/completions` request construction and stream decoding.
+- **OpenAI API key lookup** - Added support for `OPENAI_API_KEY` and `OPENAI_KEY` environment variable sources.
+- **OpenAI gateway smoke coverage** - Added live gateway route coverage for OpenAI-backed requests.
+- **OpenAI tool-call streaming** - Added streamed OpenAI tool-call delta decoding into canonical tool-call events.
+- **Tool-result continuation smoke coverage** - Added live e2e coverage for sending tool results back through supported tool-capable providers.
+
+### Changed
+
+- **Shared smoke matrix** - Expanded provider smoke tests so the same text streaming, tool-call, and continuation checks can run across multiple providers.
+
+## [0.4.0] - 2026-04-24
+
+### Added
+
+- **Chat Completions gateway** - Added an OpenAI-compatible `/v1/chat/completions` gateway endpoint codec and minimal HTTP handler.
+- **Gateway smoke tests** - Added live streaming and non-streaming smoke coverage for gateway requests.
+- **Static router** - Added source API and model matching with native upstream model rewrite support.
+- **Gateway config** - Added minimal JSON config loading for providers, routes, API keys, API key environment variables, provider APIs, and model overrides.
+
+### Changed
+
+- **Gateway execution path** - Connected inbound endpoint codecs, static routing, provider clients, canonical events, and response encoding into a working outside-in flow.
+
+## [0.3.0] - 2026-04-24
+
+### Added
+
+- **Core adapter vertical slice** - Implemented the first working path across `unified`, `adapt`, `pipeline`, `transport`, and Anthropic Messages.
+- **Canonical event collection** - Added `unified.Collect` for turning streamed events into a final canonical response.
+- **Transport primitives** - Added SSE, NDJSON, HTTP, fake transport, retry, and rate-limit primitives.
+- **Anthropic Messages provider** - Added request encoding and stream decoding for Anthropic Messages.
+- **Live e2e smoke harness** - Added `TEST_INTEGRATION`-gated live smoke tests that skip when required API keys are unavailable.
+
+### Changed
+
+- **Test entrypoint** - Established `tests/e2e` as the outside-in integration test location.
+
+## [0.2.0] - 2026-04-24
+
+### Added
+
+- **Implementation plan** - Added `PLAN.md` with concrete phases for the initial adapter implementation, gateway work, provider support, and integration testing.
+
+## [0.1.0] - 2026-04-24
+
+### Added
+
+- **Initial architecture** - Added `DESIGN.md` covering the canonical request/event model, adapters, provider clients, stream pipeline, routing, capabilities, transports, and testing strategy.
+
+### Changed
+
+- **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
+
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/codewandler/llmadapter/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/codewandler/llmadapter/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/codewandler/llmadapter/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/codewandler/llmadapter/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/codewandler/llmadapter/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/codewandler/llmadapter/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/codewandler/llmadapter/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/codewandler/llmadapter/releases/tag/v0.1.0
