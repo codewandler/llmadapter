@@ -15,6 +15,7 @@ type AutoOptions struct {
 	EnableLocalClaude bool
 	EnableLocalCodex  bool
 	UseModelDB        bool
+	DynamicModels     bool
 	SourceAPI         adapt.ApiKind
 	Intents           []AutoIntent
 }
@@ -139,9 +140,24 @@ func autoRoutes(cfg Config, opts AutoOptions) []RouteConfig {
 		route, ok := bestRouteForAPI(cfg, sourceAPI)
 		if ok {
 			routes = append(routes, route)
+			if opts.DynamicModels {
+				routes = append(routes, dynamicRoute(route))
+			}
 		}
 	}
 	return routes
+}
+
+func dynamicRoute(route RouteConfig) RouteConfig {
+	route.Model = ""
+	route.NativeModel = ""
+	route.ModelDBModel = ""
+	route.ModelDBWireModelID = ""
+	route.DynamicModels = true
+	if route.Weight == 0 || route.Weight >= 100 {
+		route.Weight = 1
+	}
+	return route
 }
 
 func routeForIntent(cfg Config, intent AutoIntent) (RouteConfig, bool) {

@@ -129,6 +129,31 @@ func TestAutoMuxClientIntentsCreatePublicRoutes(t *testing.T) {
 	}
 }
 
+func TestAutoMuxClientCanAddDynamicRoutes(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("OPENAI_API_KEY", "test-openai-key")
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:     true,
+		DynamicModels: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, route := range result.Config.Routes {
+		if route.SourceAPI == adapt.ApiOpenAIResponses && route.Provider == "openai_responses" && route.DynamicModels {
+			found = true
+			if route.Model != "" || route.NativeModel != "" || route.Weight != 1 {
+				t.Fatalf("unexpected dynamic route: %+v", route)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("missing dynamic route: %+v", result.Config.Routes)
+	}
+}
+
 func TestAutoMuxClientErrorsWithoutDetectedProviders(t *testing.T) {
 	clearAutoEnv(t)
 

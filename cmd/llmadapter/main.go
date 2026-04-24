@@ -107,9 +107,9 @@ func newRoutesCommand() *cobra.Command {
 				return writeJSON(cmd.OutOrStdout(), map[string]any{"routes": routes})
 			}
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "SOURCE_API\tMODEL\tPROVIDER\tPROVIDER_API\tNATIVE_MODEL\tWEIGHT")
+			fmt.Fprintln(w, "SOURCE_API\tMODEL\tPROVIDER\tPROVIDER_API\tDYNAMIC\tNATIVE_MODEL\tWEIGHT")
 			for _, route := range routes {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\n", route.SourceAPI, route.Model, route.Provider, route.ProviderAPI, route.NativeModel, route.Weight)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\t%s\t%d\n", route.SourceAPI, route.Model, route.Provider, route.ProviderAPI, route.Dynamic, route.NativeModel, route.Weight)
 			}
 			return w.Flush()
 		},
@@ -355,6 +355,7 @@ type routeInfo struct {
 	Model       string        `json:"model,omitempty"`
 	Provider    string        `json:"provider"`
 	ProviderAPI adapt.ApiKind `json:"provider_api,omitempty"`
+	Dynamic     bool          `json:"dynamic_models,omitempty"`
 	NativeModel string        `json:"native_model,omitempty"`
 	Weight      int           `json:"weight,omitempty"`
 }
@@ -420,6 +421,7 @@ type serveRouteInspection struct {
 	Model              string        `json:"model,omitempty"`
 	Provider           string        `json:"provider"`
 	ProviderAPI        adapt.ApiKind `json:"provider_api,omitempty"`
+	DynamicModels      bool          `json:"dynamic_models,omitempty"`
 	NativeModel        string        `json:"native_model,omitempty"`
 	ModelDBModel       string        `json:"modeldb_model,omitempty"`
 	ModelDBWireModelID string        `json:"modeldb_wire_model_id,omitempty"`
@@ -655,6 +657,7 @@ func inspectServeConfig(cfg adapterconfig.Config) serveConfigInspection {
 			Model:              route.Model,
 			Provider:           route.Provider,
 			ProviderAPI:        route.ProviderAPI,
+			DynamicModels:      route.DynamicModels,
 			NativeModel:        route.NativeModel,
 			ModelDBModel:       route.ModelDBModel,
 			ModelDBWireModelID: route.ModelDBWireModelID,
@@ -675,6 +678,7 @@ func routeInfos(cfg adapterconfig.Config, sourceAPI adapt.ApiKind) []routeInfo {
 			Model:       route.Model,
 			Provider:    route.Provider,
 			ProviderAPI: route.ProviderAPI,
+			Dynamic:     route.DynamicModels,
 			NativeModel: route.NativeModel,
 			Weight:      route.Weight,
 		})
@@ -688,6 +692,9 @@ func modelInfos(cfg adapterconfig.Config, sourceAPI adapt.ApiKind, query string)
 	query = strings.ToLower(query)
 	for _, route := range cfg.Routes {
 		if sourceAPI != "" && route.SourceAPI != sourceAPI {
+			continue
+		}
+		if route.DynamicModels {
 			continue
 		}
 		model := route.Model
@@ -897,6 +904,8 @@ func resolveModel(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKin
 			matchedAs = "public_model"
 		case route.NativeModel == model:
 			matchedAs = "native_model"
+		case route.DynamicModels:
+			matchedAs = "dynamic_model"
 		default:
 			continue
 		}
@@ -905,6 +914,9 @@ func resolveModel(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKin
 			return resolutionInfo{}, err
 		}
 		nativeModel := route.NativeModel
+		if nativeModel == "" && route.DynamicModels {
+			nativeModel = model
+		}
 		if nativeModel == "" {
 			nativeModel = provider.Model
 		}

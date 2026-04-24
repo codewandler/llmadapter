@@ -119,6 +119,21 @@ func TestValidateConfigRequiresProviderAPIForAmbiguousProvider(t *testing.T) {
 	}
 }
 
+func TestValidateConfigRejectsDynamicRouteWithFixedModel(t *testing.T) {
+	err := validateConfig(config{
+		Providers: []providerConfig{{Name: "openai", Type: "openai_responses"}},
+		Routes: []routeConfig{{
+			SourceAPI:     adapt.ApiOpenAIResponses,
+			Model:         "public",
+			Provider:      "openai",
+			DynamicModels: true,
+		}},
+	})
+	if err == nil {
+		t.Fatalf("expected dynamic route validation error")
+	}
+}
+
 func TestBuildProviderOpenAIRequiresKey(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("OPENAI_KEY", "")

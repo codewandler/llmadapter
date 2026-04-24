@@ -30,18 +30,19 @@ type providerInspection struct {
 }
 
 type routeInspection struct {
-	SourceAPI    adapt.ApiKind        `json:"source_api"`
-	PublicModel  string               `json:"public_model,omitempty"`
-	Provider     string               `json:"provider"`
-	ProviderAPI  adapt.ApiKind        `json:"provider_api,omitempty"`
-	ModelDBModel string               `json:"modeldb_model,omitempty"`
-	TargetAPI    adapt.ApiKind        `json:"target_api"`
-	TargetFamily adapt.ApiFamily      `json:"target_family"`
-	NativeModel  string               `json:"native_model,omitempty"`
-	Weight       int                  `json:"weight,omitempty"`
-	Priority     int                  `json:"priority,omitempty"`
-	Capabilities capabilityInspection `json:"capabilities"`
-	ModelDB      modelDBInspection    `json:"modeldb"`
+	SourceAPI     adapt.ApiKind        `json:"source_api"`
+	PublicModel   string               `json:"public_model,omitempty"`
+	Provider      string               `json:"provider"`
+	ProviderAPI   adapt.ApiKind        `json:"provider_api,omitempty"`
+	DynamicModels bool                 `json:"dynamic_models,omitempty"`
+	ModelDBModel  string               `json:"modeldb_model,omitempty"`
+	TargetAPI     adapt.ApiKind        `json:"target_api"`
+	TargetFamily  adapt.ApiFamily      `json:"target_family"`
+	NativeModel   string               `json:"native_model,omitempty"`
+	Weight        int                  `json:"weight,omitempty"`
+	Priority      int                  `json:"priority,omitempty"`
+	Capabilities  capabilityInspection `json:"capabilities"`
+	ModelDB       modelDBInspection    `json:"modeldb"`
 }
 
 type credentialInspection struct {
@@ -138,18 +139,19 @@ func inspectConfigWithCatalog(cfg config, catalog modeldb.Catalog, modelDBEnable
 			endpoint = endpointWithModelDBMetadata(endpoint, route, catalog)
 		}
 		out.Routes = append(out.Routes, routeInspection{
-			SourceAPI:    route.SourceAPI,
-			PublicModel:  route.Model,
-			Provider:     route.Provider,
-			ProviderAPI:  route.ProviderAPI,
-			ModelDBModel: route.ModelDBModel,
-			TargetAPI:    endpoint.APIKind,
-			TargetFamily: endpoint.Family,
-			NativeModel:  route.NativeModel,
-			Weight:       route.Weight,
-			Priority:     endpoint.Priority,
-			Capabilities: inspectCapabilities(endpoint.Capabilities),
-			ModelDB:      inspectModelDB(catalog, modelDBEnabled, endpoint, route),
+			SourceAPI:     route.SourceAPI,
+			PublicModel:   route.Model,
+			Provider:      route.Provider,
+			ProviderAPI:   route.ProviderAPI,
+			DynamicModels: route.DynamicModels,
+			ModelDBModel:  route.ModelDBModel,
+			TargetAPI:     endpoint.APIKind,
+			TargetFamily:  endpoint.Family,
+			NativeModel:   route.NativeModel,
+			Weight:        route.Weight,
+			Priority:      endpoint.Priority,
+			Capabilities:  inspectCapabilities(endpoint.Capabilities),
+			ModelDB:       inspectModelDB(catalog, modelDBEnabled, endpoint, route),
 		})
 	}
 

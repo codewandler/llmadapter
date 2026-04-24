@@ -88,6 +88,7 @@ Configuration:
 - `llmadapter-gateway -inspect-config` prints resolved provider/route metadata as JSON and exits before constructing provider clients or requiring API keys.
 - Routes select a provider endpoint with `provider` and optional `provider_api`.
 - Routes can set `weight`; providers can set `priority`. Compatible routes are ranked by weight first, then endpoint priority, with declaration order as the final tie-breaker.
+- Routes can set `dynamic_models: true` with no fixed `model` or `native_model` to pass arbitrary requested model IDs through to the selected provider endpoint. Use lower weight than fixed routes when mixing deterministic aliases with full provider/catalog access.
 - `health_cooldown` is an optional Go duration string such as `30s`; recently failed provider endpoint/model pairs are deprioritized for that window.
 - `modeldb.catalog_path` optionally replaces the built-in modeldb catalog with a JSON catalog file.
 - `modeldb.overlay_paths` optionally merges one or more JSON catalog files after the base catalog.
@@ -177,6 +178,13 @@ Example config:
       "provider": "anthropic",
       "native_model": "claude-haiku-4-5-20251001",
       "weight": 10
+    },
+    {
+      "source_api": "openai.responses",
+      "provider": "openrouter",
+      "provider_api": "openrouter.responses",
+      "dynamic_models": true,
+      "weight": 1
     }
   ]
 }

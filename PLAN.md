@@ -143,7 +143,7 @@ provider config supports modeldb_service_id for pricing/catalog service identity
 provider type claude_messages defaults modeldb_service_id to anthropic
 provider type codex_responses defaults modeldb_service_id to codex
 modeldb config supports catalog_path, overlay_paths, and aliases
-route config supports source_api, model, provider, provider_api, modeldb_model, native_model, modeldb_wire_model_id, and weight
+route config supports source_api, model, provider, provider_api, modeldb_model, native_model, modeldb_wire_model_id, dynamic_models, and weight
 health_cooldown configures the in-memory provider endpoint/model failure deprioritization window
 llmadapter-gateway -inspect-config prints resolved config metadata as JSON and does not require provider API keys
 ```
@@ -290,6 +290,7 @@ Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key ext
 CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, serve, and smoke requests; `cmd/llmadapter-gateway` remains as a compatibility binary over the same gateway server path.
 Catalog CLI slice: `llmadapter models --catalog` inspects the built-in or configured modeldb catalog with filters for service, API type, parameter, identity, and query text.
 Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; gateway serving now uses the same adapterconfig router construction in the Cobra CLI path.
+Dynamic model access slice: routes can opt into `dynamic_models` to pass arbitrary requested model IDs through to a provider endpoint while fixed weighted routes remain deterministic.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
 Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, and shared smoke entries are in place; next harden live tool/stream semantics and any Codex-specific reasoning/caching extensions after successful live verification.
 ```
@@ -319,6 +320,7 @@ Do not copy these layers directly into llmadapter core. Port the durable concept
 - stateless unified.Client primitives consumed by agentsdk conversation/runtime layers
 - adapter-native CLI commands for serving, model/route inspection, resolving, and smoke testing
 - in-process mux client for library users that want gateway-like routing without running an HTTP server
+- explicit dynamic model pass-through routes for consumers that need full provider/modeldb access beyond deterministic aliases
 - shared e2e matrix scenarios that exercise the public outside-in surface
 ```
 

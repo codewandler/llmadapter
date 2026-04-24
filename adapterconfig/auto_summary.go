@@ -20,7 +20,7 @@ func (r AutoResult) RouteSummary(sourceAPI adapt.ApiKind, model string) (AutoRou
 		if route.SourceAPI != sourceAPI {
 			continue
 		}
-		if model != "" && route.Model != "" && route.Model != model {
+		if model != "" && !route.DynamicModels && route.Model != "" && route.Model != model {
 			continue
 		}
 		summary := AutoRouteSummary{
@@ -30,8 +30,11 @@ func (r AutoResult) RouteSummary(sourceAPI adapt.ApiKind, model string) (AutoRou
 			ProviderAPI: route.ProviderAPI,
 			NativeModel: route.NativeModel,
 		}
+		if summary.Model == "" {
+			summary.Model = model
+		}
 		if summary.NativeModel == "" {
-			summary.NativeModel = route.Model
+			summary.NativeModel = summary.Model
 		}
 		for _, provider := range r.Enabled {
 			if provider.Name == route.Provider {

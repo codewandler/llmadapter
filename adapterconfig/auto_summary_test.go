@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAutoResultRouteSummaryFromConfig(t *testing.T) {
@@ -20,10 +19,12 @@ func TestAutoResultRouteSummaryFromConfig(t *testing.T) {
 	}
 
 	summary, ok := result.RouteSummary(adapt.ApiOpenAIResponses, "default")
-	require.True(t, ok)
-	require.Equal(t, "openai_responses", summary.Provider)
-	require.Equal(t, "gpt-test", summary.NativeModel)
-	require.Equal(t, "env:OPENAI_API_KEY", summary.EnabledReason)
+	if !ok {
+		t.Fatal("expected summary")
+	}
+	if summary.Provider != "openai_responses" || summary.NativeModel != "gpt-test" || summary.EnabledReason != "env:OPENAI_API_KEY" {
+		t.Fatalf("unexpected summary: %+v", summary)
+	}
 }
 
 func TestAutoResultRouteSummaryDefaultsSourceAPI(t *testing.T) {
@@ -34,7 +35,27 @@ func TestAutoResultRouteSummaryDefaultsSourceAPI(t *testing.T) {
 	}}}}
 
 	summary, ok := result.RouteSummary("", "")
-	require.True(t, ok)
-	require.Equal(t, adapt.ApiOpenAIResponses, summary.SourceAPI)
-	require.Equal(t, "default", summary.NativeModel)
+	if !ok {
+		t.Fatal("expected summary")
+	}
+	if summary.SourceAPI != adapt.ApiOpenAIResponses || summary.NativeModel != "default" {
+		t.Fatalf("unexpected summary: %+v", summary)
+	}
+}
+
+func TestAutoResultRouteSummaryDynamicModel(t *testing.T) {
+	result := AutoResult{Config: Config{Routes: []RouteConfig{{
+		SourceAPI:     adapt.ApiOpenAIResponses,
+		Provider:      "openai_responses",
+		ProviderAPI:   adapt.ApiOpenAIResponses,
+		DynamicModels: true,
+	}}}}
+
+	summary, ok := result.RouteSummary(adapt.ApiOpenAIResponses, "gpt-new")
+	if !ok {
+		t.Fatal("expected summary")
+	}
+	if summary.Model != "gpt-new" || summary.NativeModel != "gpt-new" {
+		t.Fatalf("unexpected dynamic summary: %+v", summary)
+	}
 }

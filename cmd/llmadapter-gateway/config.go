@@ -47,6 +47,7 @@ type routeConfig struct {
 	Model              string        `json:"model,omitempty"`
 	Provider           string        `json:"provider"`
 	ProviderAPI        adapt.ApiKind `json:"provider_api,omitempty"`
+	DynamicModels      bool          `json:"dynamic_models,omitempty"`
 	ModelDBModel       string        `json:"modeldb_model,omitempty"`
 	NativeModel        string        `json:"native_model,omitempty"`
 	ModelDBWireModelID string        `json:"modeldb_wire_model_id,omitempty"`
@@ -129,7 +130,7 @@ func applyConfigDefaults(cfg *config) {
 		if cfg.Routes[i].SourceAPI == "" {
 			cfg.Routes[i].SourceAPI = adapt.ApiOpenAIChatCompletions
 		}
-		if cfg.Routes[i].NativeModel == "" {
+		if cfg.Routes[i].NativeModel == "" && !cfg.Routes[i].DynamicModels {
 			if provider, ok := findProviderForRoute(*cfg, cfg.Routes[i]); ok {
 				cfg.Routes[i].NativeModel = provider.Model
 			}
@@ -168,6 +169,9 @@ func validateConfig(cfg config) error {
 		return fmt.Errorf("at least one route is required")
 	}
 	for _, route := range cfg.Routes {
+		if route.DynamicModels && (route.Model != "" || route.NativeModel != "" || route.ModelDBModel != "" || route.ModelDBWireModelID != "") {
+			return fmt.Errorf("dynamic_models route for provider %q must not set model/native_model/modeldb_model/modeldb_wire_model_id", route.Provider)
+		}
 		if matches := countProviderEndpoints(cfg, route.Provider, route.ProviderAPI); matches == 0 {
 			return fmt.Errorf("route references unknown provider endpoint %q %q", route.Provider, route.ProviderAPI)
 		} else if matches > 1 {

@@ -96,6 +96,56 @@ func TestBuildRouterResolvesModelDBAlias(t *testing.T) {
 	}
 }
 
+func TestBuildRouterDynamicModelPassthrough(t *testing.T) {
+	cfg := Config{
+		Providers: []ProviderConfig{{
+			Name:   "openai",
+			Type:   "openai_responses",
+			APIKey: "key",
+			Model:  "configured-default",
+		}},
+		Routes: []RouteConfig{{
+			SourceAPI:     adapt.ApiOpenAIResponses,
+			Provider:      "openai",
+			ProviderAPI:   adapt.ApiOpenAIResponses,
+			DynamicModels: true,
+		}},
+	}
+	ApplyDefaults(&cfg)
+	if cfg.Routes[0].NativeModel != "" {
+		t.Fatalf("dynamic route native model default = %q", cfg.Routes[0].NativeModel)
+	}
+	r, err := BuildRouter(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified:   unified.Request{Model: "gpt-new", Stream: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.NativeModel != "gpt-new" || route.PublicModel != "gpt-new" {
+		t.Fatalf("unexpected dynamic route: %+v", route)
+	}
+}
+
+func TestValidateRejectsDynamicRouteWithFixedModel(t *testing.T) {
+	err := Validate(Config{
+		Providers: []ProviderConfig{{Name: "openai", Type: "openai_responses"}},
+		Routes: []RouteConfig{{
+			SourceAPI:     adapt.ApiOpenAIResponses,
+			Model:         "public",
+			Provider:      "openai",
+			DynamicModels: true,
+		}},
+	})
+	if err == nil {
+		t.Fatal("expected dynamic route validation error")
+	}
+}
+
 func TestEndpointWithPricingEnrichesUsageEvents(t *testing.T) {
 	catalog := modeldb.NewCatalog()
 	catalog.Offerings[modeldb.OfferingRef{ServiceID: "openai", WireModelID: "gpt-test"}] = modeldb.Offering{

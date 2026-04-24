@@ -1758,6 +1758,7 @@ Routing should consider:
 source API family
 requested model
 native model mapping
+explicit dynamic model pass-through routes
 required capabilities
 provider priority
 tenant/provider policy

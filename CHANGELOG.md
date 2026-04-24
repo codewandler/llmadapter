@@ -15,6 +15,8 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - Added `AutoResult.RouteSummary` for consumer-facing summaries of auto-detected mux route selection, including provider, provider API, public model, native model, and enabled-provider reason.
+- Added explicit `dynamic_models` route support for pass-through access to arbitrary provider-native model IDs.
+- Added auto-config dynamic route generation behind `adapterconfig.AutoOptions.DynamicModels`.
 
 ## [0.41.0] - 2026-04-24
 

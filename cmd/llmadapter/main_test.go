@@ -157,6 +157,22 @@ func TestResolveCommandJSONWithConfig(t *testing.T) {
 	}
 }
 
+func TestResolveCommandWithDynamicRoute(t *testing.T) {
+	path := writeTestDynamicConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"resolve", "gpt-new", "--config", path})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{"Matched as:   dynamic_model", "Native model: gpt-new", "Provider API: openai.responses"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestServeInspectConfigCommand(t *testing.T) {
 	path := writeTestConfig(t)
 	var out, errOut bytes.Buffer
@@ -214,4 +230,17 @@ func writeTestCatalogConfig(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return configPath
+}
+
+func writeTestDynamicConfig(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "llmadapter.json")
+	data := []byte(`{
+		"providers":[{"name":"openai","type":"openai_responses","api_key":"test","model":"gpt-test"}],
+		"routes":[{"source_api":"openai.responses","provider":"openai","dynamic_models":true,"weight":1}]
+	}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
