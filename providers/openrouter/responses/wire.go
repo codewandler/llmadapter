@@ -12,19 +12,32 @@ type requestWire struct {
 	TopK            *int            `json:"top_k,omitempty"`
 	Stream          bool            `json:"stream,omitempty"`
 	User            string          `json:"user,omitempty"`
+	Tools           []toolWire      `json:"tools,omitempty"`
+	ToolChoice      any             `json:"tool_choice,omitempty"`
 }
 
 type inputItemWire struct {
-	Type    string            `json:"type"`
-	Role    string            `json:"role"`
-	ID      string            `json:"id,omitempty"`
-	Status  string            `json:"status,omitempty"`
-	Content []contentPartWire `json:"content,omitempty"`
+	Type      string            `json:"type"`
+	Role      string            `json:"role,omitempty"`
+	ID        string            `json:"id,omitempty"`
+	Status    string            `json:"status,omitempty"`
+	Content   []contentPartWire `json:"content,omitempty"`
+	CallID    string            `json:"call_id,omitempty"`
+	Name      string            `json:"name,omitempty"`
+	Arguments string            `json:"arguments,omitempty"`
+	Output    string            `json:"output,omitempty"`
 }
 
 type contentPartWire struct {
 	Type string `json:"type"`
 	Text string `json:"text,omitempty"`
+}
+
+type toolWire struct {
+	Type        string          `json:"type"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Parameters  json.RawMessage `json:"parameters,omitempty"`
 }
 
 type eventWire struct {
@@ -36,6 +49,7 @@ type eventWire struct {
 	Response     *responseWire    `json:"response,omitempty"`
 	Item         *outputItemWire  `json:"item,omitempty"`
 	Part         *contentPartWire `json:"part,omitempty"`
+	Arguments    string           `json:"arguments,omitempty"`
 	Error        *errorWire       `json:"error,omitempty"`
 	Raw          json.RawMessage  `json:"-"`
 }
@@ -49,11 +63,14 @@ type responseWire struct {
 }
 
 type outputItemWire struct {
-	ID      string            `json:"id,omitempty"`
-	Type    string            `json:"type,omitempty"`
-	Role    string            `json:"role,omitempty"`
-	Status  string            `json:"status,omitempty"`
-	Content []contentPartWire `json:"content,omitempty"`
+	ID        string            `json:"id,omitempty"`
+	Type      string            `json:"type,omitempty"`
+	Role      string            `json:"role,omitempty"`
+	Status    string            `json:"status,omitempty"`
+	Content   []contentPartWire `json:"content,omitempty"`
+	CallID    string            `json:"call_id,omitempty"`
+	Name      string            `json:"name,omitempty"`
+	Arguments string            `json:"arguments,omitempty"`
 }
 
 type usageWire struct {

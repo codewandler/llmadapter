@@ -97,7 +97,7 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		tools        bool
 	}{
 		{"openrouter_chat", adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, true},
-		{"openrouter_responses", adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, false},
+		{"openrouter_responses", adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, true},
 		{"openrouter_messages", adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, true},
 	}
 	for _, tt := range tests {

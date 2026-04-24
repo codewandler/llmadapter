@@ -264,6 +264,7 @@ func smokeProviders() []smokeProvider {
 			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
 			modelEnv:  "OPENROUTER_RESPONSES_MODEL",
 			model:     "openai/gpt-4.1-mini",
+			tools:     true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey(apiKey))
 			},

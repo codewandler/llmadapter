@@ -100,7 +100,7 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 	case "openrouter_chat":
 		return adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true}, nil
 	case "openrouter_responses":
-		return adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, router.CapabilitySet{Streaming: true}, nil
+		return adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, router.CapabilitySet{Streaming: true, Tools: true}, nil
 	case "openrouter_messages":
 		return adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true}, nil
 	default:
