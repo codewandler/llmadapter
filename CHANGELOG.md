@@ -10,6 +10,10 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- Documented the next highest-priority planning track for `modeldb` catalog integration, Claude OAuth compatibility, structured usage/pricing, prompt caching, optional conversation/session support, and a repo-native CLI.
+
 ## [0.24.0] - 2026-04-24
 
 ### Added

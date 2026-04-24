@@ -96,13 +96,15 @@ Therefore, the design must support:
 - stateful event transformation;
 - raw/unmapped event preservation where requested.
 
-The following are explicitly out of scope for the core design:
+The following are explicitly out of scope for the core adapter/gateway design:
 
-- multi-turn conversation/session management (callers manage message history);
+- owning multi-turn conversation/session state inside the router or gateway;
 - automatic token counting or context window management;
 - multiple choices per request (`n > 1`) as a first-class unified concept;
 - metadata and auxiliary endpoints such as `/v1/models` or `/api/tags` (these may be added as simple handlers later but are not part of the core pipeline design);
 - true realtime bidirectional APIs.
+
+Conversation/session helpers, pricing, catalog-backed metadata, and usage accounting may be added as optional layers around `unified.Client` and `unified.Event` streams. They must not require the router or gateway to keep hidden per-conversation state.
 
 ---
 
@@ -1747,6 +1749,31 @@ provider priority
 tenant/provider policy
 strict versus best-effort mode
 ```
+
+### Catalog-backed provider endpoint metadata
+
+A model catalog such as `github.com/codewandler/modeldb` can enrich provider endpoints and routes, but it should not replace the provider endpoint abstraction.
+
+Mapping rule:
+
+```text
+modeldb.Service       -> provider/service identity such as anthropic, openai, openrouter
+modeldb.Offering      -> service-specific wire model ID and pricing
+modeldb.OfferingExposure -> callable API surface and exposed capabilities
+llmadapter.ProviderEndpoint -> configured client + exact API kind + family + capabilities
+```
+
+Runtime routing should target a configured `ProviderEndpoint`. Catalog data may fill or validate `ProviderEndpoint.Capabilities`, model limits, native model IDs, and pricing metadata. It should not implicitly create credentials, clients, or hidden routes.
+
+`modeldb.APIType` maps to llmadapter families, not necessarily exact provider API kinds:
+
+```text
+anthropic-messages -> FamilyAnthropicMessages
+openai-chat        -> FamilyOpenAIChatCompletions
+openai-responses   -> FamilyOpenAIResponses
+```
+
+The exact `ApiKind` still comes from the provider endpoint. For example, an OpenRouter Responses exposure maps to `FamilyOpenAIResponses`, but the endpoint remains `ApiOpenRouterResponses`.
 
 ---
 

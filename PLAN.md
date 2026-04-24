@@ -216,6 +216,11 @@ Provider support is currently strong for text + function-tool loops, OpenAI-fami
 OpenRouter extension passthrough is centralized raw JSON preservation; extension schemas and validation are intentionally deferred
 streaming provider errors after response start need a final policy; current behavior marks the route unhealthy and returns because the endpoint-shaped response has already started
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
+modeldb is not integrated yet; provider endpoint capabilities still come from hardcoded family defaults plus manual config overrides
+usage is currently flattened into token totals; it does not yet carry a structured token-item/cost-item breakdown suitable for pricing and cache accounting
+prompt caching is only decoded from provider usage counters; canonical request-side cache hints and provider-specific cache controls are not modeled yet
+stateful conversations are intentionally absent from llmadapter core; any conversation/session layer must wrap unified.Client instead of mutating gateway/router state
+Claude Code/CLI OAuth compatibility is not implemented; current Anthropic support only covers API-key style Messages access
 ```
 
 Implementation assessment:
@@ -225,13 +230,198 @@ Foundation is solid for a vertical-slice adapter: canonical request/event model,
 Main intentional shortcuts are hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
 Important remaining test gaps: invalid credentials/models, probabilistic load balancing, parallel tool calls, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
+Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing model catalog integration, alias/intent resolution, structured cost accounting, stateful conversations, provider registry auto-detection, Claude OAuth compatibility, and a broader integration matrix.
 ```
 
 Next planned phase:
 
 ```text
-MiniMax provider continuation: validate MiniMax Chat tool-use/tool-result continuation before advertising tools
-Endpoint continuation: expand downstream endpoint conformance beyond the minimal text/tool slices
+Priority: the modeldb, Claude compatibility, caching, usage/pricing, conversation, and CLI tracks below are the highest-priority work items for the next implementation rounds.
+Model/catalog integration: add a modeldb-backed read-only metadata layer for provider endpoint capability, exposure, limit, and pricing lookup without letting modeldb create hidden routes or clients.
+Structured usage/cost accounting: upgrade canonical usage events to preserve token categories and optional cost items, then add a modeldb-priced event processor.
+Claude compatibility: add a Claude Code/CLI OAuth auth mode as an Anthropic Messages-compatible provider endpoint under provider name "claude".
+Conversation layer: add an optional package above unified.Client for stateful sessions, replay/native continuation, cache policy, and commit-safe history, keeping gateway/router stateless.
+CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
+Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
+```
+
+Prototype parity notes from ../agentapis and ../llmproviders:
+
+```text
+agentapis has a richer canonical stream shape than llmadapter today:
+- TokenItems with input.new, input.cache_read, input.cache_write, output, and output.reasoning categories
+- CostItems derived from usage through an injected CostCalculator
+- request identity, cache hints, request extras, and protocol-specific cache/prompt controls
+- stateful conversation.Session with committed canonical history, replay versus previous_response_id strategies, MessageProjector hooks, prompt cache keys, and commit callbacks
+- conversation-level tests for tool loops, multi-turn memory, usage/cost enrichment, and cache policy behavior
+
+llmproviders has a higher-level provider service layer than llmadapter today:
+- modeldb-backed service/offering/model lookup
+- provider registry detection and construction from local credentials/API keys
+- alias and intent resolution such as fast/default/powerful and sonnet/opus/haiku
+- cost-aware provider wrappers using modeldb pricing
+- Claude OAuth as an Anthropic service instance named "claude"
+- broader provider targets, including OpenAI Codex, Ollama, DockerMR/local runtime probes, OpenRouter model metadata, and a shared integration matrix
+
+Do not copy these layers directly into llmadapter core. Port the durable concepts behind small seams:
+- modeldb catalog adapter for endpoint metadata and pricing
+- event processor for cost enrichment
+- provider auth options for Claude OAuth compatibility
+- optional conversation package that wraps unified.Client
+- adapter-native CLI commands for serving, model/route inspection, resolving, and smoke testing
+- shared e2e matrix scenarios that exercise the public outside-in surface
+```
+
+CLI plan:
+
+```text
+Goal: provide a repo-native CLI comparable to ../llmproviders/llmcli while preserving llmadapter's architecture.
+
+Target binary:
+- cmd/llmadapter or cmd/llmadapter-cli; keep cmd/llmadapter-gateway working until the new CLI can subsume it
+
+Initial commands:
+1. serve
+   - start the compatibility gateway
+   - accept the same LLMADAPTER_CONFIG config path and listen address overrides
+   - expose /v1/chat/completions, /v1/responses, and /v1/messages
+2. models
+   - list configured provider endpoints and native/public models
+   - once modeldb is integrated, show catalog service/offering/exposure metadata
+3. resolve
+   - explain how a public model/API request maps to provider endpoint, API kind, family, native model, capabilities, and route weight/priority
+4. providers
+   - list configured providers, provider endpoint types, API kinds, health status, and credential source names without printing secrets
+5. smoke
+   - run a minimal outside-in request against one configured route for text streaming and optionally tools
+6. catalog
+   - wrap modeldb catalog inspection once modeldb is an explicit dependency
+
+Non-goals for the first CLI slice:
+- provider auto-detection from local credentials
+- interactive agent REPL
+- hidden provider registry separate from gateway config
+- full replacement for go test e2e matrix
+
+Design rule: CLI commands are operator ergonomics over configured provider endpoints. They must use the same route/config/modeldb metadata path as the gateway so CLI behavior does not drift from server behavior.
+```
+
+modeldb integration plan:
+
+```text
+Research finding: ../modeldb is a standalone catalog package with ModelRecord, Offering, OfferingExposure, Service, Runtime, Pricing, Capabilities, APIType, ServiceView, RuntimeView, selectors, preference overlays, and built-in catalog loading.
+Important modeldb rule: runtime invocation should target an OfferingExposure, not just a logical model or offering.
+
+Initial integration goals:
+1. Add an internal or public catalog bridge package that imports github.com/codewandler/modeldb.
+2. Map modeldb.APIType to llmadapter adapt.ApiFamily/adapt.ApiKind candidates:
+   - anthropic-messages -> FamilyAnthropicMessages
+   - openai-chat -> FamilyOpenAIChatCompletions
+   - openai-responses -> FamilyOpenAIResponses
+   - openai-messages remains future/experimental until llmadapter has an exact endpoint family
+3. Map modeldb OfferingExposure.ExposedCapabilities into router.CapabilitySet:
+   - streaming -> Streaming
+   - tool_use -> Tools
+   - parallel_tool_calls -> ParallelTools
+   - structured_output/structured_outputs -> JSONSchema/JSONMode depending on supported parameters
+   - vision -> Vision
+   - reasoning availability and modes -> Reasoning/ReasoningDeltas when the endpoint codec supports them
+   - caching availability -> PromptCaching, not automatic request cache behavior
+   - limits -> MaxInputTokens/MaxOutputTokens
+4. Use ServiceID + WireModelID + APIType to enrich configured provider endpoints and routes.
+5. Keep credentials and clients explicit in gateway config; the catalog may select metadata and native model IDs, but it must not secretly instantiate providers.
+6. Add modeldb preference/alias support only after the explicit metadata path works:
+   - resolve public aliases like sonnet/haiku through ServiceView
+   - support intent aliases such as fast/default/powerful as user config, not built-in magic
+   - allow operator preference overlays to rank service/model offerings before route weights
+7. Add catalog-driven validation tests with a small fixture catalog before using the built-in catalog in gateway tests.
+
+Non-goals for the first modeldb slice:
+- dynamic provider detection
+- automatic model downloads/local runtime acquisition
+- replacing explicit gateway routes
+- route mutation based on live pricing or provider health
+```
+
+Claude-as-Anthropic-subset plan:
+
+```text
+Goal: support provider name "claude" as an Anthropic Messages-compatible provider endpoint implemented by the Anthropic Messages client with different auth, headers, and request transforms.
+
+Provider endpoint shape:
+- ProviderName: "claude"
+- APIKind: anthropic.messages unless an exact claude OAuth API kind becomes necessary later
+- Family: anthropic.messages
+- modeldb ServiceID: anthropic, because the model catalog/offering identity is still Anthropic Claude models
+- capabilities: derived from Anthropic Messages exposure plus Claude OAuth compatibility tests
+
+Required implementation pieces:
+1. Add an Anthropic auth abstraction to providers/anthropic/messages:
+   - API key auth writes x-api-key
+   - OAuth auth writes Authorization: Bearer <access token>
+   - TokenProvider and TokenStore interfaces for refreshable OAuth tokens
+2. Add local Claude credential support:
+   - respect CLAUDE_CONFIG_DIR when set
+   - otherwise read ~/.claude/.credentials.json
+   - preserve unknown JSON fields on token refresh
+   - refresh through Anthropic/Claude OAuth token endpoint when expired
+3. Add Claude compatibility headers and query behavior:
+   - Anthropic-Version remains required
+   - Anthropic-Beta must include Claude/OAuth/interleaved-thinking/context-management/prompt-caching/effort betas
+   - add Claude CLI-style User-Agent, X-App, X-Stainless-* headers, direct browser access header, Accept-Encoding, and beta=true query parameter
+4. Add Claude request transforms:
+   - prepend Claude billing/system preflight system blocks
+   - set metadata user_id derived from ~/.claude.json device/account/session data when available
+   - optionally add cache_control to the last system block with default TTL
+   - coerce thinking temperature to an Anthropic-valid value when extended thinking is enabled
+5. Add gateway config provider type "claude_messages".
+6. Add e2e tests gated by TEST_INTEGRATION and local Claude credentials:
+   - text stream
+   - thinking stream
+   - prompt cache write/read behavior
+   - tool use/tool result continuation if Claude OAuth account supports it
+
+Safety rule: Claude OAuth compatibility stays an Anthropic provider option/sub-provider, not a new canonical API family. Only split a new API kind if the wire request/stream format diverges from Anthropic Messages.
+```
+
+Caching, usage, pricing, and conversation integration plan:
+
+```text
+Design constraint: llmadapter core and gateway remain stateless per request. Stateful conversations, cache policy, and cost attribution are additive layers around unified.Client and unified.Event streams.
+
+Usage/cost foundation:
+1. Replace or extend flat unified.UsageEvent counters with structured token categories:
+   - input.new
+   - input.cache_read
+   - input.cache_write
+   - output
+   - output.reasoning
+2. Preserve flattened counters for endpoint wire compatibility, but derive them from the structured items.
+3. Add optional cost items:
+   - input
+   - input.cache_read
+   - input.cache_write
+   - output
+   - reasoning
+   - future image/audio/video/request/web_search categories
+4. Add a cost calculator/event processor that looks up modeldb Offering.Pricing by service/provider endpoint and native model ID.
+5. Keep pricing absent-safe: if catalog pricing is missing, emit usage without costs.
+
+Prompt caching:
+1. Add canonical request/message cache hints only where they map to real provider controls.
+2. Encode Anthropic-style per-message/block cache_control through Anthropic-family codecs.
+3. Encode OpenAI Responses prompt_cache_key and prompt_cache_retention through Responses-family codecs.
+4. Keep OpenAI implicit caching observational only unless a request-side parameter exists.
+5. Test cache accounting using provider-reported cache_read/cache_write tokens, not local token estimation.
+
+Conversations:
+1. Add a separate conversation package that depends on unified.Client, not gateway internals.
+2. Session owns committed canonical history, pending turn projection, and in-flight turn protection.
+3. Failed/incomplete turns must not mutate committed history.
+4. Support replay strategy for stateless providers and previous_response_id strategy for OpenAI Responses-compatible providers.
+5. Use MessageProjector hooks for provider/service-specific replay constraints such as OpenRouter Responses quirks.
+6. Use session IDs for prompt_cache_key where supported, but do not leak session state into router health or provider endpoint selection.
+7. Add outside-in e2e scenarios for one-shot text, tool roundtrip, usage reported, costs present, multi-turn memory, and prompt-cache behavior.
 ```
 
 MiniMax research notes:

@@ -23,6 +23,8 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 - Route to provider endpoints, not just providers.
 - Keep `ProviderName`, `APIKind`, `ApiFamily`, `Client`, and `CapabilitySet` explicit.
 - Treat default capabilities as endpoint-family defaults; use config overrides or tests before advertising model-specific features.
+- Treat model catalog data as metadata for configured provider endpoints, not as hidden provider/client construction.
+- Keep pricing/cost enrichment and stateful conversation/session handling outside the stateless gateway/router path.
 - Do not collapse OpenRouter-style multi-surface providers into one API kind.
 - Preserve unsupported/lossy fields via warnings or namespaced `unified.Request.Extensions` rather than silently pretending support.
 - Prefer stream-first provider clients; endpoint codecs can collect when they need non-streaming responses.
