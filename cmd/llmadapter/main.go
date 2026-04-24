@@ -55,10 +55,19 @@ func run(args []string) error {
 
 func newProvidersCommand() *cobra.Command {
 	var jsonOut bool
+	var auto bool
+	var status bool
+	var configPath string
 	cmd := &cobra.Command{
 		Use:   "providers",
-		Short: "List registered provider endpoint types",
+		Short: "List provider endpoint types or credential status",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if auto {
+				return runProvidersAuto(cmd.OutOrStdout(), jsonOut)
+			}
+			if status || configPath != "" {
+				return runProvidersStatus(cmd.OutOrStdout(), configPath, jsonOut)
+			}
 			descriptors := providerregistry.List()
 			if jsonOut {
 				return writeJSON(cmd.OutOrStdout(), descriptors)
@@ -72,6 +81,9 @@ func newProvidersCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print providers as JSON")
+	cmd.Flags().BoolVar(&auto, "auto", false, "show auto-detected provider endpoint credential status")
+	cmd.Flags().BoolVar(&status, "status", false, "show configured provider credential status")
+	cmd.Flags().StringVar(&configPath, "config", "", "llmadapter JSON config path for --status")
 	return cmd
 }
 
@@ -325,6 +337,17 @@ type modelInfo struct {
 	ProviderAPI adapt.ApiKind `json:"provider_api,omitempty"`
 }
 
+type providerStatusInfo struct {
+	Name             string          `json:"name"`
+	Type             string          `json:"type"`
+	APIKind          adapt.ApiKind   `json:"api_kind,omitempty"`
+	Family           adapt.ApiFamily `json:"family,omitempty"`
+	Model            string          `json:"model,omitempty"`
+	Status           string          `json:"status"`
+	Reason           string          `json:"reason,omitempty"`
+	CredentialSource string          `json:"credential_source,omitempty"`
+}
+
 type resolutionInfo struct {
 	Input          string               `json:"input"`
 	MatchedAs      string               `json:"matched_as"`
@@ -371,6 +394,124 @@ type serveRouteInspection struct {
 	ModelDBModel       string        `json:"modeldb_model,omitempty"`
 	ModelDBWireModelID string        `json:"modeldb_wire_model_id,omitempty"`
 	Weight             int           `json:"weight,omitempty"`
+}
+
+func runProvidersAuto(w io.Writer, jsonOut bool) error {
+	result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
+		EnableEnv:         true,
+		EnableLocalClaude: true,
+		UseModelDB:        true,
+	})
+	if err != nil && len(result.Enabled) == 0 && len(result.Skipped) == 0 {
+		return err
+	}
+	statuses := make([]providerStatusInfo, 0, len(result.Enabled)+len(result.Skipped))
+	for _, provider := range result.Enabled {
+		statuses = append(statuses, providerStatusInfo{
+			Name:             provider.Name,
+			Type:             provider.Type,
+			APIKind:          provider.API,
+			Model:            provider.Model,
+			Status:           "enabled",
+			Reason:           provider.Reason,
+			CredentialSource: provider.Reason,
+		})
+	}
+	for _, provider := range result.Skipped {
+		statuses = append(statuses, providerStatusInfo{
+			Name:    provider.Name,
+			Type:    provider.Type,
+			APIKind: provider.API,
+			Model:   provider.Model,
+			Status:  "skipped",
+			Reason:  provider.Reason,
+		})
+	}
+	if jsonOut {
+		return writeJSON(w, map[string]any{"providers": statuses})
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "TYPE\tAPI_KIND\tSTATUS\tSOURCE\tMODEL")
+	for _, provider := range statuses {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", provider.Type, provider.APIKind, provider.Status, provider.Reason, provider.Model)
+	}
+	return tw.Flush()
+}
+
+func runProvidersStatus(w io.Writer, configPath string, jsonOut bool) error {
+	var (
+		cfg adapterconfig.Config
+		err error
+	)
+	if configPath != "" {
+		cfg, err = adapterconfig.Load(configPath)
+	} else {
+		cfg, err = adapterconfig.LoadFromEnv()
+	}
+	if err != nil {
+		return err
+	}
+	statuses := configuredProviderStatuses(cfg)
+	if jsonOut {
+		return writeJSON(w, map[string]any{"providers": statuses})
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "NAME\tTYPE\tAPI_KIND\tSTATUS\tSOURCE\tMODEL")
+	for _, provider := range statuses {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", provider.Name, provider.Type, provider.APIKind, provider.Status, provider.CredentialSource, provider.Model)
+	}
+	return tw.Flush()
+}
+
+func configuredProviderStatuses(cfg adapterconfig.Config) []providerStatusInfo {
+	out := make([]providerStatusInfo, 0, len(cfg.Providers))
+	for _, provider := range cfg.Providers {
+		endpoint, err := adapterconfig.ProviderEndpointConfig(provider)
+		info := providerStatusInfo{
+			Name:             provider.Name,
+			Type:             provider.Type,
+			Model:            provider.Model,
+			Status:           "configured",
+			CredentialSource: credentialSource(provider),
+		}
+		if err != nil {
+			info.Status = "invalid"
+			info.Reason = err.Error()
+		} else {
+			info.APIKind = endpoint.APIKind
+			info.Family = endpoint.Family
+		}
+		out = append(out, info)
+	}
+	return out
+}
+
+func credentialSource(provider adapterconfig.ProviderConfig) string {
+	if provider.APIKey != "" {
+		return "inline_api_key"
+	}
+	if provider.APIKeyEnv != "" {
+		if os.Getenv(provider.APIKeyEnv) != "" {
+			return "env:" + provider.APIKeyEnv + ":set"
+		}
+		return "env:" + provider.APIKeyEnv + ":missing"
+	}
+	descriptor, ok := providerregistry.Lookup(provider.Type)
+	if !ok {
+		return "unknown"
+	}
+	for _, key := range descriptor.DefaultAPIKeyEnvs {
+		if os.Getenv(key) != "" {
+			return "env:" + key + ":set"
+		}
+	}
+	if provider.Type == "claude_messages" {
+		return "local_claude_oauth_or_default_env"
+	}
+	if len(descriptor.DefaultAPIKeyEnvs) != 0 {
+		return "default_env:missing"
+	}
+	return "none"
 }
 
 func loadCLIConfig(path string, sourceAPI adapt.ApiKind) (adapterconfig.Config, error) {

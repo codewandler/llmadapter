@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-04-24
+
+### Added
+
+- Added `llmadapter providers --auto` for redacted auto-detected provider credential status.
+- Added `llmadapter providers --status --config <path>` for redacted configured provider credential status.
+
 ## [0.38.0] - 2026-04-24
 
 ### Changed

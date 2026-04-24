@@ -60,7 +60,7 @@ Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved 
 Provider registry slice: shared `providerregistry` package lists endpoint types and can construct direct provider clients for CLI/library use
 Mux client slice: `muxclient` provides a stateless unified.Client over router/provider endpoints with native model rewrite and pre-stream fallback
 Adapter config slice: `adapterconfig` exposes JSON config loading/defaulting/validation plus config-driven muxclient construction with modeldb alias resolution, capability metadata, and pricing processors
-CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types, inspect configured/auto-detected routes and models, explain route resolution, run the gateway server, and run minimal direct, manual mux-routed, config-driven mux, or auto-detected mux text smoke requests
+CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types, inspect redacted provider credential status, inspect configured/auto-detected routes and models, explain route resolution, run the gateway server, and run minimal direct, manual mux-routed, config-driven mux, or auto-detected mux text smoke requests
 Container slice: Dockerfile builds a standalone `llmadapter` image that runs `llmadapter serve`
 Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
@@ -334,7 +334,7 @@ Initial commands:
 3. resolve
    - explain how a public model/API request maps to provider endpoint, API kind, family, native model, capabilities, and route weight/priority (implemented)
 4. providers
-   - list provider endpoint types and API metadata (implemented); next add configured provider credential source/status inspection without printing secrets
+   - list provider endpoint types and API metadata, plus redacted auto/configured credential status without printing secrets (implemented)
 5. smoke
    - run a minimal outside-in request against one provider endpoint for text streaming (implemented for direct provider endpoints, single-route mux mode, config-driven mux mode, and auto-detected mux mode)
 6. catalog

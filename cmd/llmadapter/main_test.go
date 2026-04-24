@@ -20,6 +20,39 @@ func TestProvidersJSONCommand(t *testing.T) {
 	}
 }
 
+func TestProvidersStatusCommandWithConfig(t *testing.T) {
+	path := writeTestConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"providers", "--status", "--config", path})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{"NAME", "openai", "openai_responses", "inline_api_key"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `"api_key"`) || strings.Contains(got, " test ") {
+		t.Fatalf("provider status leaked api key:\n%s", got)
+	}
+}
+
+func TestProvidersAutoCommandReportsSkippedWithoutCredentials(t *testing.T) {
+	clearProviderStatusEnv(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"providers", "--auto"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "skipped") || !strings.Contains(got, "missing env credentials") {
+		t.Fatalf("unexpected output:\n%s", got)
+	}
+}
+
 func TestRoutesCommandWithConfig(t *testing.T) {
 	path := writeTestConfig(t)
 	var out, errOut bytes.Buffer
@@ -34,6 +67,25 @@ func TestRoutesCommandWithConfig(t *testing.T) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
 	}
+}
+
+func clearProviderStatusEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		"ANTHROPIC_API_KEY",
+		"CLAUDE_ACCESS_TOKEN",
+		"CLAUDE_CODE_OAUTH_TOKEN",
+		"CLAUDE_CONFIG_DIR",
+		"MINIMAX_API_KEY",
+		"MINIMAX_KEY",
+		"OPENAI_API_KEY",
+		"OPENAI_KEY",
+		"OPENROUTER_API_KEY",
+		"OPENROUTER_KEY",
+	} {
+		t.Setenv(key, "")
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 }
 
 func TestModelsCommandWithConfigAndQuery(t *testing.T) {

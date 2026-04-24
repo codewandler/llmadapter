@@ -67,6 +67,7 @@ The main CLI command is `cmd/llmadapter`.
 Initial commands:
 
 - `llmadapter providers` lists registered provider endpoint types, API kinds, families, model env vars, and default smoke models.
+- `llmadapter providers --auto` shows redacted auto-detected provider credential status; `--status --config <path>` does the same for a config file.
 - `llmadapter routes` lists configured or auto-detected source API to provider endpoint routes; pass `--config` to inspect a JSON config instead of auto-detected credentials.
 - `llmadapter models` lists public/native model mappings from configured or auto-detected routes; pass `--query` to filter.
 - `llmadapter resolve <model>` explains which source API route, provider endpoint, API family, native model, modeldb service, and capabilities will be used.
