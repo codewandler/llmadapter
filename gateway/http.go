@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/router"
@@ -20,6 +21,7 @@ type Endpoint interface {
 type Handler struct {
 	Endpoint Endpoint
 	Router   router.Router
+	Health   *HealthTracker
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -36,23 +38,27 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var failures []error
-	for _, route := range routes {
+	for _, route := range orderByHealth(routes, h.Health) {
 		attempt := req
 		if route.NativeModel != "" {
 			attempt.Unified.Model = route.NativeModel
 		}
 		events, err := route.Client.Request(ctx, attempt.Unified)
 		if err != nil {
+			h.Health.MarkFailure(route)
 			failures = append(failures, routeError(route, err))
 			continue
 		}
 		if err := h.Endpoint.WriteEvents(ctx, tw, attempt, events); err != nil {
 			if tw.wrote {
+				h.Health.MarkFailure(route)
 				return
 			}
+			h.Health.MarkFailure(route)
 			failures = append(failures, routeError(route, err))
 			continue
 		}
+		h.Health.MarkSuccess(route)
 		return
 	}
 	if err := errors.Join(failures...); err != nil {
@@ -74,6 +80,23 @@ func routeCandidates(ctx context.Context, r router.Router, req adapt.Request) ([
 
 func routeError(route router.Route, err error) error {
 	return fmt.Errorf("provider %s/%s failed: %w", route.ProviderName, route.TargetAPI, err)
+}
+
+func orderByHealth(routes []router.Route, health *HealthTracker) []router.Route {
+	if health == nil || len(routes) < 2 {
+		return routes
+	}
+	now := time.Now()
+	ordered := make([]router.Route, 0, len(routes))
+	var unhealthy []router.Route
+	for _, route := range routes {
+		if health.unhealthy(route, now) {
+			unhealthy = append(unhealthy, route)
+			continue
+		}
+		ordered = append(ordered, route)
+	}
+	return append(ordered, unhealthy...)
 }
 
 type trackingResponseWriter struct {

@@ -48,6 +48,7 @@ OpenAI Responses structured-output slice: OpenAI Responses endpoint decode and O
 Endpoint image decode slice: OpenAI Chat, OpenAI Responses, and Anthropic Messages endpoint codecs preserve supported image inputs as canonical ImagePart values
 Provider image passthrough slice: OpenAI Chat-compatible providers, OpenRouter Responses, and Anthropic-compatible providers encode supported canonical image inputs upstream; gateway metadata advertises vision on those endpoint families
 Tool argument hardening slice: OpenAI Chat and OpenAI Responses endpoint codecs replace malformed tool-call argument JSON with an empty object and retain decode warnings
+Gateway health slice: gateway command shares an in-memory health tracker that temporarily deprioritizes failed provider endpoints during a cooldown window
 ```
 
 Verified:
@@ -194,7 +195,7 @@ Anthropic request mapping covers the phase-3 vertical slice, not the full Messag
 non-streaming Anthropic response bodies are not yet modeled separately from stream events
 SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
 Raw/unmapped event preservation is minimal and should be expanded before gateway work
-router is static and now includes capability checks plus deterministic weighted ranking; gateway retries pre-response provider failures, but there is no probabilistic load balancing, active health scoring, or capability conversion policy yet
+router is static and now includes capability checks plus deterministic weighted ranking; gateway retries pre-response provider failures and temporarily deprioritizes failed endpoints, but there is no probabilistic load balancing or capability conversion policy yet
 gateway config is intentionally minimal; routes can disambiguate same-provider endpoints with provider_api, but there is no full registry yet
 OpenAI provider is stream-first and covers smoke-tested text and tool-use paths
 OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
@@ -217,7 +218,7 @@ Implementation assessment:
 Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, deterministic weighted routing, pre-response gateway fallback, fake transport unit tests, and live outside-in e2e tests are all working.
 Main intentional shortcuts are hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
-Important remaining test gaps: invalid credentials/models, active health scoring, parallel tool calls, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
+Important remaining test gaps: invalid credentials/models, probabilistic load balancing, parallel tool calls, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
 ```
 
 Next planned phase:

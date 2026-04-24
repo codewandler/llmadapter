@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
 	anthropicendpoint "github.com/codewandler/llmadapter/endpoints/anthropicmessages"
@@ -38,17 +39,21 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	health := gateway.NewHealthTracker(30 * time.Second)
 	mux.Handle("/v1/chat/completions", gateway.Handler{
 		Endpoint: chat.Codec{},
 		Router:   r,
+		Health:   health,
 	})
 	mux.Handle("/v1/messages", gateway.Handler{
 		Endpoint: anthropicendpoint.Codec{},
 		Router:   r,
+		Health:   health,
 	})
 	mux.Handle("/v1/responses", gateway.Handler{
 		Endpoint: responsesendpoint.Codec{},
 		Router:   r,
+		Health:   health,
 	})
 
 	log.Printf("llmadapter gateway listening on %s", cfg.Addr)

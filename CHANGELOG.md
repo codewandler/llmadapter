@@ -15,6 +15,7 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - **Tool argument decode hardening** - OpenAI Chat and OpenAI Responses endpoint codecs now replace malformed tool-call argument JSON with `{}` and retain decode warnings instead of carrying invalid JSON forward.
+- **Gateway health tracking** - Gateway handlers now mark failed provider endpoints unhealthy for a cooldown window and temporarily deprioritize them while keeping them as last-resort candidates.
 
 ## [0.21.0] - 2026-04-24
 

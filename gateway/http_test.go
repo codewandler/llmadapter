@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
@@ -162,6 +163,61 @@ func TestHandlerFallsBackWhenEndpointReturnsErrorBeforeResponseStarts(t *testing
 		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
 	}
 	if primary.calls != 1 || fallback.calls != 1 {
+		t.Fatalf("calls primary=%d fallback=%d", primary.calls, fallback.calls)
+	}
+	if !strings.Contains(w.Body.String(), `"content":"fallback"`) {
+		t.Fatalf("unexpected response body: %s", w.Body.String())
+	}
+}
+
+func TestHandlerDeprioritizesRecentlyFailedRoute(t *testing.T) {
+	primary := &staticClient{events: []unified.Event{
+		unified.MessageStartEvent{ID: "msg", Model: "primary-model"},
+		unified.TextDeltaEvent{Index: 0, Text: "primary"},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	fallback := &staticClient{events: []unified.Event{
+		unified.MessageStartEvent{ID: "msg", Model: "fallback-model"},
+		unified.TextDeltaEvent{Index: 0, Text: "fallback"},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	health := NewHealthTracker(time.Minute)
+	primaryRoute := router.StaticRoute{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Weight:    100,
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: "primary",
+			APIKind:      adapt.ApiOpenAIChatCompletions,
+			Family:       adapt.FamilyOpenAIChatCompletions,
+			Client:       primary,
+		},
+	}
+	health.MarkFailure(router.Route{ProviderName: "primary", TargetAPI: adapt.ApiOpenAIChatCompletions})
+	handler := Handler{Endpoint: chat.Codec{}, Health: health, Router: router.NewStaticRouter(
+		primaryRoute,
+		router.StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Weight:    10,
+			Endpoint: router.ProviderEndpoint{
+				ProviderName: "fallback",
+				APIKind:      adapt.ApiOpenAIChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       fallback,
+			},
+		},
+	)}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
+		"model":"model",
+		"messages":[{"role":"user","content":"ping"}]
+	}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	if primary.calls != 0 || fallback.calls != 1 {
 		t.Fatalf("calls primary=%d fallback=%d", primary.calls, fallback.calls)
 	}
 	if !strings.Contains(w.Body.String(), `"content":"fallback"`) {

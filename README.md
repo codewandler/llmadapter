@@ -77,6 +77,8 @@ Provider endpoint = provider + API kind + family + client + capabilities.
 
 Routes skip provider endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input, then rank the remaining candidates by configured weight and endpoint priority. If the selected provider fails before response bytes are written, the gateway retries lower-ranked route candidates.
 
+The gateway command shares an in-memory health tracker across endpoints and temporarily deprioritizes provider endpoints that fail before response completion.
+
 OpenAI Chat-compatible `response_format` requests and OpenAI Responses `text.format` requests are mapped into canonical JSON mode / JSON schema settings. Those settings are encoded back for OpenAI Chat, OpenRouter Chat, and OpenRouter Responses providers.
 
 OpenAI Chat, OpenAI Responses, and Anthropic Messages endpoint codecs decode supported image inputs into canonical `unified.ImagePart` values. OpenAI Chat-compatible providers, OpenRouter Responses, and Anthropic-compatible providers can encode supported image inputs upstream; gateway vision routing remains capability-gated by provider metadata.
