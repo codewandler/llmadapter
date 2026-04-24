@@ -96,6 +96,14 @@ Therefore, the design must support:
 - stateful event transformation;
 - raw/unmapped event preservation where requested.
 
+The following are explicitly out of scope for the core design:
+
+- multi-turn conversation/session management (callers manage message history);
+- automatic token counting or context window management;
+- multiple choices per request (`n > 1`) as a first-class unified concept;
+- metadata and auxiliary endpoints such as `/v1/models` or `/api/tags` (these may be added as simple handlers later but are not part of the core pipeline design);
+- true realtime bidirectional APIs.
+
 ---
 
 ## 4. Core terminology
@@ -557,8 +565,6 @@ const (
     ContentFile       ContentKind = "file"
     ContentDocument   ContentKind = "document"
     ContentReasoning  ContentKind = "reasoning"
-    ContentToolCall   ContentKind = "tool_call"
-    ContentToolResult ContentKind = "tool_result"
     ContentRefusal    ContentKind = "refusal"
 )
 
@@ -601,7 +607,23 @@ type RefusalPart struct {
 }
 
 func (RefusalPart) contentKind() ContentKind { return ContentRefusal }
+
+type AudioPart struct {
+    Source   BlobSource
+    MimeType string
+}
+
+func (AudioPart) contentKind() ContentKind { return ContentAudio }
+
+type VideoPart struct {
+    Source   BlobSource
+    MimeType string
+}
+
+func (VideoPart) contentKind() ContentKind { return ContentVideo }
 ```
+
+Tool calls and tool results are not content kinds. The canonical location for tool calls in messages is `Message.ToolCalls` and `Message.ToolResults`. Content parts represent user-provided or model-generated content blocks.
 
 Blob sources:
 
@@ -910,7 +932,7 @@ type WarningEvent struct {
 func (WarningEvent) isEvent() {}
 
 type RawEvent struct {
-    APIKind string
+    APIKind ApiKind
     Type    string
 
     JSON  json.RawMessage
@@ -926,6 +948,60 @@ type ErrorEvent struct {
 
 func (ErrorEvent) isEvent() {}
 ```
+
+### Event ordering contract
+
+A well-formed unified event stream follows this ordering:
+
+```text
+MessageStartEvent
+  ContentBlockStartEvent (index 0)
+    TextDeltaEvent* | ReasoningDeltaEvent* | RefusalDeltaEvent*
+    CitationEvent*
+  ContentBlockDoneEvent (index 0)
+  ContentBlockStartEvent (index 1)
+    ToolCallStartEvent
+    ToolCallArgsDeltaEvent*
+    ToolCallDoneEvent
+  ContentBlockDoneEvent (index 1)
+  ...
+  UsageEvent
+  CompletedEvent
+MessageDoneEvent
+```
+
+`CompletedEvent` carries the finish reason and is emitted before `MessageDoneEvent`. `MessageDoneEvent` is the final lifecycle event for a message. A stream must emit at most one `CompletedEvent` and one `MessageDoneEvent`.
+
+Provider event decoders should synthesize missing lifecycle events where possible. The `CompletionInjector` processor (§20) handles the case where a provider stream ends without an explicit completion signal.
+
+### Audio and video output events
+
+Audio and video output streaming events are deferred. The `CapabilitySet` declares `AudioOutput` for future use. When needed, `AudioDeltaEvent` and `VideoDeltaEvent` event types will be added following the same delta pattern.
+
+### Structured API errors
+
+LLM provider APIs return rich structured errors. The unified layer should capture these.
+
+```go
+type APIError struct {
+    StatusCode int
+    Type       string
+    Code       string
+    Message    string
+    Param      string
+    RetryAfter time.Duration
+
+    ProviderRaw any
+}
+
+func (e *APIError) Error() string {
+    return fmt.Sprintf("%s: %s (status %d)", e.Type, e.Message, e.StatusCode)
+}
+```
+
+`APIError` satisfies `error` and can be carried by `ErrorEvent.Err`, returned from `NativeClient.Request`, or returned from `ByteStreamTransport.Open`. It preserves the original provider error in `ProviderRaw` for provider-specific error handling.
+
+Transport errors, API errors, and codec/mapping errors are all representable as `error` values. Callers can use `errors.As` to extract `*APIError` when provider-level detail is needed.
 
 ---
 
@@ -960,6 +1036,8 @@ type HTTPRequestInfo struct {
 ```
 
 Programmatic users usually only create `unified.Request`. Gateway code creates `adapt.Request`.
+
+`adapt.Request.Extensions` carries gateway-level and routing metadata (tenant identity, route overrides, audit context). `unified.Request.Extensions` carries provider-semantic parameters (previous response IDs, provider-specific safety settings, prompt caching hints). The two extension bags serve different audiences and should not be conflated.
 
 ---
 
@@ -1035,9 +1113,10 @@ type ProviderCodec[ProviderReq any, ProviderEvt any] interface {
     EncodeRequest(ctx context.Context, req adapt.Request) (ProviderReq, error)
 
     NewEventDecoder() EventDecoder[ProviderEvt, unified.Event]
-    NewEventEncoder() EventEncoder[unified.Event, ProviderEvt]
 }
 ```
+
+`NewEventEncoder` is deliberately omitted from the core codec interface. The primary flow is provider events → unified events (decoding). The reverse direction (unified events → provider wire events) is only needed for endpoint response writing, and that is handled by `EndpointCodec.WriteEvents`, not by the provider codec. If a future use case requires encoding unified events into provider wire format (e.g., provider-to-provider relay), a separate `ProviderEventEncoder` interface can be introduced.
 
 ### Endpoint codec
 
@@ -1056,6 +1135,8 @@ type EndpointCodec interface {
     WriteError(ctx context.Context, w http.ResponseWriter, err error) error
 }
 ```
+
+`WriteEvents` must handle both streaming and non-streaming responses. For `stream: true`, it writes SSE/NDJSON frames as events arrive. For `stream: false`, it accumulates all events, builds a complete JSON response body, and writes it as `application/json`. The endpoint codec inspects the original request (available via the adapt request or context) to determine the response mode.
 
 ### Stateful event transformers
 
@@ -1211,6 +1292,16 @@ shape stream into endpoint-specific lifecycle
 
 ## 18. Stream transformation helper
 
+### Error signaling convention
+
+`Transform` uses `Item[T]` internally for error propagation within the pipeline. The public `Client.Request` interface returns a bare `<-chan unified.Event`. Errors in the public channel are signaled by emitting an `ErrorEvent` as the last event before closing the channel. Pipeline internals use `Item[T]` and convert to `ErrorEvent` at the boundary.
+
+### Backpressure and goroutine lifecycle
+
+The `Transform` helper spawns a goroutine that reads from the input channel. Backpressure is applied naturally: if the consumer stops reading from the output channel, the producer goroutine blocks on send. When context is cancelled, the producer goroutine exits via the `ctx.Done()` select case.
+
+Callers must either consume all events from the returned channel or cancel the context. Failure to do either will leak the producer goroutine. The `ByteStream.Close()` method ensures the underlying transport resources (HTTP response body, WebSocket connection) are released when the pipeline shuts down.
+
 ```go
 type Item[T any] struct {
     Value T
@@ -1321,7 +1412,7 @@ Buffers small text deltas and emits larger deltas.
 
 ```go
 type TextCoalescer struct {
-    MaxRunes int
+    MaxBytes int
     buf      strings.Builder
 }
 
@@ -1336,7 +1427,7 @@ func (p *TextCoalescer) Push(ctx context.Context, ev unified.Event) ([]unified.E
     }
 
     p.buf.WriteString(delta.Text)
-    if p.buf.Len() >= p.MaxRunes {
+    if p.buf.Len() >= p.MaxBytes {
         return p.flush(), nil
     }
 
@@ -1558,6 +1649,8 @@ A provider can expose multiple API kinds.
 
 Therefore, routing targets provider endpoints, not providers.
 
+Each `ProviderEndpoint` holds a `unified.Client`, which erases the generic type parameters (`ProviderReq`, `ProviderEvt`). This is intentional: the router and registry operate at the unified semantic level. Provider-specific type information is encapsulated inside the `AdaptedClient` implementation.
+
 ```go
 type ProviderEndpoint struct {
     ProviderName string
@@ -1684,6 +1777,8 @@ type CapabilitySet struct {
 
 Capabilities should influence routing and strict-mode validation.
 
+The struct-of-bools approach is deliberate. Adding a new capability requires a code change, which is acceptable because new capabilities typically require new codec logic, new event types, or new mapping rules. A dynamic `map[string]bool` would allow extension without code changes but would lose type safety and make capability checks error-prone.
+
 ---
 
 ## 25. Transport abstraction
@@ -1693,6 +1788,8 @@ Realtime duplex is out of scope.
 However, WebSocket can be used as a unidirectional event-stream transport. From the pipeline's perspective, this is equivalent to SSE, NDJSON, chunked JSON, or fake test frames.
 
 The core abstraction should therefore be byte-frame streaming.
+
+For non-streaming requests (`stream: false`), the same `ByteStreamTransport` is used. A non-streaming HTTP response is modeled as a single-frame byte stream: `Open` returns a `ByteStream` whose first `Recv` returns the complete response body, and whose second `Recv` returns `io.EOF`. This keeps the pipeline uniform.
 
 ```go
 package transport
@@ -1918,13 +2015,36 @@ type Config struct {
     RetryMode   RetryMode
     RateLimiter RateLimiter
 
-    Logger Logger
+    Logger *slog.Logger
     Meter  Meter
     Tracer Tracer
 }
 
 type HeaderFunc func(ctx context.Context, req *http.Request) error
 ```
+
+`Logger` is `*slog.Logger` from the standard library. `Meter` and `Tracer` are interfaces aligned with OpenTelemetry:
+
+```go
+type Meter interface {
+    CounterAdd(ctx context.Context, name string, value int64, attrs ...string)
+    HistogramRecord(ctx context.Context, name string, value float64, attrs ...string)
+}
+
+type Tracer interface {
+    Start(ctx context.Context, name string) (context.Context, Span)
+}
+
+type Span interface {
+    SetAttribute(key string, value any)
+    RecordError(err error)
+    End()
+}
+```
+
+All three are optional. When nil, observability is silently disabled. The interfaces are intentionally minimal; production code can wrap OpenTelemetry's `metric.Meter` and `trace.Tracer` behind these interfaces.
+
+Request-scoped metadata (request IDs, trace context, tenant identity) should flow through `context.Context` using standard Go patterns. The library does not define its own context keys; callers and `HeaderFunc` implementations use their own.
 
 Shared helper functions:
 
@@ -2431,9 +2551,112 @@ capability-aware routing
 
 20. Testing should use golden fixtures, fake byte streams, static native clients, roundtrip invariants, fuzzing, gateway integration tests, and explicit lossiness tests.
 
+21. The unified layer models exactly one assistant output per request. `n > 1` is not a first-class concept.
+
+22. `APIError` is the structured error type for provider API errors. It satisfies `error` and can be extracted with `errors.As`.
+
+23. Non-streaming responses use the same `ByteStreamTransport` as streaming, modeled as a single-frame byte stream.
+
+24. `EndpointCodec.WriteEvents` handles both streaming and non-streaming response modes.
+
+25. Audio and video output events are deferred until provider support warrants them.
+
 ---
 
-## 35. Minimal core interface summary
+## 35. Non-streaming response collection
+
+For programmatic callers who do not need streaming, a `unified.Response` type and `Collect` helper materialize an event stream into a single value.
+
+```go
+type Response struct {
+    ID    string
+    Model string
+
+    Content []ContentPart
+
+    ToolCalls []ToolCall
+
+    FinishReason FinishReason
+    Usage        *UsageEvent
+
+    Warnings []WarningEvent
+    Raw      []RawEvent
+}
+
+func Collect(ctx context.Context, events <-chan Event) (Response, error) {
+    var resp Response
+
+    for ev := range events {
+        switch ev := ev.(type) {
+        case MessageStartEvent:
+            resp.ID = ev.ID
+            resp.Model = ev.Model
+        case TextDeltaEvent:
+            // accumulate into resp.Content
+        case ToolCallDoneEvent:
+            resp.ToolCalls = append(resp.ToolCalls, ToolCall{
+                ID:        ev.ID,
+                Name:      ev.Name,
+                Arguments: ev.Args,
+            })
+        case UsageEvent:
+            resp.Usage = &ev
+        case CompletedEvent:
+            resp.FinishReason = ev.FinishReason
+        case WarningEvent:
+            resp.Warnings = append(resp.Warnings, ev)
+        case RawEvent:
+            resp.Raw = append(resp.Raw, ev)
+        case ErrorEvent:
+            return resp, ev.Err
+        }
+    }
+
+    return resp, nil
+}
+```
+
+Usage:
+
+```go
+events, err := client.Request(ctx, req)
+if err != nil {
+    return err
+}
+
+resp, err := unified.Collect(ctx, events)
+if err != nil {
+    return err
+}
+
+fmt.Println(resp.Content)
+```
+
+---
+
+## 36. Position on `n > 1` / multiple choices
+
+The unified layer models exactly one assistant output per request.
+
+Rationale:
+
+- Most modern LLM application flows consume one assistant response.
+- Multi-choice support would complicate every event type with choice indices.
+- Tool calling, reasoning, usage aggregation, and response collection all become harder with parallel generations.
+- The canonical IR should stay opinionated and simple.
+
+Policy:
+
+- `unified.Request`, `unified.Event`, and `unified.Response` are single-output abstractions.
+- If a provider API supports `n > 1` and canonical conversion is requested:
+  - strict mode: return an unsupported-field error.
+  - best-effort mode: use the first choice and emit a warning.
+- Passthrough mode preserves `n > 1` exactly when inbound and outbound API kinds are compatible.
+- Provider codecs that receive multi-choice responses must select choice 0 internally and may preserve raw choice metadata via `RawEvent` or `Extensions`.
+
+---
+
+## 37. Minimal core interface summary
 
 ```go
 type Client interface {
@@ -2449,7 +2672,6 @@ type ProviderCodec[Req any, Evt any] interface {
     ApiKind() ApiKind
     EncodeRequest(context.Context, adapt.Request) (Req, error)
     NewEventDecoder() EventDecoder[Evt, unified.Event]
-    NewEventEncoder() EventEncoder[unified.Event, Evt]
 }
 
 type EndpointCodec interface {
