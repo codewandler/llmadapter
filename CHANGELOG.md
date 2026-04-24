@@ -12,15 +12,37 @@ can be created to match these entries as the project starts publishing releases.
 
 ### Added
 
-- **MiniMax Chat Completions provider** - Added a MiniMax OpenAI-compatible Chat Completions provider wrapper with default `https://api.minimax.io` routing.
+- **Provider error tests** - Added focused OpenAI-compatible and Anthropic-compatible mid-stream error tests.
+
+### Changed
+
+- **Gateway reasoning encoding** - OpenAI Chat Completions gateway responses now expose canonical reasoning as `reasoning_details` instead of mixing it into assistant `content`.
+- **Provider HTTP errors** - Non-2xx HTTP transport errors now parse common OpenAI-style and Anthropic-style JSON bodies into structured `unified.APIError` fields.
+
+## [0.10.0] - 2026-04-24
+
+### Added
+
 - **MiniMax Anthropic-compatible Messages provider** - Added a MiniMax Messages provider wrapper with default `https://api.minimax.io/anthropic` routing.
-- **MiniMax gateway registration** - Added `minimax_chat` as a gateway provider endpoint type in the OpenAI Chat Completions family.
 - **MiniMax Messages gateway registration** - Added `minimax_messages` as a gateway provider endpoint type in the Anthropic Messages family.
-- **MiniMax smoke coverage** - Added shared text, tool, continuation, and gateway e2e smoke entries gated by `MINIMAX_API_KEY` or `MINIMAX_KEY`.
+- **MiniMax Messages smoke coverage** - Added shared text, tool-use, tool-result continuation, and gateway e2e smoke entries gated by `MINIMAX_API_KEY` or `MINIMAX_KEY`.
 
 ### Changed
 
 - **MiniMax plan status** - Updated provider planning to keep downstream endpoint codecs and broader MiniMax conformance as explicit follow-up slices.
+- **MiniMax e2e budget** - Added a provider-specific token budget for MiniMax Messages because it streams reasoning before final text.
+
+## [0.9.0] - 2026-04-24
+
+### Added
+
+- **MiniMax Chat Completions provider** - Added a MiniMax OpenAI-compatible Chat Completions provider wrapper with default `https://api.minimax.io` routing.
+- **MiniMax gateway registration** - Added `minimax_chat` as a gateway provider endpoint type in the OpenAI Chat Completions family.
+- **MiniMax Chat smoke coverage** - Added shared text and gateway e2e smoke entries gated by `MINIMAX_API_KEY` or `MINIMAX_KEY`.
+
+### Changed
+
+- **MiniMax plan status** - Updated provider planning to keep MiniMax tools and Anthropic-compatible Messages as explicit follow-up slices.
 
 ## [0.8.0] - 2026-04-24
 
@@ -117,7 +139,9 @@ can be created to match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/codewandler/llmadapter/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/codewandler/llmadapter/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/codewandler/llmadapter/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/codewandler/llmadapter/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/codewandler/llmadapter/compare/v0.5.0...v0.6.0

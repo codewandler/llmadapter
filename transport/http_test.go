@@ -2,10 +2,13 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/codewandler/llmadapter/unified"
 )
 
 func TestHTTPByteStreamTransportSSE(t *testing.T) {
@@ -60,14 +63,45 @@ func TestHTTPByteStreamTransportNon2xx(t *testing.T) {
 	rt := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusTooManyRequests,
-			Body:       io.NopCloser(strings.NewReader("nope")),
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","code":"bad_model","message":"bad model","param":"model"}}`)),
 			Header:     make(http.Header),
 		}, nil
 	})
 
 	tr := NewHTTPByteStreamTransport(HTTPTransportConfig{Client: &http.Client{Transport: rt}})
-	if _, err := tr.Open(context.Background(), &Request{Method: "GET", URL: "https://example.test"}); err == nil {
+	_, err := tr.Open(context.Background(), &Request{Method: "GET", URL: "https://example.test"})
+	if err == nil {
 		t.Fatalf("expected error")
+	}
+	var apiErr *unified.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T, want APIError", err)
+	}
+	if apiErr.StatusCode != http.StatusTooManyRequests || apiErr.Type != "invalid_request_error" || apiErr.Code != "bad_model" || apiErr.Message != "bad model" || apiErr.Param != "model" {
+		t.Fatalf("unexpected API error: %+v", apiErr)
+	}
+}
+
+func TestHTTPByteStreamTransportNon2xxAnthropicShape(t *testing.T) {
+	rt := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusUnauthorized,
+			Body:       io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"authentication_error","message":"bad key"}}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	tr := NewHTTPByteStreamTransport(HTTPTransportConfig{Client: &http.Client{Transport: rt}})
+	_, err := tr.Open(context.Background(), &Request{Method: "GET", URL: "https://example.test"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	var apiErr *unified.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T, want APIError", err)
+	}
+	if apiErr.StatusCode != http.StatusUnauthorized || apiErr.Type != "authentication_error" || apiErr.Message != "bad key" {
+		t.Fatalf("unexpected API error: %+v", apiErr)
 	}
 }
 

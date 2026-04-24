@@ -284,6 +284,8 @@ func (s *streamState) push(ev unified.Event) []Response {
 		return []Response{streamChunk(s.id, s.model, s.created, Choice{Index: 0, Delta: &ResponseDelta{Role: "assistant"}})}
 	case unified.TextDeltaEvent:
 		return []Response{streamChunk(s.id, s.model, s.created, Choice{Index: 0, Delta: &ResponseDelta{Content: e.Text}})}
+	case unified.ReasoningDeltaEvent:
+		return []Response{streamChunk(s.id, s.model, s.created, Choice{Index: 0, Delta: &ResponseDelta{ReasoningDetails: []ReasoningDetail{{Type: "text", Text: e.Text}}}})}
 	case unified.ToolCallStartEvent:
 		return []Response{streamChunk(s.id, s.model, s.created, Choice{Index: 0, Delta: &ResponseDelta{ToolCalls: []ToolCall{{ID: e.ID, Type: "function", Function: ToolCallFunction{Name: e.Name}}}}})}
 	case unified.ToolCallArgsDeltaEvent:
@@ -312,9 +314,13 @@ func writeSSEData(w io.Writer, value any) error {
 
 func responseFromUnified(resp unified.Response) Response {
 	var content strings.Builder
+	var reasoning []ReasoningDetail
 	for _, part := range resp.Content {
-		if text, ok := part.(unified.TextPart); ok {
+		switch text := part.(type) {
+		case unified.TextPart:
 			content.WriteString(text.Text)
+		case unified.ReasoningPart:
+			reasoning = append(reasoning, ReasoningDetail{Type: "text", Text: text.Text})
 		}
 	}
 	toolCalls := make([]ToolCall, 0, len(resp.ToolCalls))
@@ -335,7 +341,7 @@ func responseFromUnified(resp unified.Response) Response {
 		Model:   resp.Model,
 		Choices: []Choice{{
 			Index:        0,
-			Message:      &ResponseMessage{Role: "assistant", Content: content.String(), ToolCalls: toolCalls},
+			Message:      &ResponseMessage{Role: "assistant", Content: content.String(), ReasoningDetails: reasoning, ToolCalls: toolCalls},
 			FinishReason: finishReason(resp.FinishReason),
 		}},
 		Usage: UsageWire{

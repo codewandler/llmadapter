@@ -3,8 +3,10 @@ package transport
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -45,11 +47,7 @@ func (t *HTTPByteStreamTransport) Open(ctx context.Context, req *Request) (ByteS
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, &unified.APIError{
-			StatusCode:  resp.StatusCode,
-			Message:     string(body),
-			ProviderRaw: append([]byte(nil), body...),
-		}
+		return nil, apiErrorFromHTTP(resp.StatusCode, body)
 	}
 
 	stream := &httpByteStream{body: resp.Body, format: t.frameFormat}
@@ -64,6 +62,41 @@ func (t *HTTPByteStreamTransport) Open(ctx context.Context, req *Request) (ByteS
 		stream.format = FrameFormatRaw
 	}
 	return stream, nil
+}
+
+func apiErrorFromHTTP(statusCode int, body []byte) *unified.APIError {
+	apiErr := &unified.APIError{
+		StatusCode:  statusCode,
+		Message:     strings.TrimSpace(string(body)),
+		ProviderRaw: append([]byte(nil), body...),
+	}
+	var openAI struct {
+		Error struct {
+			Type    string `json:"type"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+			Param   string `json:"param"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &openAI); err == nil && openAI.Error.Message != "" {
+		apiErr.Type = openAI.Error.Type
+		apiErr.Code = openAI.Error.Code
+		apiErr.Message = openAI.Error.Message
+		apiErr.Param = openAI.Error.Param
+		return apiErr
+	}
+	var anthropic struct {
+		Error struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &anthropic); err == nil && anthropic.Error.Message != "" {
+		apiErr.Type = anthropic.Error.Type
+		apiErr.Message = anthropic.Error.Message
+		return apiErr
+	}
+	return apiErr
 }
 
 type httpByteStream struct {

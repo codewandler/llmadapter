@@ -67,6 +67,36 @@ func TestWriteEventsNonStreaming(t *testing.T) {
 	}
 }
 
+func TestWriteEventsNonStreamingSeparatesReasoning(t *testing.T) {
+	events := make(chan unified.Event, 12)
+	events <- unified.MessageStartEvent{ID: "msg", Model: "model"}
+	events <- unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindReasoning}
+	events <- unified.ReasoningDeltaEvent{Index: 0, Text: "think"}
+	events <- unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindReasoning}
+	events <- unified.ContentBlockStartEvent{Index: 1, Kind: unified.ContentKindText}
+	events <- unified.TextDeltaEvent{Index: 1, Text: "answer"}
+	events <- unified.ContentBlockDoneEvent{Index: 1, Kind: unified.ContentKindText}
+	events <- unified.CompletedEvent{FinishReason: unified.FinishReasonStop}
+	close(events)
+
+	w := httptest.NewRecorder()
+	err := (Codec{}).WriteEvents(context.Background(), w, decodedReq(false), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp Response
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	msg := resp.Choices[0].Message
+	if msg.Content != "answer" {
+		t.Fatalf("content = %q", msg.Content)
+	}
+	if len(msg.ReasoningDetails) != 1 || msg.ReasoningDetails[0].Text != "think" {
+		t.Fatalf("reasoning = %+v", msg.ReasoningDetails)
+	}
+}
+
 func TestWriteEventsStreaming(t *testing.T) {
 	events := make(chan unified.Event, 8)
 	events <- unified.MessageStartEvent{ID: "msg", Model: "model"}
@@ -81,6 +111,25 @@ func TestWriteEventsStreaming(t *testing.T) {
 	}
 	body := w.Body.String()
 	if !strings.Contains(body, `"object":"chat.completion.chunk"`) || !strings.Contains(body, `"content":"hello"`) || !strings.Contains(body, "data: [DONE]") {
+		t.Fatalf("unexpected stream body: %s", body)
+	}
+}
+
+func TestWriteEventsStreamingSeparatesReasoning(t *testing.T) {
+	events := make(chan unified.Event, 8)
+	events <- unified.MessageStartEvent{ID: "msg", Model: "model"}
+	events <- unified.ReasoningDeltaEvent{Index: 0, Text: "think"}
+	events <- unified.TextDeltaEvent{Index: 1, Text: "answer"}
+	events <- unified.CompletedEvent{FinishReason: unified.FinishReasonStop}
+	close(events)
+
+	w := httptest.NewRecorder()
+	err := (Codec{}).WriteEvents(context.Background(), w, decodedReq(true), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"reasoning_details":[{"type":"text","text":"think"}]`) || !strings.Contains(body, `"content":"answer"`) {
 		t.Fatalf("unexpected stream body: %s", body)
 	}
 }

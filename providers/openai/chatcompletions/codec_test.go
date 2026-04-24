@@ -3,6 +3,7 @@ package chatcompletions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/codewandler/llmadapter/transport"
@@ -137,5 +138,36 @@ func TestClientStreamToolCallWithFakeTransport(t *testing.T) {
 	}
 	if resp.ToolCalls[0].ID != "call_1" || resp.ToolCalls[0].Name != "lookup" || string(resp.ToolCalls[0].Arguments) != `{"q":"x"}` {
 		t.Fatalf("unexpected tool call: %+v", resp.ToolCalls[0])
+	}
+}
+
+func TestClientStreamErrorWithFakeTransport(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"error":{"type":"server_error","code":"upstream_failed","message":"upstream failed"}}`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 8
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "gpt-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = unified.Collect(context.Background(), events)
+	var apiErr *unified.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T, want APIError", err)
+	}
+	if apiErr.Type != "server_error" || apiErr.Code != "upstream_failed" || apiErr.Message != "upstream failed" {
+		t.Fatalf("unexpected API error: %+v", apiErr)
 	}
 }

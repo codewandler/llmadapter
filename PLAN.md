@@ -33,6 +33,7 @@ OpenRouter Responses tool slice: native Responses function-call streaming and to
 Documentation slice: minimal README, AGENTS, and provider-extension agent skill
 MiniMax provider slice: OpenAI-compatible Chat Completions wrapper, gateway registration, and shared text smoke matrix entry
 MiniMax Messages slice: Anthropic-compatible Messages wrapper, gateway registration, and shared text/tool smoke matrix entries
+Conformance cleanup slice: OpenAI Chat gateway reasoning_details encoding and structured provider HTTP/mid-stream error tests
 ```
 
 Verified:
@@ -189,7 +190,7 @@ Implementation assessment:
 Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, fake transport unit tests, and live outside-in e2e tests are all working.
 Main intentional shortcuts are static first-match routing, hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
-Important remaining test gaps: provider error bodies, mid-stream errors, invalid credentials/models, capability-based fallback routing, parallel tool calls, malformed tool args, JSON/schema modes, reasoning/citations, multimodal input, and provider-specific extension passthrough.
+Important remaining test gaps: invalid credentials/models, capability-based fallback routing, parallel tool calls, malformed tool args, JSON/schema modes, broader reasoning/citations conformance, multimodal input, and provider-specific extension passthrough.
 ```
 
 Next planned phase:

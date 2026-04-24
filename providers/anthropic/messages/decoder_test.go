@@ -2,6 +2,7 @@ package messages
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/codewandler/llmadapter/unified"
@@ -44,6 +45,25 @@ func TestEventDecoderTextAndTool(t *testing.T) {
 	}
 	if len(resp.ToolCalls) != 1 || resp.ToolCalls[0].ID != "toolu" || string(resp.ToolCalls[0].Arguments) != `{"q":"x"}` {
 		t.Fatalf("unexpected tools: %+v", resp.ToolCalls)
+	}
+}
+
+func TestEventDecoderErrorEvent(t *testing.T) {
+	dec := NewEventDecoder()
+	out, err := dec.Push(context.Background(), ErrorEventWire{
+		Type:  "error",
+		Error: APIErrorBody{Type: "overloaded_error", Message: "try again"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = unified.Collect(context.Background(), sliceEvents(out))
+	var apiErr *unified.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T, want APIError", err)
+	}
+	if apiErr.Type != "overloaded_error" || apiErr.Message != "try again" {
+		t.Fatalf("unexpected API error: %+v", apiErr)
 	}
 }
 
