@@ -182,6 +182,61 @@ func TestEndpointWithPricingEnrichesUsageEvents(t *testing.T) {
 	}
 }
 
+func TestEndpointWithPricingUsesRequestModelForDynamicRoutes(t *testing.T) {
+	catalog := modeldb.NewCatalog()
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "openai", WireModelID: "gpt-dynamic"}] = modeldb.Offering{
+		ServiceID:   "openai",
+		WireModelID: "gpt-dynamic",
+		Pricing:     &modeldb.Pricing{Input: 2, Output: 10},
+	}
+	endpoint := EndpointWithPricing(router.ProviderEndpoint{
+		ProviderName: "openai",
+		Client: fakeClient{events: []unified.Event{
+			unified.NewUsageEvent(unified.TokenItems{
+				{Kind: unified.TokenKindInputNew, Count: 1000},
+				{Kind: unified.TokenKindOutput, Count: 2000},
+			}, nil),
+		}},
+		Tags: map[string]string{TagModelDBServiceID: "openai"},
+	}, RouteConfig{DynamicModels: true}, catalog)
+
+	events, err := endpoint.Client.Request(context.Background(), unified.Request{Model: "gpt-dynamic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var usage unified.UsageEvent
+	for ev := range events {
+		if ev, ok := ev.(unified.UsageEvent); ok {
+			usage = ev
+		}
+	}
+	if got, want := usage.Costs.ByKind(unified.CostKindInput), 1000*2.0/1_000_000; got != want {
+		t.Fatalf("input cost = %g, want %g", got, want)
+	}
+	if got, want := usage.Costs.ByKind(unified.CostKindOutput), 2000*10.0/1_000_000; got != want {
+		t.Fatalf("output cost = %g, want %g", got, want)
+	}
+}
+
+func TestConfigUsesModelDBForDynamicPricingRoutes(t *testing.T) {
+	cfg := Config{
+		Providers: []ProviderConfig{{
+			Name:             "openrouter",
+			Type:             "openrouter_responses",
+			ModelDBServiceID: "openrouter",
+		}},
+		Routes: []RouteConfig{{
+			SourceAPI:     adapt.ApiOpenAIResponses,
+			Provider:      "openrouter",
+			ProviderAPI:   adapt.ApiOpenRouterResponses,
+			DynamicModels: true,
+		}},
+	}
+	if !ConfigUsesModelDB(cfg) {
+		t.Fatal("expected dynamic pricing route to enable modeldb")
+	}
+}
+
 func TestEndpointWithModelDBMetadataNarrowsCapabilities(t *testing.T) {
 	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "test"}
 	catalog := modeldb.NewCatalog()

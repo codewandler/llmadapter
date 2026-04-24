@@ -317,6 +317,24 @@ func TestConfigUsesPricingForConfiguredModelDBOffering(t *testing.T) {
 	}
 }
 
+func TestConfigUsesPricingForDynamicModelDBRoutes(t *testing.T) {
+	cfg := config{
+		Providers: []providerConfig{{
+			Name:             "openrouter",
+			Type:             "openrouter_responses",
+			ModelDBServiceID: "openrouter",
+		}},
+		Routes: []routeConfig{{
+			Provider:      "openrouter",
+			ProviderAPI:   adapt.ApiOpenRouterResponses,
+			DynamicModels: true,
+		}},
+	}
+	if !configUsesPricing(cfg) {
+		t.Fatalf("expected dynamic pricing route to enable modeldb")
+	}
+}
+
 func TestLoadModelDBCatalogFromConfiguredPathAndOverlays(t *testing.T) {
 	dir := t.TempDir()
 	basePath := filepath.Join(dir, "base.json")
@@ -442,6 +460,46 @@ func TestEndpointWithPricingEnrichesUsageEvents(t *testing.T) {
 		t.Fatalf("input cost = %g, want %g", got, want)
 	}
 	if got, want := usage.Costs.ByKind(unified.CostKindOutput), 2000*15.0/1_000_000; got != want {
+		t.Fatalf("output cost = %g, want %g", got, want)
+	}
+}
+
+func TestEndpointWithPricingUsesRequestModelForDynamicRoutes(t *testing.T) {
+	catalog := modeldb.NewCatalog()
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "anthropic", WireModelID: "claude-dynamic"}] = modeldb.Offering{
+		ServiceID:   "anthropic",
+		WireModelID: "claude-dynamic",
+		Pricing:     &modeldb.Pricing{Input: 2, Output: 10},
+	}
+
+	endpoint := endpointWithPricing(router.ProviderEndpoint{
+		ProviderName: "anthropic",
+		Client: fakeClient{events: []unified.Event{
+			unified.NewUsageEvent(unified.TokenItems{
+				{Kind: unified.TokenKindInputNew, Count: 1000},
+				{Kind: unified.TokenKindOutput, Count: 2000},
+			}, nil),
+		}},
+		Tags: map[string]string{tagModelDBServiceID: "anthropic"},
+	}, routeConfig{DynamicModels: true}, catalog)
+
+	events, err := endpoint.Client.Request(context.Background(), unified.Request{Model: "claude-dynamic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var usage unified.UsageEvent
+	for ev := range events {
+		if errEv, ok := ev.(unified.ErrorEvent); ok {
+			t.Fatalf("unexpected error event: %v", errEv.Err)
+		}
+		if ev, ok := ev.(unified.UsageEvent); ok {
+			usage = ev
+		}
+	}
+	if got, want := usage.Costs.ByKind(unified.CostKindInput), 1000*2.0/1_000_000; got != want {
+		t.Fatalf("input cost = %g, want %g", got, want)
+	}
+	if got, want := usage.Costs.ByKind(unified.CostKindOutput), 2000*10.0/1_000_000; got != want {
 		t.Fatalf("output cost = %g, want %g", got, want)
 	}
 }

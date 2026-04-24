@@ -29,7 +29,7 @@ func ConfigUsesModelDB(cfg Config) bool {
 		if route.ModelDBModel != "" {
 			return true
 		}
-		if pricingWireModel(route) != "" {
+		if pricingWireModel(route) != "" || route.DynamicModels {
 			for _, provider := range cfg.Providers {
 				if providerMatchesRoute(provider, route) && providerModelDBServiceID(provider) != "" {
 					return true

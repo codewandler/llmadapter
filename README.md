@@ -94,7 +94,7 @@ Configuration:
 - `modeldb.overlay_paths` optionally merges one or more JSON catalog files after the base catalog.
 - `modeldb.aliases` can bind local intent names to explicit service/wire-model pairs; route `modeldb_model` resolves a catalog alias/name into a fixed native model for that route.
 - Provider `capabilities` can override default endpoint metadata for a configured model, for example to disable `vision` or `json_schema` on a model that does not support it.
-- Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route.
+- Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route. Dynamic routes with `dynamic_models: true` can also enrich usage costs per request when the requested provider-native model ID exists in the catalog.
 - `claude_messages` defaults `modeldb_service_id` to `anthropic` because it invokes Anthropic Claude models through Claude Code-compatible auth.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
 
@@ -221,15 +221,15 @@ Conversation/session state belongs above llmadapter, for example in `agentsdk`. 
 
 The in-process mux client is a stateless library layer over provider endpoints and router selection. `adapterconfig.NewMuxClient` can build it from llmadapter JSON config, including modeldb-backed model alias resolution, capability metadata, and pricing processors, without requiring an HTTP gateway process.
 
-`adapterconfig.AutoMuxClient` can build the same stateless mux client from detected credentials. It checks registered provider endpoint env vars such as `OPENAI_API_KEY`/`OPENAI_KEY`, Anthropic/OpenRouter/MiniMax keys, Claude bearer token env vars, and local Claude Code OAuth credentials when enabled. With `UseModelDB`, detected providers are tagged with their default modeldb service IDs so fixed-route capability metadata and pricing enrichment can work without hand-written provider config.
+`adapterconfig.AutoMuxClient` can build the same stateless mux client from detected credentials. It checks registered provider endpoint env vars such as `OPENAI_API_KEY`/`OPENAI_KEY`, Anthropic/OpenRouter/MiniMax keys, Claude bearer token env vars, and local Claude Code OAuth credentials when enabled. With `UseModelDB`, detected providers are tagged with their default modeldb service IDs so fixed-route capability metadata and fixed or dynamic-route pricing enrichment can work without hand-written provider config.
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 
 Canonical `unified.TextPart` values can carry `CacheControl` hints. Anthropic-family providers encode those hints as block-level `cache_control`, and the shared prompt-cache smoke verifies provider-reported cache write/read accounting for Anthropic and Claude Code-compatible access.
 
-The `modelmeta` package maps modeldb offering exposures into route capabilities and limits. The gateway uses it only for configured fixed-model routes; modeldb can narrow advertised capabilities and add token limits, but it never creates hidden providers, clients, or routes.
+The `modelmeta` package maps modeldb offering exposures into route capabilities and limits. The gateway uses metadata only for configured fixed-model routes; modeldb can narrow advertised capabilities and add token limits, but it never creates hidden providers, clients, or routes.
 
-The `pricing` package can enrich `unified.UsageEvent` values with `CostItems` using `modeldb` offering pricing for an explicit service/model pair. Pricing enrichment is an optional event processor and is not hardcoded into provider codecs. The gateway wires this processor only for configured routes with explicit `modeldb_service_id` and fixed model metadata.
+The `pricing` package can enrich `unified.UsageEvent` values with `CostItems` using `modeldb` offering pricing for an explicit service/model pair. Pricing enrichment is an optional event processor and is not hardcoded into provider codecs. The gateway wires this processor for configured fixed routes with explicit `modeldb_service_id` and for dynamic model routes using the request's selected native model.
 
 Codex is modeled as provider endpoint type `codex_responses` with API kind `codex.responses` and family `openai.responses`. It uses Codex/ChatGPT OAuth credentials and `https://chatgpt.com/backend-api/codex/responses`, not the normal OpenAI platform API URL. Its default modeldb service ID is `codex`.
 
@@ -245,6 +245,6 @@ See `DESIGN.md` for the target architecture and `PLAN.md` for current status, kn
 - Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
 - OpenRouter extension passthrough preserves raw JSON controls but does not yet validate provider-specific extension schemas.
 - Native OpenAI Responses has live smoke coverage for `previous_response_id` continuation. OpenRouter Responses encodes the same fields, but live context preservation is not advertised because the current backend smoke did not preserve prior-turn context.
-- Modeldb-backed metadata and pricing only work for configured fixed-model routes; dynamic per-request model lookup and catalog overlays are still planned.
+- Modeldb-backed metadata only narrows configured fixed-model routes. Pricing works for fixed routes and dynamic routes when the selected native model has catalog pricing; dynamic per-request capability lookup is still planned.
 - Prompt cache request hints currently map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions; higher-level session cache policy belongs above llmadapter.
 - Provider and endpoint codecs cover smoke-tested text, tools, structured output, and basic image inputs; they are not full conformance implementations for every provider field.

@@ -54,7 +54,7 @@ Stabilization slice: OpenRouter raw extension preservation is centralized in uni
 Stabilization slice: Anthropic Messages endpoint decoding preserves mixed user text/tool-result content by splitting it into canonical user and tool messages
 Structured usage slice: canonical usage now carries token and cost item breakdowns, with flat API counters derived only at endpoint wire boundaries
 Pricing slice: `pricing` package adds a modeldb-backed event processor that enriches UsageEvent cost items for an explicit service/model offering
-Gateway pricing slice: configured fixed-model routes can wrap provider clients with modeldb-backed usage cost enrichment via provider `modeldb_service_id` plus route `native_model` or `modeldb_wire_model_id`
+Gateway pricing slice: configured fixed-model routes can wrap provider clients with modeldb-backed usage cost enrichment via provider `modeldb_service_id` plus route `native_model` or `modeldb_wire_model_id`; dynamic model routes can price each request from the selected provider-native model ID
 Model metadata slice: `modelmeta` maps modeldb offering exposures into route capability narrowing and model token limits for configured fixed-model gateway routes
 Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved providers, routes, capabilities, limits, modeldb metadata, and pricing availability without constructing provider clients
 Provider registry slice: shared `providerregistry` package lists endpoint types and can construct direct provider clients for CLI/library use
@@ -201,6 +201,7 @@ MiniMax Chat uses the OpenAI-compatible stream path and is registered in text an
 MiniMax Messages uses the Anthropic-compatible stream path and is registered in text, tool, continuation, and gateway smoke matrices
 Anthropic, OpenAI Chat, and OpenRouter Responses provider decoders emit structured usage token categories where upstream details are available
 fixed-model gateway routes can enrich provider usage events with modeldb pricing when configured with explicit service/model metadata
+dynamic model gateway routes can enrich provider usage events with modeldb pricing from the request's selected native model when the catalog has a matching offering
 fixed-model gateway routes can narrow endpoint capabilities and attach token limits from modeldb OfferingExposure metadata
 gateway config inspection exposes the resolved metadata path for debugging route/API/modeldb configuration
 gateway modeldb loading can use built-in catalog data, an explicit JSON catalog path, and local JSON overlays
@@ -262,8 +263,8 @@ Provider support is currently strong for text + function-tool loops, OpenAI-fami
 OpenRouter extension passthrough is centralized raw JSON preservation; extension schemas and validation are intentionally deferred
 streaming provider errors after response start need a final policy; current behavior marks the route unhealthy and returns because the endpoint-shaped response has already started
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
-modeldb is integrated only for fixed-route metadata/pricing enrichment; provider endpoint base capabilities still come from hardcoded family defaults plus manual config overrides
-usage now carries structured token and cost item fields as the canonical accounting surface; modeldb-backed pricing enrichment is wired for configured fixed-model gateway routes but not dynamic per-request models
+modeldb metadata is integrated only for fixed-route enrichment; provider endpoint base capabilities still come from hardcoded family defaults plus manual config overrides
+usage now carries structured token and cost item fields as the canonical accounting surface; modeldb-backed pricing enrichment is wired for configured fixed-model gateway routes and dynamic per-request models when catalog pricing exists
 stateful conversations are intentionally absent from llmadapter core; conversation/session belongs in agentsdk or another wrapper above unified.Client
 Prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter
 ```
@@ -282,8 +283,8 @@ Next planned phase:
 
 ```text
 Priority: provider registry/CLI, in-process mux client, modeldb, Claude compatibility, caching, usage/pricing, provider parity, and broader live conformance tracks below are the highest-priority work items for the next implementation rounds.
-Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, and explicit route alias resolution are in place; next add dynamic per-request pricing only after model resolution is explicit.
-Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, and fixed-route gateway pricing wiring are in place.
+Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, explicit route alias resolution, and dynamic per-request pricing are in place. Dynamic per-request capability metadata remains a future routing enhancement.
+Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, fixed-route gateway pricing, and dynamic request-scoped pricing wiring are in place.
 Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, and live prompt-cache/tool/gateway smokes are in place.
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
 Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
@@ -504,7 +505,7 @@ Usage/cost foundation:
    - output
    - reasoning
    - future image/audio/video/request/web_search categories
-4. Add a cost calculator/event processor that looks up modeldb Offering.Pricing by service/provider endpoint and native model ID. (implemented for explicit service/model offering refs and fixed-model gateway routes)
+4. Add a cost calculator/event processor that looks up modeldb Offering.Pricing by service/provider endpoint and native model ID. (implemented for explicit service/model offering refs, fixed-model gateway routes, and dynamic routes using the selected request model)
 5. Keep pricing absent-safe: if catalog pricing is missing, emit usage without costs.
 
 Prompt caching:

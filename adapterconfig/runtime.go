@@ -153,7 +153,18 @@ func FindProviderEndpoint(endpoints []router.ProviderEndpoint, providerName stri
 func EndpointWithPricing(endpoint router.ProviderEndpoint, route RouteConfig, catalog modeldb.Catalog) router.ProviderEndpoint {
 	serviceID := endpoint.Tags[TagModelDBServiceID]
 	wireModelID := pricingWireModel(route)
-	if serviceID == "" || wireModelID == "" || endpoint.Client == nil {
+	if serviceID == "" || endpoint.Client == nil {
+		return endpoint
+	}
+	if route.DynamicModels {
+		endpoint.Client = &requestScopedPricingClient{
+			inner:     endpoint.Client,
+			catalog:   catalog,
+			serviceID: serviceID,
+		}
+		return endpoint
+	}
+	if wireModelID == "" {
 		return endpoint
 	}
 	endpoint.Client = &eventProcessorClient{
@@ -248,10 +259,31 @@ func (c *eventProcessorClient) Request(ctx context.Context, req unified.Request)
 	if err != nil {
 		return nil, err
 	}
+	return processEventStream(ctx, events, c.processors...), nil
+}
+
+type requestScopedPricingClient struct {
+	inner     unified.Client
+	catalog   modeldb.Catalog
+	serviceID string
+}
+
+func (c *requestScopedPricingClient) Request(ctx context.Context, req unified.Request) (<-chan unified.Event, error) {
+	events, err := c.inner.Request(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if req.Model == "" {
+		return events, nil
+	}
+	return processEventStream(ctx, events, pricing.NewProcessor(c.catalog, c.serviceID, req.Model)), nil
+}
+
+func processEventStream(ctx context.Context, events <-chan unified.Event, processors ...pipeline.Processor[unified.Event]) <-chan unified.Event {
 	out := make(chan unified.Event)
 	go func() {
 		defer close(out)
-		chain := pipeline.NewChain(c.processors...)
+		chain := pipeline.NewChain(processors...)
 		emit := func(values []unified.Event) bool {
 			for _, ev := range values {
 				select {
@@ -297,5 +329,5 @@ func (c *eventProcessorClient) Request(ctx context.Context, req unified.Request)
 			}
 		}
 	}()
-	return out, nil
+	return out
 }

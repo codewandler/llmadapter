@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-04-24
+
+### Added
+
+- Dynamic model routes now enrich usage costs per request when the selected provider-native model has modeldb pricing.
+- Added unit coverage for dynamic-route modeldb activation and request-scoped pricing in both shared adapter config and the compatibility gateway path.
+
 ## [0.44.0] - 2026-04-24
 
 ### Fixed
@@ -393,7 +400,25 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.45.0...HEAD
+[0.45.0]: https://github.com/codewandler/llmadapter/compare/v0.44.0...v0.45.0
+[0.44.0]: https://github.com/codewandler/llmadapter/compare/v0.43.0...v0.44.0
+[0.43.0]: https://github.com/codewandler/llmadapter/compare/v0.42.0...v0.43.0
+[0.42.0]: https://github.com/codewandler/llmadapter/compare/v0.41.0...v0.42.0
+[0.41.0]: https://github.com/codewandler/llmadapter/compare/v0.40.0...v0.41.0
+[0.40.0]: https://github.com/codewandler/llmadapter/compare/v0.39.0...v0.40.0
+[0.39.0]: https://github.com/codewandler/llmadapter/compare/v0.38.0...v0.39.0
+[0.38.0]: https://github.com/codewandler/llmadapter/compare/v0.37.0...v0.38.0
+[0.37.0]: https://github.com/codewandler/llmadapter/compare/v0.36.0...v0.37.0
+[0.36.0]: https://github.com/codewandler/llmadapter/compare/v0.35.0...v0.36.0
+[0.35.0]: https://github.com/codewandler/llmadapter/compare/v0.34.0...v0.35.0
+[0.34.0]: https://github.com/codewandler/llmadapter/compare/v0.33.0...v0.34.0
+[0.33.0]: https://github.com/codewandler/llmadapter/compare/v0.32.0...v0.33.0
+[0.32.0]: https://github.com/codewandler/llmadapter/compare/v0.31.0...v0.32.0
+[0.31.0]: https://github.com/codewandler/llmadapter/compare/v0.30.0...v0.31.0
+[0.30.0]: https://github.com/codewandler/llmadapter/compare/v0.29.0...v0.30.0
+[0.29.0]: https://github.com/codewandler/llmadapter/compare/v0.28.0...v0.29.0
+[0.28.0]: https://github.com/codewandler/llmadapter/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/codewandler/llmadapter/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/codewandler/llmadapter/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/codewandler/llmadapter/compare/v0.24.0...v0.25.0

@@ -224,7 +224,7 @@ func configUsesModelDB(cfg config) bool {
 		if route.ModelDBModel != "" {
 			return true
 		}
-		if pricingWireModel(route) != "" {
+		if pricingWireModel(route) != "" || route.DynamicModels {
 			for _, provider := range cfg.Providers {
 				if providerMatchesRoute(provider, route) && providerModelDBServiceID(provider) != "" {
 					return true
@@ -289,7 +289,18 @@ func providerMatchesRoute(provider providerConfig, route routeConfig) bool {
 func endpointWithPricing(endpoint router.ProviderEndpoint, route routeConfig, catalog modeldb.Catalog) router.ProviderEndpoint {
 	serviceID := endpoint.Tags[tagModelDBServiceID]
 	wireModelID := pricingWireModel(route)
-	if serviceID == "" || wireModelID == "" || endpoint.Client == nil {
+	if serviceID == "" || endpoint.Client == nil {
+		return endpoint
+	}
+	if route.DynamicModels {
+		endpoint.Client = &requestScopedPricingClient{
+			inner:     endpoint.Client,
+			catalog:   catalog,
+			serviceID: serviceID,
+		}
+		return endpoint
+	}
+	if wireModelID == "" {
 		return endpoint
 	}
 	endpoint.Client = &eventProcessorClient{
