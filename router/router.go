@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/codewandler/llmadapter/adapt"
@@ -22,6 +23,11 @@ type Route struct {
 
 type Router interface {
 	Route(ctx context.Context, req adapt.Request) (Route, error)
+}
+
+type CandidateRouter interface {
+	Router
+	Routes(ctx context.Context, req adapt.Request) ([]Route, error)
 }
 
 type ProviderEndpoint struct {
@@ -81,9 +87,16 @@ func NewStaticRouter(routes ...StaticRoute) *StaticRouter {
 }
 
 func (r *StaticRouter) Route(ctx context.Context, req adapt.Request) (Route, error) {
+	routes, err := r.Routes(ctx, req)
+	if err != nil {
+		return Route{}, err
+	}
+	return routes[0], nil
+}
+
+func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, error) {
 	var skipped []string
-	var selected StaticRoute
-	selectedSet := false
+	var candidates []StaticRoute
 	for _, route := range r.routes {
 		if route.SourceAPI != "" && route.SourceAPI != req.SourceAPI {
 			continue
@@ -92,37 +105,45 @@ func (r *StaticRouter) Route(ctx context.Context, req adapt.Request) (Route, err
 			continue
 		}
 		if route.Endpoint.Client == nil {
-			return Route{}, fmt.Errorf("route for model %q has no client", req.Unified.Model)
+			return nil, fmt.Errorf("route for model %q has no client", req.Unified.Model)
 		}
 		if reason := capabilityMismatch(req.Unified, route.Endpoint.Capabilities); reason != "" {
 			skipped = append(skipped, fmt.Sprintf("%s/%s: %s", route.Endpoint.ProviderName, route.Endpoint.APIKind, reason))
 			continue
 		}
-		if !selectedSet || routeRank(route, selected) > 0 {
-			selected = route
-			selectedSet = true
-		}
+		candidates = append(candidates, route)
 	}
-	if selectedSet {
-		nativeModel := selected.NativeModel
-		if nativeModel == "" {
-			nativeModel = req.Unified.Model
+	if len(candidates) > 0 {
+		sort.SliceStable(candidates, func(i, j int) bool {
+			return routeRank(candidates[i], candidates[j]) > 0
+		})
+		routes := make([]Route, 0, len(candidates))
+		for _, candidate := range candidates {
+			routes = append(routes, routeFromStatic(candidate, req))
 		}
-		return Route{
-			SourceAPI:    req.SourceAPI,
-			TargetAPI:    selected.Endpoint.APIKind,
-			TargetFamily: selected.Endpoint.Family,
-			ProviderName: selected.Endpoint.ProviderName,
-			PublicModel:  req.Unified.Model,
-			NativeModel:  nativeModel,
-			Client:       selected.Endpoint.Client,
-			Capabilities: selected.Endpoint.Capabilities,
-		}, nil
+		return routes, nil
 	}
 	if len(skipped) > 0 {
-		return Route{}, fmt.Errorf("no route for api %q model %q satisfies required capabilities: %s", req.SourceAPI, req.Unified.Model, strings.Join(skipped, "; "))
+		return nil, fmt.Errorf("no route for api %q model %q satisfies required capabilities: %s", req.SourceAPI, req.Unified.Model, strings.Join(skipped, "; "))
 	}
-	return Route{}, fmt.Errorf("no route for api %q model %q", req.SourceAPI, req.Unified.Model)
+	return nil, fmt.Errorf("no route for api %q model %q", req.SourceAPI, req.Unified.Model)
+}
+
+func routeFromStatic(route StaticRoute, req adapt.Request) Route {
+	nativeModel := route.NativeModel
+	if nativeModel == "" {
+		nativeModel = req.Unified.Model
+	}
+	return Route{
+		SourceAPI:    req.SourceAPI,
+		TargetAPI:    route.Endpoint.APIKind,
+		TargetFamily: route.Endpoint.Family,
+		ProviderName: route.Endpoint.ProviderName,
+		PublicModel:  req.Unified.Model,
+		NativeModel:  nativeModel,
+		Client:       route.Endpoint.Client,
+		Capabilities: route.Endpoint.Capabilities,
+	}
 }
 
 func routeRank(candidate, current StaticRoute) int {

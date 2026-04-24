@@ -10,6 +10,10 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- **Gateway provider fallback** - Gateway handlers now try ordered route candidates and fall back to lower-ranked providers when the selected provider fails before response bytes are written.
+
 ## [0.16.0] - 2026-04-24
 
 ### Added

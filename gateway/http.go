@@ -2,6 +2,8 @@ package gateway
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/codewandler/llmadapter/adapt"
@@ -28,23 +30,50 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = h.Endpoint.WriteError(ctx, tw, err)
 		return
 	}
-	route, err := h.Router.Route(ctx, req)
+	routes, err := routeCandidates(ctx, h.Router, req)
 	if err != nil {
 		_ = h.Endpoint.WriteError(ctx, tw, err)
 		return
 	}
-	if route.NativeModel != "" {
-		req.Unified.Model = route.NativeModel
+	var failures []error
+	for _, route := range routes {
+		attempt := req
+		if route.NativeModel != "" {
+			attempt.Unified.Model = route.NativeModel
+		}
+		events, err := route.Client.Request(ctx, attempt.Unified)
+		if err != nil {
+			failures = append(failures, routeError(route, err))
+			continue
+		}
+		if err := h.Endpoint.WriteEvents(ctx, tw, attempt, events); err != nil {
+			if tw.wrote {
+				return
+			}
+			failures = append(failures, routeError(route, err))
+			continue
+		}
+		return
 	}
-	events, err := route.Client.Request(ctx, req.Unified)
+	if err := errors.Join(failures...); err != nil {
+		_ = h.Endpoint.WriteError(ctx, tw, err)
+		return
+	}
+}
+
+func routeCandidates(ctx context.Context, r router.Router, req adapt.Request) ([]router.Route, error) {
+	if candidateRouter, ok := r.(router.CandidateRouter); ok {
+		return candidateRouter.Routes(ctx, req)
+	}
+	route, err := r.Route(ctx, req)
 	if err != nil {
-		_ = h.Endpoint.WriteError(ctx, tw, err)
-		return
+		return nil, err
 	}
-	if err := h.Endpoint.WriteEvents(ctx, tw, req, events); err != nil && !tw.wrote {
-		_ = h.Endpoint.WriteError(ctx, tw, err)
-		return
-	}
+	return []router.Route{route}, nil
+}
+
+func routeError(route router.Route, err error) error {
+	return fmt.Errorf("provider %s/%s failed: %w", route.ProviderName, route.TargetAPI, err)
 }
 
 type trackingResponseWriter struct {

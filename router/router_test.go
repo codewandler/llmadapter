@@ -171,6 +171,44 @@ func TestStaticRouterRanksByEndpointPriorityWhenWeightsTie(t *testing.T) {
 	}
 }
 
+func TestStaticRouterRoutesReturnsRankedCandidates(t *testing.T) {
+	client := noopClient{}
+	r := NewStaticRouter(
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Weight:    10,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "first",
+				APIKind:      adapt.ApiOpenAIChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+			},
+		},
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Weight:    20,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "second",
+				APIKind:      adapt.ApiOpenRouterChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+			},
+		},
+	)
+	routes, err := r.Routes(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Unified:   unified.Request{Model: "model"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 2 || routes[0].ProviderName != "second" || routes[1].ProviderName != "first" {
+		t.Fatalf("routes = %+v", routes)
+	}
+}
+
 func TestStaticRouterFallsBackFromHigherWeightCapabilityMismatch(t *testing.T) {
 	client := noopClient{}
 	r := NewStaticRouter(
