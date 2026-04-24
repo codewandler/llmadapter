@@ -92,12 +92,13 @@ func TestAnthropicMessagesGatewaySmokeStreaming(t *testing.T) {
 func anthropicMessagesGatewayProviders() []gatewayProvider {
 	return []gatewayProvider{
 		{
-			name:      "anthropic",
-			apiKind:   adapt.ApiAnthropicMessages,
-			family:    adapt.FamilyAnthropicMessages,
-			apiKeyEnv: []string{"ANTHROPIC_API_KEY"},
-			modelEnv:  "ANTHROPIC_MODEL",
-			model:     "claude-haiku-4-5-20251001",
+			name:         "anthropic",
+			apiKind:      adapt.ApiAnthropicMessages,
+			family:       adapt.FamilyAnthropicMessages,
+			capabilities: router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:    []string{"ANTHROPIC_API_KEY"},
+			modelEnv:     "ANTHROPIC_MODEL",
+			model:        "claude-haiku-4-5-20251001",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return anthropic.NewClient(
 					anthropic.WithAPIKey(apiKey),
@@ -109,12 +110,13 @@ func anthropicMessagesGatewayProviders() []gatewayProvider {
 			},
 		},
 		{
-			name:      "openrouter_messages",
-			apiKind:   adapt.ApiOpenRouterAnthropicMessages,
-			family:    adapt.FamilyAnthropicMessages,
-			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
-			modelEnv:  "OPENROUTER_MESSAGES_MODEL",
-			model:     "anthropic/claude-sonnet-4",
+			name:         "openrouter_messages",
+			apiKind:      adapt.ApiOpenRouterAnthropicMessages,
+			family:       adapt.FamilyAnthropicMessages,
+			capabilities: router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:    []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:     "OPENROUTER_MESSAGES_MODEL",
+			model:        "anthropic/claude-sonnet-4",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openroutermessages.NewClient(openroutermessages.WithAPIKey(apiKey))
 			},
@@ -123,6 +125,7 @@ func anthropicMessagesGatewayProviders() []gatewayProvider {
 			name:            "minimax_messages",
 			apiKind:         adapt.ApiMiniMaxAnthropicMessages,
 			family:          adapt.FamilyAnthropicMessages,
+			capabilities:    router.CapabilitySet{Streaming: true, Tools: true},
 			apiKeyEnv:       []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
 			modelEnv:        "MINIMAX_MESSAGES_MODEL",
 			model:           "MiniMax-M2.7",

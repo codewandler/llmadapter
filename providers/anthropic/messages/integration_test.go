@@ -74,6 +74,52 @@ data: {"type":"message_stop"}`),
 	}
 }
 
+func TestIntegrationEmitsBestEffortWarnings(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`event: message_start
+data: {"type":"message_start","message":{"id":"msg","role":"assistant","model":"claude-test"}}`),
+		[]byte(`event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`),
+		[]byte(`event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}`),
+		[]byte(`event: content_block_stop
+data: {"type":"content_block_stop","index":0}`),
+		[]byte(`event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}`),
+		[]byte(`event: message_stop
+data: {"type":"message_stop"}`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 64
+	seed := int64(1)
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Seed:            &seed,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Warnings) != 1 {
+		t.Fatalf("warnings = %+v", resp.Warnings)
+	}
+	if resp.Warnings[0].Code != "unsupported_field_dropped" || resp.Warnings[0].Meta["field"] != "seed" {
+		t.Fatalf("unexpected warning: %+v", resp.Warnings[0])
+	}
+}
+
 func TestIntegrationToolUseStream(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`event: message_start

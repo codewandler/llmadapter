@@ -18,7 +18,7 @@ type EventEncoder[In any, Out any] interface {
 
 type ProviderCodec[Req any, Evt any] interface {
 	ApiKind() ApiKind
-	EncodeRequest(ctx context.Context, req Request) (Req, error)
+	EncodeRequest(ctx context.Context, req *Request) (Req, error)
 	NewEventDecoder() EventDecoder[Evt, unified.Event]
 }
 

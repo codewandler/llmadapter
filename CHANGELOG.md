@@ -19,6 +19,7 @@ can be created to match these entries as the project starts publishing releases.
 - **OpenAI Responses gateway route** - Wired `/v1/responses` into the gateway command and default route set.
 - **OpenAI Responses gateway smokes** - Added live gateway smoke coverage against OpenRouter Responses.
 - **Capability-aware routing** - Static routing now skips endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input.
+- **Best-effort mapping warnings** - Anthropic-family provider request mapping now emits canonical warnings when unsupported fields are dropped in best-effort mode.
 
 ## [0.10.1] - 2026-04-24
 

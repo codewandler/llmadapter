@@ -20,7 +20,7 @@ func (Codec) NewEventDecoder() adapt.EventDecoder[Event, unified.Event] {
 	return NewEventDecoder()
 }
 
-func (Codec) EncodeRequest(ctx context.Context, req adapt.Request) (MessageRequest, error) {
+func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequest, error) {
 	ureq := req.Unified
 	if ureq.MaxOutputTokens == nil {
 		return MessageRequest{}, &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "max_output_tokens", Reason: "Anthropic requires max_tokens"}
@@ -90,13 +90,14 @@ func (Codec) EncodeRequest(ctx context.Context, req adapt.Request) (MessageReque
 	return out, nil
 }
 
-func unsupported(req adapt.Request, field string, condition bool) error {
+func unsupported(req *adapt.Request, field string, condition bool) error {
 	if !condition {
 		return nil
 	}
 	if req.MappingMode == adapt.MappingModeStrict {
 		return &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: field, Reason: "not supported by first Anthropic mapping"}
 	}
+	req.AddWarning("unsupported_field_dropped", field, fmt.Sprintf("%s is not supported by %s and was dropped", field, adapt.ApiAnthropicMessages))
 	return nil
 }
 
@@ -111,7 +112,7 @@ func encodeInstructions(instructions []unified.Instruction) (string, error) {
 	return strings.Join(parts, "\n"), nil
 }
 
-func encodeMessage(req adapt.Request, msg unified.Message) (InputMessage, error) {
+func encodeMessage(req *adapt.Request, msg unified.Message) (InputMessage, error) {
 	role := string(msg.Role)
 	if msg.Role == unified.RoleTool {
 		role = "user"
@@ -149,7 +150,7 @@ func encodeMessage(req adapt.Request, msg unified.Message) (InputMessage, error)
 	return InputMessage{Role: role, Content: blocks}, nil
 }
 
-func encodeContentPart(req adapt.Request, part unified.ContentPart) (ContentBlock, error) {
+func encodeContentPart(req *adapt.Request, part unified.ContentPart) (ContentBlock, error) {
 	switch p := part.(type) {
 	case unified.TextPart:
 		return ContentBlock{Type: "text", Text: p.Text}, nil
@@ -177,7 +178,7 @@ func encodeContentPart(req adapt.Request, part unified.ContentPart) (ContentBloc
 	}
 }
 
-func encodeToolChoice(req adapt.Request, choice unified.ToolChoice) (*ToolChoiceWire, error) {
+func encodeToolChoice(req *adapt.Request, choice unified.ToolChoice) (*ToolChoiceWire, error) {
 	switch choice.Mode {
 	case unified.ToolChoiceAuto, "":
 		return &ToolChoiceWire{Type: "auto"}, nil

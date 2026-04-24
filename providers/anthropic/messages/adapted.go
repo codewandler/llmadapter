@@ -28,7 +28,7 @@ func (c *AdaptedClient) Request(ctx context.Context, req unified.Request) (<-cha
 			return nil, err
 		}
 	}
-	wireReq, err := c.codec.EncodeRequest(ctx, areq)
+	wireReq, err := c.codec.EncodeRequest(ctx, &areq)
 	if err != nil {
 		return nil, err
 	}
@@ -43,15 +43,28 @@ func (c *AdaptedClient) Request(ctx context.Context, req unified.Request) (<-cha
 	}
 
 	out := make(chan unified.Event)
-	go c.stream(ctx, providerEvents, out)
+	go c.stream(ctx, areq.Warnings, providerEvents, out)
 	return out, nil
 }
 
-func (c *AdaptedClient) stream(ctx context.Context, in <-chan Event, out chan<- unified.Event) {
+func (c *AdaptedClient) stream(ctx context.Context, warnings []adapt.Warning, in <-chan Event, out chan<- unified.Event) {
 	defer close(out)
 	providerChain := pipeline.NewChain(c.provEvtProcs...)
 	unifiedChain := pipeline.NewChain(c.unifiedEvtProcs...)
 	decoder := c.codec.NewEventDecoder()
+
+	for _, warning := range warnings {
+		select {
+		case <-ctx.Done():
+			return
+		case out <- unified.WarningEvent{
+			Code:    warning.Code,
+			Message: warning.Message,
+			Source:  string(c.codec.ApiKind()),
+			Meta:    warningMeta(warning),
+		}:
+		}
+	}
 
 	emit := func(events []unified.Event) bool {
 		for _, ev := range events {
@@ -143,6 +156,13 @@ func (c *AdaptedClient) stream(ctx context.Context, in <-chan Event, out chan<- 
 			}
 		}
 	}
+}
+
+func warningMeta(warning adapt.Warning) map[string]any {
+	if warning.Field == "" {
+		return nil
+	}
+	return map[string]any{"field": warning.Field}
 }
 
 func pushUnified(ctx context.Context, chain *pipeline.Chain[unified.Event], events []unified.Event) ([]unified.Event, error) {

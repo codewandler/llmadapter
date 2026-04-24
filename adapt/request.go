@@ -26,3 +26,14 @@ type Request struct {
 	Warnings    []Warning                  `json:"warnings,omitempty"`
 	Extensions  map[string]json.RawMessage `json:"extensions,omitempty"`
 }
+
+func (r *Request) AddWarning(code, field, message string) {
+	if r == nil {
+		return
+	}
+	r.Warnings = append(r.Warnings, Warning{
+		Code:    code,
+		Field:   field,
+		Message: message,
+	})
+}
