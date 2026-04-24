@@ -51,6 +51,7 @@ Configuration:
 - `LLMADAPTER_CONFIG` points to a JSON config file.
 - `LLMADAPTER_ADDR` sets the listen address when no config file is used.
 - Routes select a provider endpoint with `provider` and optional `provider_api`.
+- Routes can set `weight`; providers can set `priority`. Compatible routes are ranked by weight first, then endpoint priority, with declaration order as the final tie-breaker.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
 
 Example provider endpoint types:
@@ -74,7 +75,7 @@ API family = compatibility family.
 Provider endpoint = provider + API kind + family + client + capabilities.
 ```
 
-Routes skip provider endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input.
+Routes skip provider endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input, then rank the remaining candidates by configured weight and endpoint priority.
 
 Best-effort endpoint codecs retain decode/lossiness warnings on `adapt.Request`, and provider mappings emit canonical warning events for common unsupported dropped fields. Collected responses expose provider-side warnings under `Response.Warnings`.
 

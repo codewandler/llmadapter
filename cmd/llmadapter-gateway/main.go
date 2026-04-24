@@ -79,6 +79,7 @@ func buildRouter(cfg config) (router.Router, error) {
 			SourceAPI:   route.SourceAPI,
 			Model:       route.Model,
 			NativeModel: route.NativeModel,
+			Weight:      route.Weight,
 			Endpoint:    endpoint,
 		})
 	}
@@ -100,6 +101,7 @@ func buildProviderEndpoint(provider providerConfig) (router.ProviderEndpoint, er
 		Family:       family,
 		Client:       client,
 		Capabilities: capabilities,
+		Priority:     provider.Priority,
 	}, nil
 }
 

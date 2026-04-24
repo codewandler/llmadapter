@@ -12,8 +12,8 @@ func TestLoadConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(path, []byte(`{
 		"addr":":9090",
-		"providers":[{"name":"anthropic","type":"anthropic","api_key_env":"ANTHROPIC_API_KEY","model":"native"}],
-		"routes":[{"source_api":"openai.chat_completions","model":"public","provider":"anthropic"}]
+		"providers":[{"name":"anthropic","type":"anthropic","api_key_env":"ANTHROPIC_API_KEY","model":"native","priority":7}],
+		"routes":[{"source_api":"openai.chat_completions","model":"public","provider":"anthropic","weight":11}]
 	}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -26,6 +26,9 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if cfg.Routes[0].SourceAPI != adapt.ApiOpenAIChatCompletions || cfg.Routes[0].NativeModel != "native" {
 		t.Fatalf("unexpected route defaults: %+v", cfg.Routes[0])
+	}
+	if cfg.Providers[0].Priority != 7 || cfg.Routes[0].Weight != 11 {
+		t.Fatalf("unexpected routing weights: %+v %+v", cfg.Providers[0], cfg.Routes[0])
 	}
 }
 

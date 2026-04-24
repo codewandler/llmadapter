@@ -41,6 +41,7 @@ Mapping warnings slice: Anthropic-family provider best-effort request mapping em
 Mapping warnings slice: OpenAI Chat, OpenRouter Chat, and OpenRouter Responses provider mappings emit canonical warning events for dropped non-text content and unsupported tool kinds
 Endpoint decode warnings slice: OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages endpoint codecs retain warnings on adapt.Request for unsupported inbound fields dropped during canonical decode
 OpenRouter extension passthrough slice: endpoint codecs preserve OpenRouter routing/provider/plugin/debug/trace/session controls in unified.Request.Extensions and OpenRouter Chat, Responses, and Messages providers encode those controls upstream
+Weighted routing slice: static router ranks compatible candidates by route weight and endpoint priority while falling back past capability mismatches
 ```
 
 Verified:
@@ -187,7 +188,7 @@ Anthropic request mapping covers the phase-3 vertical slice, not the full Messag
 non-streaming Anthropic response bodies are not yet modeled separately from stream events
 SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
 Raw/unmapped event preservation is minimal and should be expanded before gateway work
-router is static and now includes basic capability checks, but does not yet include weighted fallback/ranking or capability conversion policies
+router is static and now includes capability checks plus deterministic weighted ranking, but does not yet include probabilistic load balancing, health-aware retries, or capability conversion policies
 gateway config is intentionally minimal; routes can disambiguate same-provider endpoints with provider_api, but there is no full registry yet
 OpenAI provider is stream-first and covers smoke-tested text and tool-use paths
 OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
@@ -207,10 +208,10 @@ runnable gateway uses one Anthropic route and can optionally override upstream m
 Implementation assessment:
 
 ```text
-Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, fake transport unit tests, and live outside-in e2e tests are all working.
-Main intentional shortcuts are static first-match routing, hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
+Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, deterministic weighted routing, fake transport unit tests, and live outside-in e2e tests are all working.
+Main intentional shortcuts are hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
-Important remaining test gaps: invalid credentials/models, weighted fallback routing, parallel tool calls, malformed tool args, full JSON/schema mode behavior, deeper endpoint-codec conformance, broader reasoning/citations conformance, multimodal input, and provider-specific extension schema validation.
+Important remaining test gaps: invalid credentials/models, health-aware fallback after provider failures, parallel tool calls, malformed tool args, full JSON/schema mode behavior, deeper endpoint-codec conformance, broader reasoning/citations conformance, multimodal input, and provider-specific extension schema validation.
 ```
 
 Next planned phase:

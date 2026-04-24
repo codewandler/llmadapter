@@ -95,6 +95,123 @@ func TestStaticRouterSkipsCapabilityMismatch(t *testing.T) {
 	}
 }
 
+func TestStaticRouterRanksByRouteWeight(t *testing.T) {
+	client := noopClient{}
+	r := NewStaticRouter(
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Weight:    10,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "low",
+				APIKind:      adapt.ApiOpenAIChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+			},
+		},
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Weight:    20,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "high",
+				APIKind:      adapt.ApiOpenRouterChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+			},
+		},
+	)
+	route, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Unified:   unified.Request{Model: "model"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.ProviderName != "high" {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+}
+
+func TestStaticRouterRanksByEndpointPriorityWhenWeightsTie(t *testing.T) {
+	client := noopClient{}
+	r := NewStaticRouter(
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "first",
+				APIKind:      adapt.ApiOpenAIChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+				Priority:     10,
+			},
+		},
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "second",
+				APIKind:      adapt.ApiOpenRouterChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+				Priority:     20,
+			},
+		},
+	)
+	route, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Unified:   unified.Request{Model: "model"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.ProviderName != "second" {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+}
+
+func TestStaticRouterFallsBackFromHigherWeightCapabilityMismatch(t *testing.T) {
+	client := noopClient{}
+	r := NewStaticRouter(
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Weight:    100,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "text",
+				APIKind:      adapt.ApiMiniMaxChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+			},
+		},
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Weight:    10,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "tools",
+				APIKind:      adapt.ApiOpenAIChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true, Tools: true},
+			},
+		},
+	)
+	route, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Unified: unified.Request{
+			Model: "model",
+			Tools: []unified.Tool{{Kind: unified.ToolKindFunction, Name: "lookup"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.ProviderName != "tools" {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+}
+
 func TestStaticRouterRejectsCapabilityMismatch(t *testing.T) {
 	client := noopClient{}
 	r := NewStaticRouter(StaticRoute{

@@ -21,6 +21,7 @@ type providerConfig struct {
 	APIKeyEnv string `json:"api_key_env,omitempty"`
 	BaseURL   string `json:"base_url,omitempty"`
 	Model     string `json:"model,omitempty"`
+	Priority  int    `json:"priority,omitempty"`
 }
 
 type routeConfig struct {
@@ -29,6 +30,7 @@ type routeConfig struct {
 	Provider    string        `json:"provider"`
 	ProviderAPI adapt.ApiKind `json:"provider_api,omitempty"`
 	NativeModel string        `json:"native_model,omitempty"`
+	Weight      int           `json:"weight,omitempty"`
 }
 
 func loadConfigFromEnv() (config, error) {

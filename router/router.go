@@ -72,6 +72,7 @@ type StaticRoute struct {
 	SourceAPI   adapt.ApiKind
 	Model       string
 	NativeModel string
+	Weight      int
 	Endpoint    ProviderEndpoint
 }
 
@@ -81,6 +82,8 @@ func NewStaticRouter(routes ...StaticRoute) *StaticRouter {
 
 func (r *StaticRouter) Route(ctx context.Context, req adapt.Request) (Route, error) {
 	var skipped []string
+	var selected StaticRoute
+	selectedSet := false
 	for _, route := range r.routes {
 		if route.SourceAPI != "" && route.SourceAPI != req.SourceAPI {
 			continue
@@ -95,25 +98,38 @@ func (r *StaticRouter) Route(ctx context.Context, req adapt.Request) (Route, err
 			skipped = append(skipped, fmt.Sprintf("%s/%s: %s", route.Endpoint.ProviderName, route.Endpoint.APIKind, reason))
 			continue
 		}
-		nativeModel := route.NativeModel
+		if !selectedSet || routeRank(route, selected) > 0 {
+			selected = route
+			selectedSet = true
+		}
+	}
+	if selectedSet {
+		nativeModel := selected.NativeModel
 		if nativeModel == "" {
 			nativeModel = req.Unified.Model
 		}
 		return Route{
 			SourceAPI:    req.SourceAPI,
-			TargetAPI:    route.Endpoint.APIKind,
-			TargetFamily: route.Endpoint.Family,
-			ProviderName: route.Endpoint.ProviderName,
+			TargetAPI:    selected.Endpoint.APIKind,
+			TargetFamily: selected.Endpoint.Family,
+			ProviderName: selected.Endpoint.ProviderName,
 			PublicModel:  req.Unified.Model,
 			NativeModel:  nativeModel,
-			Client:       route.Endpoint.Client,
-			Capabilities: route.Endpoint.Capabilities,
+			Client:       selected.Endpoint.Client,
+			Capabilities: selected.Endpoint.Capabilities,
 		}, nil
 	}
 	if len(skipped) > 0 {
 		return Route{}, fmt.Errorf("no route for api %q model %q satisfies required capabilities: %s", req.SourceAPI, req.Unified.Model, strings.Join(skipped, "; "))
 	}
 	return Route{}, fmt.Errorf("no route for api %q model %q", req.SourceAPI, req.Unified.Model)
+}
+
+func routeRank(candidate, current StaticRoute) int {
+	if candidate.Weight != current.Weight {
+		return candidate.Weight - current.Weight
+	}
+	return candidate.Endpoint.Priority - current.Endpoint.Priority
 }
 
 func capabilityMismatch(req unified.Request, caps CapabilitySet) string {
