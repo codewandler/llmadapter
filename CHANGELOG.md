@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-04-24
+
+### Added
+
+- Migrated `cmd/llmadapter` to Cobra for a CLI shape closer to `../llmproviders/llmcli`.
+- Added `llmadapter routes` and `llmadapter models` inspection commands for configured or auto-detected mux routes.
+
 ## [0.33.0] - 2026-04-24
 
 ### Added

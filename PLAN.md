@@ -60,7 +60,7 @@ Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved 
 Provider registry slice: shared `providerregistry` package lists endpoint types and can construct direct provider clients for CLI/library use
 Mux client slice: `muxclient` provides a stateless unified.Client over router/provider endpoints with native model rewrite and pre-stream fallback
 Adapter config slice: `adapterconfig` exposes JSON config loading/defaulting/validation plus config-driven muxclient construction with modeldb alias resolution, capability metadata, and pricing processors
-CLI slice: `cmd/llmadapter` can list provider endpoint types and run minimal direct, manual mux-routed, or config-driven mux text smoke requests
+CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types, inspect configured/auto-detected routes and models, and run minimal direct, manual mux-routed, config-driven mux, or auto-detected mux text smoke requests
 Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
@@ -281,8 +281,8 @@ Structured usage/cost accounting: canonical token and cost item types, modeldb-p
 Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, and live prompt-cache/tool/gateway smokes are in place.
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
 Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
-CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
-Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; next consolidate gateway command internals onto adapterconfig and add route/model inspection commands.
+CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, and smoke requests; next add `resolve` and eventually fold gateway serving under the same CLI shape.
+Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; next consolidate gateway command internals onto adapterconfig and add route resolution explanations.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
 ```
 
@@ -328,14 +328,14 @@ Initial commands:
    - accept the same LLMADAPTER_CONFIG config path and listen address overrides
    - expose /v1/chat/completions, /v1/responses, and /v1/messages
 2. models
-   - list configured provider endpoints and native/public models
+   - list configured or auto-detected provider endpoints and native/public models (implemented)
    - fixed-route modeldb service/offering/exposure metadata is visible through the gateway inspection path; fold this into the future unified CLI
 3. resolve
    - explain how a public model/API request maps to provider endpoint, API kind, family, native model, capabilities, and route weight/priority
 4. providers
-   - list configured providers, provider endpoint types, API kinds, health status, and credential source names without printing secrets
+   - list provider endpoint types and API metadata (implemented); next add configured provider credential source/status inspection without printing secrets
 5. smoke
-   - run a minimal outside-in request against one provider endpoint for text streaming (implemented for direct provider endpoints, single-route mux mode, and config-driven mux mode)
+   - run a minimal outside-in request against one provider endpoint for text streaming (implemented for direct provider endpoints, single-route mux mode, config-driven mux mode, and auto-detected mux mode)
 6. catalog
    - wrap modeldb catalog inspection once modeldb is an explicit dependency
 
