@@ -10,12 +10,17 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-04-24
+
+### Added
+
+- **Gateway health tracking** - Gateway handlers now mark failed provider endpoints unhealthy for a cooldown window and temporarily deprioritize them while keeping them as last-resort candidates.
+
 ## [0.22.0] - 2026-04-24
 
 ### Added
 
 - **Tool argument decode hardening** - OpenAI Chat and OpenAI Responses endpoint codecs now replace malformed tool-call argument JSON with `{}` and retain decode warnings instead of carrying invalid JSON forward.
-- **Gateway health tracking** - Gateway handlers now mark failed provider endpoints unhealthy for a cooldown window and temporarily deprioritize them while keeping them as last-resort candidates.
 
 ## [0.21.0] - 2026-04-24
 
@@ -220,7 +225,8 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/codewandler/llmadapter/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/codewandler/llmadapter/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/codewandler/llmadapter/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/codewandler/llmadapter/compare/v0.19.0...v0.20.0
