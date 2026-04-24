@@ -15,8 +15,9 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - Added a shared `providerregistry` package for provider endpoint descriptors and direct client construction.
-- Added an initial `llmadapter` CLI with `providers` and direct-provider `smoke` commands.
-- Documented the planned stateless in-process mux client layer for gateway-like routing without an HTTP server.
+- Added a stateless `muxclient` package implementing `unified.Client` over router/provider endpoints.
+- Added an initial `llmadapter` CLI with `providers` plus direct and mux-routed `smoke` commands.
+- Documented the planned modeldb/config expansion for the mux client layer.
 
 ## [0.29.0] - 2026-04-24
 

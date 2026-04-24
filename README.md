@@ -31,6 +31,7 @@ List provider endpoint types and run a minimal direct smoke through the CLI:
 ```sh
 go run ./cmd/llmadapter providers
 go run ./cmd/llmadapter smoke -type openai_responses
+go run ./cmd/llmadapter smoke -mode mux -type openai_responses
 ```
 
 Live tests skip when credentials are missing. Supported credential env vars:
@@ -60,7 +61,7 @@ The main CLI command is `cmd/llmadapter`.
 Initial commands:
 
 - `llmadapter providers` lists registered provider endpoint types, API kinds, families, model env vars, and default smoke models.
-- `llmadapter smoke` runs a minimal direct text request through a configured provider endpoint type.
+- `llmadapter smoke` runs a minimal direct text request through a configured provider endpoint type; `-mode mux` runs the same request through the stateless mux client route path.
 
 Gateway serving is still owned by `cmd/llmadapter-gateway` while the CLI surface is being built out.
 
@@ -187,7 +188,7 @@ OpenAI Responses-compatible continuation and cache-key controls are also carried
 
 Conversation/session state belongs above llmadapter, for example in `agentsdk`. llmadapter only exposes stateless request/event/provider primitives needed by those layers.
 
-A future in-process mux client is planned as a stateless library layer over the same provider registry, modeldb metadata, and router selection used by the gateway. It should be able to construct provider clients, resolve configured/modeldb-backed models, choose compatible API kinds, and route upstream without requiring an HTTP gateway process.
+The in-process mux client is a stateless library layer over provider endpoints and router selection. It can route a `unified.Request` upstream without requiring an HTTP gateway process; modeldb-backed model resolution and pricing are planned follow-ups.
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 

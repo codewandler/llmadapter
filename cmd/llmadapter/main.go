@@ -9,7 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/muxclient"
 	"github.com/codewandler/llmadapter/providerregistry"
+	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -58,8 +61,11 @@ func runProviders(args []string) error {
 
 func runSmoke(args []string) error {
 	fs := flag.NewFlagSet("smoke", flag.ContinueOnError)
+	mode := fs.String("mode", "direct", "smoke mode: direct or mux")
+	sourceAPI := fs.String("source-api", string(adapt.ApiOpenAIResponses), "source API for mux mode")
 	providerType := fs.String("type", "openai_responses", "provider endpoint type")
 	model := fs.String("model", "", "model to request")
+	nativeModel := fs.String("native-model", "", "native model for mux mode; defaults to model")
 	apiKey := fs.String("api-key", "", "API key; prefer env vars in normal use")
 	apiKeyEnv := fs.String("api-key-env", "", "environment variable containing the API key")
 	baseURL := fs.String("base-url", "", "provider base URL override")
@@ -87,13 +93,34 @@ func runSmoke(args []string) error {
 	if requestModel == "" {
 		requestModel = descriptor.DefaultModel
 	}
-	client, err := providerregistry.NewClient(providerregistry.ClientConfig{
+	providerClient, err := providerregistry.NewClient(providerregistry.ClientConfig{
 		Type:    descriptor.Type,
 		APIKey:  key,
 		BaseURL: *baseURL,
 	})
 	if err != nil {
 		return err
+	}
+	client := providerClient
+	if *mode == "mux" {
+		routeModel := requestModel
+		if *nativeModel == "" {
+			*nativeModel = requestModel
+		}
+		client = muxclient.New(router.NewStaticRouter(router.StaticRoute{
+			SourceAPI:   adapt.ApiKind(*sourceAPI),
+			Model:       routeModel,
+			NativeModel: *nativeModel,
+			Endpoint: router.ProviderEndpoint{
+				ProviderName: descriptor.Type,
+				APIKind:      descriptor.APIKind,
+				Family:       descriptor.Family,
+				Client:       providerClient,
+				Capabilities: descriptor.Capabilities,
+			},
+		}), muxclient.WithSourceAPI(adapt.ApiKind(*sourceAPI)))
+	} else if *mode != "direct" {
+		return fmt.Errorf("unknown smoke mode %q", *mode)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
