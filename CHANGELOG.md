@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-04-24
+
 ### Added
 
 - **Endpoint decode warnings** - OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages endpoint codecs now store best-effort decode warnings on `adapt.Request` when unsupported inbound fields are dropped.
@@ -181,7 +183,8 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/codewandler/llmadapter/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/codewandler/llmadapter/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/codewandler/llmadapter/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/codewandler/llmadapter/compare/v0.12.0...v0.13.0
