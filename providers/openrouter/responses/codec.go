@@ -369,9 +369,7 @@ func (d *streamDecoder) done(resp *responseWire) []unified.Event {
 	}
 	if resp != nil && resp.Usage != nil {
 		out = append(out, unified.UsageEvent{
-			InputTokens:  resp.Usage.InputTokens,
-			OutputTokens: resp.Usage.OutputTokens,
-			TotalTokens:  resp.Usage.TotalTokens,
+			Tokens: tokenItemsFromUsage(resp.Usage),
 		})
 	}
 	reason := finishReason(resp)
@@ -381,6 +379,34 @@ func (d *streamDecoder) done(resp *responseWire) []unified.Event {
 	out = append(out, unified.CompletedEvent{FinishReason: reason, MessageID: d.id})
 	out = append(out, unified.MessageDoneEvent{ID: d.id})
 	return out
+}
+
+func tokenItemsFromUsage(usage *usageWire) unified.TokenItems {
+	if usage == nil {
+		return nil
+	}
+	cachedInput := 0
+	if usage.InputTokensDetails != nil {
+		cachedInput = usage.InputTokensDetails.CachedTokens
+	}
+	newInput := usage.InputTokens - cachedInput
+	if newInput < 0 {
+		newInput = 0
+	}
+	reasoningOutput := 0
+	if usage.OutputTokensDetails != nil {
+		reasoningOutput = usage.OutputTokensDetails.ReasoningTokens
+	}
+	output := usage.OutputTokens - reasoningOutput
+	if output < 0 {
+		output = 0
+	}
+	return unified.TokenItems{
+		{Kind: unified.TokenKindInputNew, Count: newInput},
+		{Kind: unified.TokenKindInputCacheRead, Count: cachedInput},
+		{Kind: unified.TokenKindOutput, Count: output},
+		{Kind: unified.TokenKindOutputReasoning, Count: reasoningOutput},
+	}.NonZero()
 }
 
 func finishReason(resp *responseWire) unified.FinishReason {

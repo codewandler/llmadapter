@@ -16,7 +16,10 @@ func TestCollectTextToolUsageAndError(t *testing.T) {
 	ch <- ToolCallStartEvent{Index: 1, ID: "toolu", Name: "lookup"}
 	ch <- ToolCallArgsDeltaEvent{Index: 1, Delta: `{"q":"x"}`}
 	ch <- ToolCallDoneEvent{Index: 1, ID: "toolu", Name: "lookup"}
-	ch <- UsageEvent{InputTokens: 1, OutputTokens: 2}
+	ch <- NewUsageEvent(TokenItems{
+		{Kind: TokenKindInputNew, Count: 1},
+		{Kind: TokenKindOutput, Count: 2},
+	}, nil)
 	ch <- CompletedEvent{FinishReason: FinishReasonStop}
 	close(ch)
 
@@ -33,8 +36,8 @@ func TestCollectTextToolUsageAndError(t *testing.T) {
 	if len(resp.ToolCalls) != 1 || string(resp.ToolCalls[0].Arguments) != `{"q":"x"}` {
 		t.Fatalf("unexpected tools: %+v", resp.ToolCalls)
 	}
-	if resp.Usage.TotalTokens != 3 {
-		t.Fatalf("usage total = %d, want 3", resp.Usage.TotalTokens)
+	if resp.Usage.TotalTokens() != 3 {
+		t.Fatalf("usage total = %d, want 3", resp.Usage.TotalTokens())
 	}
 
 	want := errors.New("boom")

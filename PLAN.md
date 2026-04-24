@@ -52,6 +52,7 @@ Gateway health slice: gateway command shares an in-memory health tracker that te
 Stabilization slice: gateway health cooldown is configurable, health deprioritization is keyed by provider/API/model, and provider capability metadata can be overridden per configured provider/model
 Stabilization slice: OpenRouter raw extension preservation is centralized in unified helpers used by endpoint and provider codecs
 Stabilization slice: Anthropic Messages endpoint decoding preserves mixed user text/tool-result content by splitting it into canonical user and tool messages
+Structured usage slice: canonical usage now carries token and cost item breakdowns, with flat API counters derived only at endpoint wire boundaries
 ```
 
 Verified:
@@ -82,6 +83,7 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/minimax_messages' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestAnthropicMessagesGatewaySmoke' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestResponsesGatewaySmoke' -count=1 -v
+env GOCACHE=/tmp/go-cache go test ./...
 ```
 
 Implemented package surface:
@@ -132,6 +134,7 @@ Anthropic wire event -> unified.Event mapping
 text streaming
 tool-use streaming with argument deltas
 usage and finish-reason mapping
+structured token categories for input.new, input.cache_read, input.cache_write, and output
 unified.Collect(...)
 fake transport integration tests
 live Anthropic smoke test through unified.Client
@@ -166,6 +169,7 @@ OpenRouter Chat, Responses, and Messages pass shared tool-use and tool-result co
 OpenRouter Responses routes through the OpenAI Chat gateway smoke path via canonical text conversion
 MiniMax Chat uses the OpenAI-compatible stream path and is registered in text and gateway smoke matrices
 MiniMax Messages uses the Anthropic-compatible stream path and is registered in text, tool, continuation, and gateway smoke matrices
+Anthropic, OpenAI Chat, and OpenRouter Responses provider decoders emit structured usage token categories where upstream details are available
 ```
 
 Live e2e defaults:
@@ -217,7 +221,7 @@ OpenRouter extension passthrough is centralized raw JSON preservation; extension
 streaming provider errors after response start need a final policy; current behavior marks the route unhealthy and returns because the endpoint-shaped response has already started
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
 modeldb is not integrated yet; provider endpoint capabilities still come from hardcoded family defaults plus manual config overrides
-usage is currently flattened into token totals; it does not yet carry a structured token-item/cost-item breakdown suitable for pricing and cache accounting
+usage now carries structured token and cost item fields as the canonical accounting surface, but no modeldb-priced event processor exists yet
 prompt caching is only decoded from provider usage counters; canonical request-side cache hints and provider-specific cache controls are not modeled yet
 stateful conversations are intentionally absent from llmadapter core; any conversation/session layer must wrap unified.Client instead of mutating gateway/router state
 Claude Code/CLI OAuth compatibility is not implemented; current Anthropic support only covers API-key style Messages access
@@ -238,7 +242,7 @@ Next planned phase:
 ```text
 Priority: the modeldb, Claude compatibility, caching, usage/pricing, conversation, and CLI tracks below are the highest-priority work items for the next implementation rounds.
 Model/catalog integration: add a modeldb-backed read-only metadata layer for provider endpoint capability, exposure, limit, and pricing lookup without letting modeldb create hidden routes or clients.
-Structured usage/cost accounting: upgrade canonical usage events to preserve token categories and optional cost items, then add a modeldb-priced event processor.
+Structured usage/cost accounting: canonical token and cost item types are in place; next add modeldb-priced event processing.
 Claude compatibility: add a Claude Code/CLI OAuth auth mode as an Anthropic Messages-compatible provider endpoint under provider name "claude".
 Conversation layer: add an optional package above unified.Client for stateful sessions, replay/native continuation, cache policy, and commit-safe history, keeping gateway/router stateless.
 CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
@@ -390,14 +394,14 @@ Caching, usage, pricing, and conversation integration plan:
 Design constraint: llmadapter core and gateway remain stateless per request. Stateful conversations, cache policy, and cost attribution are additive layers around unified.Client and unified.Event streams.
 
 Usage/cost foundation:
-1. Replace or extend flat unified.UsageEvent counters with structured token categories:
+1. Replace flat unified.UsageEvent counters with structured token categories: (implemented)
    - input.new
    - input.cache_read
    - input.cache_write
    - output
    - output.reasoning
-2. Preserve flattened counters for endpoint wire compatibility, but derive them from the structured items.
-3. Add optional cost items:
+2. Derive flattened endpoint wire counters from structured items for API compatibility. (implemented)
+3. Add optional cost items: (implemented)
    - input
    - input.cache_read
    - input.cache_write

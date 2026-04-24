@@ -309,14 +309,14 @@ func contentBlocksFromResponse(resp unified.Response) []anthropic.ContentBlock {
 }
 
 func usageFromUnified(usage unified.Usage) *anthropic.UsageWire {
-	if usage.InputTokens == 0 && usage.OutputTokens == 0 && usage.CacheReadTokens == 0 && usage.CacheWriteTokens == 0 {
+	if !usage.HasTokens() {
 		return nil
 	}
 	return &anthropic.UsageWire{
-		InputTokens:              usage.InputTokens,
-		OutputTokens:             usage.OutputTokens,
-		CacheReadInputTokens:     usage.CacheReadTokens,
-		CacheCreationInputTokens: usage.CacheWriteTokens,
+		InputTokens:              usage.InputNewTokens(),
+		OutputTokens:             usage.OutputTokens(),
+		CacheReadInputTokens:     usage.CacheReadTokens(),
+		CacheCreationInputTokens: usage.CacheWriteTokens(),
 	}
 }
 
@@ -455,14 +455,7 @@ func (s *streamState) push(ev unified.Event) []streamFrame {
 	case unified.ContentBlockDoneEvent:
 		return s.stopBlock(e.Index)
 	case unified.UsageEvent:
-		s.usage = unified.Usage{
-			InputTokens:      e.InputTokens,
-			OutputTokens:     e.OutputTokens,
-			ReasoningTokens:  e.ReasoningTokens,
-			CacheReadTokens:  e.CacheReadTokens,
-			CacheWriteTokens: e.CacheWriteTokens,
-			TotalTokens:      e.TotalTokens,
-		}
+		s.usage = e.Usage()
 		return nil
 	case unified.CompletedEvent:
 		if s.messageEnd {

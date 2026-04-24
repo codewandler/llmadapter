@@ -89,9 +89,16 @@ type outputItemWire struct {
 }
 
 type usageWire struct {
-	InputTokens  int `json:"input_tokens,omitempty"`
-	OutputTokens int `json:"output_tokens,omitempty"`
-	TotalTokens  int `json:"total_tokens,omitempty"`
+	InputTokens         int               `json:"input_tokens,omitempty"`
+	OutputTokens        int               `json:"output_tokens,omitempty"`
+	TotalTokens         int               `json:"total_tokens,omitempty"`
+	InputTokensDetails  *tokenDetailsWire `json:"input_tokens_details,omitempty"`
+	OutputTokensDetails *tokenDetailsWire `json:"output_tokens_details,omitempty"`
+}
+
+type tokenDetailsWire struct {
+	CachedTokens    int `json:"cached_tokens,omitempty"`
+	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 }
 
 type errorWire struct {

@@ -280,12 +280,38 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	}
 	if chunk.Usage != nil {
 		out = append(out, unified.UsageEvent{
-			InputTokens:  chunk.Usage.PromptTokens,
-			OutputTokens: chunk.Usage.CompletionTokens,
-			TotalTokens:  chunk.Usage.TotalTokens,
+			Tokens: tokenItemsFromUsage(chunk.Usage),
 		})
 	}
 	return out, nil
+}
+
+func tokenItemsFromUsage(usage *usageWire) unified.TokenItems {
+	if usage == nil {
+		return nil
+	}
+	cachedInput := 0
+	if usage.PromptTokensDetails != nil {
+		cachedInput = usage.PromptTokensDetails.CachedTokens
+	}
+	newInput := usage.PromptTokens - cachedInput
+	if newInput < 0 {
+		newInput = 0
+	}
+	reasoningOutput := 0
+	if usage.CompletionTokensDetails != nil {
+		reasoningOutput = usage.CompletionTokensDetails.ReasoningTokens
+	}
+	output := usage.CompletionTokens - reasoningOutput
+	if output < 0 {
+		output = 0
+	}
+	return unified.TokenItems{
+		{Kind: unified.TokenKindInputNew, Count: newInput},
+		{Kind: unified.TokenKindInputCacheRead, Count: cachedInput},
+		{Kind: unified.TokenKindOutput, Count: output},
+		{Kind: unified.TokenKindOutputReasoning, Count: reasoningOutput},
+	}.NonZero()
 }
 
 func (d *streamDecoder) ensureToolMaps() {

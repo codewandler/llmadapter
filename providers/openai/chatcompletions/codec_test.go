@@ -166,7 +166,7 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 		[]byte(`data:`),
 		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"}}]}`),
 		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"content":"hello"}}]}`),
-		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}`),
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15,"prompt_tokens_details":{"cached_tokens":3},"completion_tokens_details":{"reasoning_tokens":2}}}`),
 		[]byte(`data: [DONE]`),
 	}}
 	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
@@ -190,8 +190,20 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" || resp.Usage.TotalTokens != 3 {
+	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" || resp.Usage.TotalTokens() != 15 {
 		t.Fatalf("unexpected response: %+v", resp)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindInputNew), 7; got != want {
+		t.Fatalf("input.new = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindInputCacheRead), 3; got != want {
+		t.Fatalf("input.cache_read = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindOutput), 3; got != want {
+		t.Fatalf("output = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindOutputReasoning), 2; got != want {
+		t.Fatalf("output.reasoning = %d, want %d", got, want)
 	}
 }
 

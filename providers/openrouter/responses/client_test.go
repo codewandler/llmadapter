@@ -21,7 +21,7 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"openai/test","status":"in_progress"}}`),
 		[]byte(`data: {"type":"response.content_part.added","response_id":"resp_1","output_index":0,"content_index":0,"part":{"type":"output_text","text":""}}`),
 		[]byte(`data: {"type":"response.content_part.delta","response_id":"resp_1","output_index":0,"content_index":0,"delta":"hello"}`),
-		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"openai/test","status":"completed","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}`),
+		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"openai/test","status":"completed","usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15,"input_tokens_details":{"cached_tokens":3},"output_tokens_details":{"reasoning_tokens":2}}}}`),
 		[]byte(`data: [DONE]`),
 	}}
 	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
@@ -45,8 +45,20 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" || resp.Usage.TotalTokens != 3 {
+	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" || resp.Usage.TotalTokens() != 15 {
 		t.Fatalf("unexpected response: %+v", resp)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindInputNew), 7; got != want {
+		t.Fatalf("input.new = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindInputCacheRead), 3; got != want {
+		t.Fatalf("input.cache_read = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindOutput), 3; got != want {
+		t.Fatalf("output = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindOutputReasoning), 2; got != want {
+		t.Fatalf("output.reasoning = %d, want %d", got, want)
 	}
 	if len(fake.Seen) != 1 || fake.Seen[0].URL != "https://openrouter.ai/api/v1/responses" {
 		t.Fatalf("unexpected request: %+v", fake.Seen)

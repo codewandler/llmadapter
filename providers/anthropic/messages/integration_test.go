@@ -59,8 +59,8 @@ data: {"type":"message_stop"}`),
 	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello world" {
 		t.Fatalf("unexpected response: %+v", resp)
 	}
-	if resp.Usage.TotalTokens != 5 {
-		t.Fatalf("usage total = %d, want 5", resp.Usage.TotalTokens)
+	if resp.Usage.TotalTokens() != 5 {
+		t.Fatalf("usage total = %d, want 5", resp.Usage.TotalTokens())
 	}
 	if len(fake.Seen) != 1 || fake.Seen[0].URL != "https://anthropic.test/v1/messages" || fake.Seen[0].Header.Get("X-Test") != "1" {
 		t.Fatalf("unexpected transport request: %+v", fake.Seen)

@@ -899,17 +899,28 @@ type Citation struct {
 
 ```go
 type UsageEvent struct {
-    InputTokens      int
-    OutputTokens     int
-    ReasoningTokens  int
-    CacheReadTokens  int
-    CacheWriteTokens int
-    TotalTokens      int
+    Tokens TokenItems
+    Costs  CostItems
 
     ProviderRaw any
 }
 
 func (UsageEvent) isEvent() {}
+```
+
+`Tokens` is the canonical detailed accounting surface for pricing and cache analysis. Endpoint codecs derive flat wire counters from token items for API compatibility. Providers should populate token categories when known:
+
+```text
+input.new
+input.cache_read
+input.cache_write
+output
+output.reasoning
+```
+
+`Costs` is optional and should be added by pricing/event processors rather than hardcoded into provider codecs. Missing pricing data must leave usage intact without costs.
+
+```go
 
 type FinishReason string
 

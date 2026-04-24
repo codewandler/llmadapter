@@ -313,7 +313,7 @@ func outputFromUnified(resp unified.Response) []OutputItem {
 }
 
 func usageFromUnified(usage unified.Usage) Usage {
-	return Usage{InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens, TotalTokens: usage.TotalTokens}
+	return Usage{InputTokens: usage.InputTokens(), OutputTokens: usage.OutputTokens(), TotalTokens: usage.TotalTokens()}
 }
 
 func statusFromFinish(reason unified.FinishReason) string {
@@ -402,7 +402,7 @@ func (s *streamState) push(ev unified.Event) []Event {
 		}
 		return nil
 	case unified.UsageEvent:
-		s.usage = unified.Usage{InputTokens: e.InputTokens, OutputTokens: e.OutputTokens, TotalTokens: e.TotalTokens}
+		s.usage = e.Usage()
 		return nil
 	case unified.CompletedEvent:
 		resp := &Response{

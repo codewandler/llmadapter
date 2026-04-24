@@ -46,6 +46,12 @@ func TestEventDecoderTextAndTool(t *testing.T) {
 	if len(resp.ToolCalls) != 1 || resp.ToolCalls[0].ID != "toolu" || string(resp.ToolCalls[0].Arguments) != `{"q":"x"}` {
 		t.Fatalf("unexpected tools: %+v", resp.ToolCalls)
 	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindInputNew), 3; got != want {
+		t.Fatalf("input.new = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindOutput), 4; got != want {
+		t.Fatalf("output = %d, want %d", got, want)
+	}
 }
 
 func TestEventDecoderErrorEvent(t *testing.T) {

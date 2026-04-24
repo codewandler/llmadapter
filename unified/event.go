@@ -105,13 +105,9 @@ type Citation struct {
 }
 
 type UsageEvent struct {
-	InputTokens      int             `json:"input_tokens,omitempty"`
-	OutputTokens     int             `json:"output_tokens,omitempty"`
-	ReasoningTokens  int             `json:"reasoning_tokens,omitempty"`
-	CacheReadTokens  int             `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens int             `json:"cache_write_tokens,omitempty"`
-	TotalTokens      int             `json:"total_tokens,omitempty"`
-	ProviderRaw      json.RawMessage `json:"provider_raw,omitempty"`
+	Tokens      TokenItems      `json:"tokens,omitempty"`
+	Costs       CostItems       `json:"costs,omitempty"`
+	ProviderRaw json.RawMessage `json:"provider_raw,omitempty"`
 }
 
 func (UsageEvent) isEvent() {}

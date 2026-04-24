@@ -139,6 +139,8 @@ Malformed tool-call argument JSON from OpenAI Chat and OpenAI Responses inputs i
 
 OpenRouter-specific request controls are carried through `unified.Request.Extensions` using namespaced keys such as `openrouter.provider`, `openrouter.plugins`, `openrouter.debug`, `openrouter.trace`, and `openrouter.session_id`. The OpenRouter Chat, Responses, and Messages providers encode those extensions back into upstream request bodies.
 
+Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
+
 See `DESIGN.md` for the target architecture and `PLAN.md` for current status, known gaps, and next implementation phases.
 
 ## Known Limitations
@@ -146,4 +148,5 @@ See `DESIGN.md` for the target architecture and `PLAN.md` for current status, kn
 - Capability defaults are endpoint-family guesses. Use provider `capabilities` overrides for model-specific support before routing production traffic.
 - Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
 - OpenRouter extension passthrough preserves raw JSON controls but does not yet validate provider-specific extension schemas.
+- Structured usage has token/cost item fields, but modeldb-backed pricing enrichment is not implemented yet.
 - Provider and endpoint codecs cover smoke-tested text, tools, structured output, and basic image inputs; they are not full conformance implementations for every provider field.

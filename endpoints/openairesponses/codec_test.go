@@ -141,7 +141,10 @@ func TestWriteEventsNonStreaming(t *testing.T) {
 	events <- unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindText}
 	events <- unified.TextDeltaEvent{Index: 0, Text: "hello"}
 	events <- unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText}
-	events <- unified.UsageEvent{InputTokens: 1, OutputTokens: 2, TotalTokens: 3}
+	events <- unified.NewUsageEvent(unified.TokenItems{
+		{Kind: unified.TokenKindInputNew, Count: 1},
+		{Kind: unified.TokenKindOutput, Count: 2},
+	}, nil)
 	events <- unified.CompletedEvent{FinishReason: unified.FinishReasonStop}
 	close(events)
 

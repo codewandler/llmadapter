@@ -13,6 +13,8 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - Documented the next highest-priority planning track for `modeldb` catalog integration, Claude OAuth compatibility, structured usage/pricing, prompt caching, optional conversation/session support, and a repo-native CLI.
+- Replaced duplicated canonical usage counters with structured token and cost items; endpoint codecs now derive flat API-specific usage counters at the wire boundary.
+- Anthropic, OpenAI Chat, and OpenRouter Responses provider decoders now emit structured token categories where upstream usage details are available.
 
 ## [0.24.0] - 2026-04-24
 

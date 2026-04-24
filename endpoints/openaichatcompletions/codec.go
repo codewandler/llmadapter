@@ -451,9 +451,9 @@ func responseFromUnified(resp unified.Response) Response {
 			FinishReason: finishReason(resp.FinishReason),
 		}},
 		Usage: UsageWire{
-			PromptTokens:     resp.Usage.InputTokens,
-			CompletionTokens: resp.Usage.OutputTokens,
-			TotalTokens:      resp.Usage.TotalTokens,
+			PromptTokens:     resp.Usage.InputTokens(),
+			CompletionTokens: resp.Usage.OutputTokens(),
+			TotalTokens:      resp.Usage.TotalTokens(),
 		},
 	}
 }

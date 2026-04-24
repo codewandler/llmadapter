@@ -132,10 +132,12 @@ func (d *EventDecoder) messageDelta(e MessageDeltaEvent) []unified.Event {
 	}
 	if e.Usage != nil {
 		out = append(out, unified.UsageEvent{
-			InputTokens:      e.Usage.InputTokens,
-			OutputTokens:     e.Usage.OutputTokens,
-			CacheReadTokens:  e.Usage.CacheReadInputTokens,
-			CacheWriteTokens: e.Usage.CacheCreationInputTokens,
+			Tokens: unified.TokenItems{
+				{Kind: unified.TokenKindInputNew, Count: e.Usage.InputTokens},
+				{Kind: unified.TokenKindInputCacheRead, Count: e.Usage.CacheReadInputTokens},
+				{Kind: unified.TokenKindInputCacheWrite, Count: e.Usage.CacheCreationInputTokens},
+				{Kind: unified.TokenKindOutput, Count: e.Usage.OutputTokens},
+			}.NonZero(),
 		})
 	}
 	return out

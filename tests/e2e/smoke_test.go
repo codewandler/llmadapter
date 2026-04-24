@@ -72,7 +72,7 @@ func TestSmokeTextStream(t *testing.T) {
 			if resp.FinishReason == "" {
 				t.Fatalf("missing finish reason in response: %+v", resp)
 			}
-			if resp.Usage.TotalTokens == 0 && resp.Usage.InputTokens == 0 && resp.Usage.OutputTokens == 0 {
+			if resp.Usage.TotalTokens() == 0 && resp.Usage.InputTokens() == 0 && resp.Usage.OutputTokens() == 0 {
 				t.Fatalf("missing usage in response: %+v", resp)
 			}
 		})
