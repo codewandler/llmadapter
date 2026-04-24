@@ -25,6 +25,7 @@ Gateway config slice: optional JSON config for providers and static routes
 Provider support slice: OpenAI Chat Completions upstream provider
 Gateway provider matrix slice: OpenAI-backed route covered by live gateway smoke tests
 Tool-use provider slice: OpenAI streamed tool calls and shared live tool-use smoke tests
+Tool loop e2e slice: shared live tool-result continuation smoke tests
 ```
 
 Verified:
@@ -38,6 +39,7 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatew
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream/openai_chat' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/openai_chat' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolUse' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation' -count=1 -v
 ```
 
 Implemented package surface:
@@ -97,6 +99,7 @@ gateway route selection through router.StaticRouter
 native model rewrite before provider client invocation
 same OpenAI Chat endpoint smoke-tested against Anthropic and OpenAI upstreams
 shared unified.Client tool-use smoke tests pass against Anthropic and OpenAI
+shared unified.Client tool-result continuation smoke tests pass against Anthropic and OpenAI
 ```
 
 Live e2e defaults:
@@ -124,6 +127,7 @@ gateway config is intentionally minimal and does not yet support multiple provid
 OpenAI provider is stream-first and covers smoke-tested text and tool-use paths
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
+OpenRouter should be added next as a provider family with native Chat Completions, Responses, and Anthropic-compatible Messages support
 streaming provider errors after response start need a final policy
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
 ```
@@ -131,7 +135,7 @@ runnable gateway uses one Anthropic route and can optionally override upstream m
 Next planned phase:
 
 ```text
-Phase 4 continuation: route /v1/chat/completions through Anthropic with broader endpoint compatibility tests
+Provider support continuation: add OpenRouter as a provider family, starting with native Chat Completions and reusing the shared smoke matrix
 ```
 
 ---

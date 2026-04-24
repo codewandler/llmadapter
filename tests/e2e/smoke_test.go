@@ -130,6 +130,93 @@ func TestSmokeToolUse(t *testing.T) {
 	}
 }
 
+func TestSmokeToolResultContinuation(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+
+	for _, provider := range smokeProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			client, model := newSmokeClient(t, provider)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			maxTokens := 128
+			userMessage := unified.Message{
+				Role: unified.RoleUser,
+				Content: []unified.ContentPart{
+					unified.TextPart{Text: "Use the lookup_city tool with city set to Berlin. Do not answer directly."},
+				},
+			}
+			tool := unified.Tool{
+				Kind:        unified.ToolKindFunction,
+				Name:        "lookup_city",
+				Description: "Looks up a city by name.",
+				InputSchema: json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}},"required":["city"],"additionalProperties":false}`),
+			}
+
+			events, err := client.Request(ctx, unified.Request{
+				Model:           model,
+				MaxOutputTokens: &maxTokens,
+				Messages:        []unified.Message{userMessage},
+				Tools:           []unified.Tool{tool},
+				ToolChoice:      &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: "lookup_city"},
+				Stream:          true,
+			})
+			if err != nil {
+				t.Fatalf("tool request: %v", err)
+			}
+
+			toolResp, err := unified.Collect(ctx, events)
+			if err != nil {
+				t.Fatalf("collect tool response: %v", err)
+			}
+			if toolResp.FinishReason != unified.FinishReasonToolCall || len(toolResp.ToolCalls) != 1 {
+				t.Fatalf("tool response = %+v", toolResp)
+			}
+
+			toolCall := toolResp.ToolCalls[0]
+			events, err = client.Request(ctx, unified.Request{
+				Model:           model,
+				MaxOutputTokens: &maxTokens,
+				Messages: []unified.Message{
+					userMessage,
+					{
+						Role:      unified.RoleAssistant,
+						ToolCalls: []unified.ToolCall{toolCall},
+					},
+					{
+						Role: unified.RoleTool,
+						ToolResults: []unified.ToolResult{{
+							ToolCallID: toolCall.ID,
+							Name:       toolCall.Name,
+							Content: []unified.ContentPart{
+								unified.TextPart{Text: "lookup_city result: Berlin marker is llmadapter tool loop ok. Reply with that exact marker."},
+							},
+						}},
+					},
+				},
+				Stream: true,
+			})
+			if err != nil {
+				t.Fatalf("continuation request: %v", err)
+			}
+
+			finalResp, err := unified.Collect(ctx, events)
+			if err != nil {
+				t.Fatalf("collect continuation response: %v", err)
+			}
+			text := strings.ToLower(responseText(finalResp))
+			if !strings.Contains(text, "llmadapter tool loop ok") {
+				t.Fatalf("continuation text %q does not contain expected marker; response=%+v", text, finalResp)
+			}
+			if finalResp.FinishReason == "" || finalResp.FinishReason == unified.FinishReasonToolCall {
+				t.Fatalf("unexpected continuation finish reason: %+v", finalResp)
+			}
+		})
+	}
+}
+
 func smokeProviders() []smokeProvider {
 	return []smokeProvider{
 		{
