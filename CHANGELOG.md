@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-04-24
+
+### Added
+
+- Added `AutoResult.RouteSummary` for consumer-facing summaries of auto-detected mux route selection, including provider, provider API, public model, native model, and enabled-provider reason.
+
 ## [0.41.0] - 2026-04-24
 
 ### Added
