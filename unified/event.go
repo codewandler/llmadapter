@@ -147,6 +147,17 @@ type RawEvent struct {
 
 func (RawEvent) isEvent() {}
 
+type RouteEvent struct {
+	SourceAPI    string `json:"source_api,omitempty"`
+	TargetAPI    string `json:"target_api,omitempty"`
+	TargetFamily string `json:"target_family,omitempty"`
+	ProviderName string `json:"provider_name,omitempty"`
+	PublicModel  string `json:"public_model,omitempty"`
+	NativeModel  string `json:"native_model,omitempty"`
+}
+
+func (RouteEvent) isEvent() {}
+
 type ErrorEvent struct {
 	Err         error `json:"-"`
 	Recoverable bool  `json:"recoverable,omitempty"`

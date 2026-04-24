@@ -62,7 +62,7 @@ func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unifi
 		}
 		events, err := route.Client.Request(ctx, attempt)
 		if err == nil {
-			return events, nil
+			return prependRouteEvent(ctx, route, events), nil
 		}
 		failures = append(failures, fmt.Errorf("provider %s/%s failed: %w", route.ProviderName, route.TargetAPI, err))
 		if !c.fallback {
@@ -73,6 +73,42 @@ func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unifi
 		return nil, err
 	}
 	return nil, fmt.Errorf("muxclient: no route attempted for api %q model %q", c.source, req.Model)
+}
+
+func prependRouteEvent(ctx context.Context, route router.Route, events <-chan unified.Event) <-chan unified.Event {
+	out := make(chan unified.Event)
+	go func() {
+		defer close(out)
+		routeEvent := unified.RouteEvent{
+			SourceAPI:    string(route.SourceAPI),
+			TargetAPI:    string(route.TargetAPI),
+			TargetFamily: string(route.TargetFamily),
+			ProviderName: route.ProviderName,
+			PublicModel:  route.PublicModel,
+			NativeModel:  route.NativeModel,
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case out <- routeEvent:
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-events:
+				if !ok {
+					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case out <- ev:
+				}
+			}
+		}
+	}()
+	return out
 }
 
 func routeCandidates(ctx context.Context, r router.Router, req adapt.Request) ([]router.Route, error) {

@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-04-24
+
+### Added
+
+- Added canonical `unified.RouteEvent` metadata for selected mux routes.
+- `muxclient` now emits a `RouteEvent` before provider response events so library consumers such as miniagent can observe source API, target API/family, provider, public model, and native model.
+
 ## [0.36.0] - 2026-04-24
 
 ### Added

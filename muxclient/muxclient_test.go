@@ -53,6 +53,14 @@ func TestClientRoutesAndRewritesNativeModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	first := <-events
+	routeEvent, ok := first.(unified.RouteEvent)
+	if !ok {
+		t.Fatalf("first event = %T, want unified.RouteEvent", first)
+	}
+	if routeEvent.ProviderName != "openai" || routeEvent.PublicModel != "public" || routeEvent.NativeModel != "native" {
+		t.Fatalf("unexpected route event: %+v", routeEvent)
+	}
 	resp, err := unified.Collect(context.Background(), events)
 	if err != nil {
 		t.Fatal(err)
