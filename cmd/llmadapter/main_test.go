@@ -82,6 +82,25 @@ func TestResolveCommandJSONWithConfig(t *testing.T) {
 	}
 }
 
+func TestServeInspectConfigCommand(t *testing.T) {
+	path := writeTestConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"serve", "--config", path, "--addr", ":9090", "--inspect-config"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{`"addr": ":9090"`, `"type": "openai_responses"`, `"source_api": "openai.responses"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `"api_key"`) || strings.Contains(got, `"test",`) {
+		t.Fatalf("inspect output leaked inline api key:\n%s", got)
+	}
+}
+
 func writeTestConfig(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "llmadapter.json")

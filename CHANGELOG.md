@@ -10,6 +10,18 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-04-24
+
+### Added
+
+- Added `llmadapter serve` to run the compatibility gateway from the Cobra CLI using the shared `adapterconfig` router construction path.
+- Added a Dockerfile for building a container image that runs `llmadapter serve`.
+
+### Changed
+
+- Pinned `github.com/codewandler/modeldb` to `v0.13.0` and removed the local replace so standalone Docker builds work from a normal repository checkout.
+- Anthropic-family provider registry clients now force stream-first upstream requests, matching the gateway's SSE-based provider decoding path.
+
 ## [0.35.0] - 2026-04-24
 
 ### Added

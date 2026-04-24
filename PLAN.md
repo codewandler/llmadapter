@@ -60,7 +60,8 @@ Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved 
 Provider registry slice: shared `providerregistry` package lists endpoint types and can construct direct provider clients for CLI/library use
 Mux client slice: `muxclient` provides a stateless unified.Client over router/provider endpoints with native model rewrite and pre-stream fallback
 Adapter config slice: `adapterconfig` exposes JSON config loading/defaulting/validation plus config-driven muxclient construction with modeldb alias resolution, capability metadata, and pricing processors
-CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types, inspect configured/auto-detected routes and models, explain route resolution, and run minimal direct, manual mux-routed, config-driven mux, or auto-detected mux text smoke requests
+CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types, inspect configured/auto-detected routes and models, explain route resolution, run the gateway server, and run minimal direct, manual mux-routed, config-driven mux, or auto-detected mux text smoke requests
+Container slice: Dockerfile builds a standalone `llmadapter` image that runs `llmadapter serve`
 Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
@@ -281,8 +282,8 @@ Structured usage/cost accounting: canonical token and cost item types, modeldb-p
 Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, and live prompt-cache/tool/gateway smokes are in place.
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
 Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
-CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, and smoke requests; next fold gateway serving under the same CLI shape.
-Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; next consolidate gateway command internals onto adapterconfig.
+CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, serve, and smoke requests; `cmd/llmadapter-gateway` remains as the compatibility binary.
+Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; gateway serving now uses the same adapterconfig router construction in the Cobra CLI path.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
 ```
 
@@ -324,9 +325,9 @@ Target binary:
 
 Initial commands:
 1. serve
-   - start the compatibility gateway
-   - accept the same LLMADAPTER_CONFIG config path and listen address overrides
-   - expose /v1/chat/completions, /v1/responses, and /v1/messages
+   - start the compatibility gateway (implemented in `llmadapter serve`)
+   - accept the same LLMADAPTER_CONFIG config path and listen address overrides (implemented)
+   - expose /v1/chat/completions, /v1/responses, and /v1/messages (implemented)
 2. models
    - list configured or auto-detected provider endpoints and native/public models (implemented)
    - fixed-route modeldb service/offering/exposure metadata is visible through the gateway inspection path; fold this into the future unified CLI

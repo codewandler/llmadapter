@@ -33,6 +33,7 @@ go run ./cmd/llmadapter providers
 go run ./cmd/llmadapter routes
 go run ./cmd/llmadapter models
 go run ./cmd/llmadapter resolve gpt-4.1-mini
+go run ./cmd/llmadapter serve --inspect-config
 go run ./cmd/llmadapter smoke -type openai_responses
 go run ./cmd/llmadapter smoke -mode mux -type openai_responses
 go run ./cmd/llmadapter smoke -mode mux -config ./llmadapter.json -model public-fast
@@ -69,9 +70,10 @@ Initial commands:
 - `llmadapter routes` lists configured or auto-detected source API to provider endpoint routes; pass `--config` to inspect a JSON config instead of auto-detected credentials.
 - `llmadapter models` lists public/native model mappings from configured or auto-detected routes; pass `--query` to filter.
 - `llmadapter resolve <model>` explains which source API route, provider endpoint, API family, native model, modeldb service, and capabilities will be used.
+- `llmadapter serve` runs the compatibility gateway on `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`; pass `--config`, `--addr`, or `--inspect-config`.
 - `llmadapter smoke` runs a minimal direct text request through a configured provider endpoint type; `-mode mux` runs the same request through the stateless mux client route path, `-config` builds that route path from a llmadapter JSON config, and `-mode auto` builds a mux client from detected environment/local Claude credentials.
 
-Gateway serving is still owned by `cmd/llmadapter-gateway` while the CLI surface is being built out.
+`cmd/llmadapter-gateway` remains as a compatibility binary while gateway serving moves under the Cobra CLI.
 
 The gateway command is `cmd/llmadapter-gateway`.
 
@@ -90,6 +92,14 @@ Configuration:
 - Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route.
 - `claude_messages` defaults `modeldb_service_id` to `anthropic` because it invokes Anthropic Claude models through Claude Code-compatible auth.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
+
+Docker:
+
+```sh
+docker build -t llmadapter:local .
+docker run --rm -p 8080:8080 -e ANTHROPIC_API_KEY llmadapter:local
+docker run --rm -p 8080:8080 -v "$PWD/llmadapter.json:/etc/llmadapter/config.json:ro" -e LLMADAPTER_CONFIG=/etc/llmadapter/config.json llmadapter:local
+```
 
 Example provider endpoint types:
 

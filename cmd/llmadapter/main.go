@@ -12,6 +12,7 @@ import (
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/adapterconfig"
+	"github.com/codewandler/llmadapter/gatewayserver"
 	"github.com/codewandler/llmadapter/muxclient"
 	"github.com/codewandler/llmadapter/providerregistry"
 	"github.com/codewandler/llmadapter/router"
@@ -41,6 +42,7 @@ func newRootCommand(out, errOut io.Writer) *cobra.Command {
 	cmd.AddCommand(newRoutesCommand())
 	cmd.AddCommand(newModelsCommand())
 	cmd.AddCommand(newResolveCommand())
+	cmd.AddCommand(newServeCommand())
 	cmd.AddCommand(newSmokeCommand())
 	return cmd
 }
@@ -162,6 +164,30 @@ func newResolveCommand() *cobra.Command {
 	cmd.Flags().StringVar(&configPath, "config", "", "llmadapter JSON config path; defaults to auto-detected env/local credentials")
 	cmd.Flags().StringVar(&sourceAPI, "source-api", string(adapt.ApiOpenAIResponses), "source API to resolve")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print resolution as JSON")
+	return cmd
+}
+
+func newServeCommand() *cobra.Command {
+	var configPath string
+	var addr string
+	var inspectConfig bool
+	cmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Run the OpenAI/Anthropic-compatible gateway server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadServeConfig(configPath, addr)
+			if err != nil {
+				return err
+			}
+			if inspectConfig {
+				return writeJSON(cmd.OutOrStdout(), inspectServeConfig(cfg))
+			}
+			return gatewayserver.ListenAndServe(cfg)
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "llmadapter JSON config path; defaults to LLMADAPTER_CONFIG or env defaults")
+	cmd.Flags().StringVar(&addr, "addr", "", "listen address override, for example :8080")
+	cmd.Flags().BoolVar(&inspectConfig, "inspect-config", false, "print resolved gateway config metadata as JSON and exit")
 	return cmd
 }
 
@@ -315,6 +341,38 @@ type resolutionInfo struct {
 	Capabilities   router.CapabilitySet `json:"capabilities"`
 }
 
+type serveConfigInspection struct {
+	Addr           string                    `json:"addr"`
+	HealthCooldown string                    `json:"health_cooldown,omitempty"`
+	Providers      []serveProviderInspection `json:"providers,omitempty"`
+	Routes         []serveRouteInspection    `json:"routes,omitempty"`
+}
+
+type serveProviderInspection struct {
+	Name             string               `json:"name"`
+	Type             string               `json:"type"`
+	APIKind          adapt.ApiKind        `json:"api_kind"`
+	Family           adapt.ApiFamily      `json:"family"`
+	Model            string               `json:"model,omitempty"`
+	ModelDBServiceID string               `json:"modeldb_service_id,omitempty"`
+	APIKeyEnv        string               `json:"api_key_env,omitempty"`
+	InlineAPIKey     bool                 `json:"inline_api_key,omitempty"`
+	BaseURL          string               `json:"base_url,omitempty"`
+	Priority         int                  `json:"priority,omitempty"`
+	Capabilities     router.CapabilitySet `json:"capabilities"`
+}
+
+type serveRouteInspection struct {
+	SourceAPI          adapt.ApiKind `json:"source_api"`
+	Model              string        `json:"model,omitempty"`
+	Provider           string        `json:"provider"`
+	ProviderAPI        adapt.ApiKind `json:"provider_api,omitempty"`
+	NativeModel        string        `json:"native_model,omitempty"`
+	ModelDBModel       string        `json:"modeldb_model,omitempty"`
+	ModelDBWireModelID string        `json:"modeldb_wire_model_id,omitempty"`
+	Weight             int           `json:"weight,omitempty"`
+}
+
 func loadCLIConfig(path string, sourceAPI adapt.ApiKind) (adapterconfig.Config, error) {
 	if path != "" {
 		return adapterconfig.Load(path)
@@ -326,6 +384,75 @@ func loadCLIConfig(path string, sourceAPI adapt.ApiKind) (adapterconfig.Config, 
 		SourceAPI:         sourceAPI,
 	})
 	return result.Config, err
+}
+
+func loadServeConfig(path string, addr string) (adapterconfig.Config, error) {
+	var (
+		cfg adapterconfig.Config
+		err error
+	)
+	if path != "" {
+		cfg, err = adapterconfig.Load(path)
+	} else {
+		cfg, err = adapterconfig.LoadFromEnv()
+	}
+	if err != nil {
+		return adapterconfig.Config{}, err
+	}
+	if addr != "" {
+		cfg.Addr = addr
+	}
+	return cfg, nil
+}
+
+func inspectServeConfig(cfg adapterconfig.Config) serveConfigInspection {
+	inspection := serveConfigInspection{
+		Addr:           cfg.Addr,
+		HealthCooldown: cfg.HealthCooldown,
+		Providers:      make([]serveProviderInspection, 0, len(cfg.Providers)),
+		Routes:         make([]serveRouteInspection, 0, len(cfg.Routes)),
+	}
+	for _, provider := range cfg.Providers {
+		endpoint, err := adapterconfig.ProviderEndpointConfig(provider)
+		if err != nil {
+			inspection.Providers = append(inspection.Providers, serveProviderInspection{
+				Name:         provider.Name,
+				Type:         provider.Type,
+				Model:        provider.Model,
+				APIKeyEnv:    provider.APIKeyEnv,
+				InlineAPIKey: provider.APIKey != "",
+				BaseURL:      provider.BaseURL,
+				Priority:     provider.Priority,
+			})
+			continue
+		}
+		inspection.Providers = append(inspection.Providers, serveProviderInspection{
+			Name:             provider.Name,
+			Type:             provider.Type,
+			APIKind:          endpoint.APIKind,
+			Family:           endpoint.Family,
+			Model:            provider.Model,
+			ModelDBServiceID: endpoint.Tags[adapterconfig.TagModelDBServiceID],
+			APIKeyEnv:        provider.APIKeyEnv,
+			InlineAPIKey:     provider.APIKey != "",
+			BaseURL:          provider.BaseURL,
+			Priority:         provider.Priority,
+			Capabilities:     endpoint.Capabilities,
+		})
+	}
+	for _, route := range cfg.Routes {
+		inspection.Routes = append(inspection.Routes, serveRouteInspection{
+			SourceAPI:          route.SourceAPI,
+			Model:              route.Model,
+			Provider:           route.Provider,
+			ProviderAPI:        route.ProviderAPI,
+			NativeModel:        route.NativeModel,
+			ModelDBModel:       route.ModelDBModel,
+			ModelDBWireModelID: route.ModelDBWireModelID,
+			Weight:             route.Weight,
+		})
+	}
+	return inspection
 }
 
 func routeInfos(cfg adapterconfig.Config, sourceAPI adapt.ApiKind) []routeInfo {

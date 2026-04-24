@@ -1,6 +1,7 @@
 package providerregistry
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -143,13 +144,27 @@ func NewClient(cfg ClientConfig) (unified.Client, error) {
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("provider type %q requires api key", providerType)
 		}
-		opts := []anthropic.Option{anthropic.WithAPIKey(cfg.APIKey)}
+		opts := []anthropic.Option{
+			anthropic.WithAPIKey(cfg.APIKey),
+			anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
+				req.Unified.Stream = true
+				return nil
+			})),
+		}
 		if cfg.BaseURL != "" {
 			opts = append(opts, anthropic.WithBaseURL(cfg.BaseURL))
 		}
 		return anthropic.NewClient(opts...)
 	case "claude_messages":
-		opts := []anthropic.Option{anthropic.WithClaudeHeaders(), anthropic.WithClaudeCodePreflight(), anthropic.WithSystemCacheControl("")}
+		opts := []anthropic.Option{
+			anthropic.WithClaudeHeaders(),
+			anthropic.WithClaudeCodePreflight(),
+			anthropic.WithSystemCacheControl(""),
+			anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
+				req.Unified.Stream = true
+				return nil
+			})),
+		}
 		if cfg.APIKey != "" {
 			opts = append(opts, anthropic.WithBearerTokenProvider(anthropic.NewStaticTokenProvider(anthropic.NewStaticBearerToken(cfg.APIKey))))
 		} else {
@@ -225,4 +240,10 @@ func NewClient(cfg ClientConfig) (unified.Client, error) {
 	default:
 		return nil, fmt.Errorf("unsupported provider type %q", providerType)
 	}
+}
+
+type requestProcessorFunc func(context.Context, *adapt.Request) error
+
+func (f requestProcessorFunc) ProcessRequest(ctx context.Context, req *adapt.Request) error {
+	return f(ctx, req)
 }
