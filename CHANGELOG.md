@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-04-24
+
 ### Added
 
 - Gateway config now supports `health_cooldown` and provider-level capability overrides for model-specific routing corrections.
