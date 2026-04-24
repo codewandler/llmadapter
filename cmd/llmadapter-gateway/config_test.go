@@ -126,6 +126,10 @@ func TestBuildProviderOpenAIRequiresKey(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected missing key error")
 	}
+	_, err = buildProvider(providerConfig{Name: "openai", Type: "openai_responses"})
+	if err == nil {
+		t.Fatalf("expected missing key error")
+	}
 }
 
 func TestBuildProviderOpenRouterRequiresKey(t *testing.T) {
@@ -185,6 +189,7 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		tools        bool
 	}{
 		{"claude_messages", adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, true},
+		{"openai_responses", adapt.ApiOpenAIResponses, adapt.FamilyOpenAIResponses, true},
 		{"openrouter_chat", adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, true},
 		{"openrouter_responses", adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, true},
 		{"openrouter_messages", adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, true},
@@ -202,10 +207,10 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		if !capabilities.Streaming || capabilities.Tools != tt.tools {
 			t.Fatalf("unexpected capabilities: %+v", capabilities)
 		}
-		if (tt.providerType == "openai_chat" || tt.providerType == "openrouter_chat" || tt.providerType == "openrouter_responses") && (!capabilities.JSONMode || !capabilities.JSONSchema) {
+		if (tt.providerType == "openai_chat" || tt.providerType == "openai_responses" || tt.providerType == "openrouter_chat" || tt.providerType == "openrouter_responses") && (!capabilities.JSONMode || !capabilities.JSONSchema) {
 			t.Fatalf("expected JSON capabilities: %+v", capabilities)
 		}
-		if (tt.providerType == "openai_chat" || tt.providerType == "openrouter_chat" || tt.providerType == "openrouter_responses" || tt.providerType == "openrouter_messages") && !capabilities.Vision {
+		if (tt.providerType == "openai_chat" || tt.providerType == "openai_responses" || tt.providerType == "openrouter_chat" || tt.providerType == "openrouter_responses" || tt.providerType == "openrouter_messages") && !capabilities.Vision {
 			t.Fatalf("expected vision capability: %+v", capabilities)
 		}
 	}

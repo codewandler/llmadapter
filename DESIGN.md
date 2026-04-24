@@ -104,7 +104,7 @@ The following are explicitly out of scope for the core adapter/gateway design:
 - metadata and auxiliary endpoints such as `/v1/models` or `/api/tags` (these may be added as simple handlers later but are not part of the core pipeline design);
 - true realtime bidirectional APIs.
 
-Conversation/session helpers, pricing, catalog-backed metadata, and usage accounting may be added as optional layers around `unified.Client` and `unified.Event` streams. They must not require the router or gateway to keep hidden per-conversation state.
+Conversation/session helpers live outside this repository, for example in `agentsdk`, as optional layers around `unified.Client` and `unified.Event` streams. Pricing, catalog-backed metadata, and usage accounting may live in llmadapter as stateless request/event processors. None of these layers may require the router or gateway to keep hidden per-conversation state.
 
 ---
 

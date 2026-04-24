@@ -61,6 +61,7 @@ Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as 
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
 Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, and Anthropic modeldb service identity
 Prompt cache slice: canonical TextPart cache_control hints encode through Anthropic-family system/content blocks and live prompt-cache smoke verifies provider-reported cache write/read usage for Anthropic and Claude Code-compatible access
+OpenAI Responses provider slice: native OpenAI Responses provider endpoint is registered and live-verified for text, tools, gateway routing, and previous_response_id continuation
 ```
 
 Verified:
@@ -92,6 +93,7 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatew
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestAnthropicMessagesGatewaySmoke' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestResponsesGatewaySmoke' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokePromptCache/(anthropic|claude_messages)' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke(TextStream|ToolUse|ToolResultContinuation|ResponsesContinuation)/openai_responses|TestResponsesGatewaySmoke(NonStreaming|Streaming)/openai_responses' -count=1 -v
 env GOCACHE=/tmp/go-cache go test ./...
 ```
 
@@ -235,7 +237,8 @@ Raw/unmapped event preservation is minimal and should be expanded before gateway
 router is static and now includes capability checks plus deterministic weighted ranking; gateway retries pre-response provider failures and temporarily deprioritizes failed endpoints, but there is no probabilistic load balancing or capability conversion policy yet
 capability defaults are endpoint-family guesses; configured provider capability overrides are available for model-specific routing, but there is no model capability registry yet
 gateway config is intentionally minimal; routes can disambiguate same-provider endpoints with provider_api, but there is no full registry yet
-OpenAI provider is stream-first and covers smoke-tested text and tool-use paths
+OpenAI Chat provider is stream-first and covers smoke-tested text and tool-use paths
+OpenAI Responses provider is stream-first and covers the canonical Responses-family request/event shape, including previous_response_id/store/prompt-cache extension encoding and live-verified previous_response_id continuation
 OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
 OpenRouter Responses provider is stream-first and covers smoke-tested text and function-call tool loops
 OpenRouter Messages provider reuses the Anthropic-compatible stream path against OpenRouter's native messages endpoint
@@ -250,8 +253,8 @@ streaming provider errors after response start need a final policy; current beha
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
 modeldb is integrated only for fixed-route metadata/pricing enrichment; provider endpoint base capabilities still come from hardcoded family defaults plus manual config overrides
 usage now carries structured token and cost item fields as the canonical accounting surface; modeldb-backed pricing enrichment is wired for configured fixed-model gateway routes but not dynamic per-request models
-stateful conversations are intentionally absent from llmadapter core; any conversation/session layer must wrap unified.Client instead of mutating gateway/router state
-Prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; a conversation-level cache policy is still pending
+stateful conversations are intentionally absent from llmadapter core; conversation/session belongs in agentsdk or another wrapper above unified.Client
+Prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter
 ```
 
 Implementation assessment:
@@ -261,18 +264,18 @@ Foundation is solid for a vertical-slice adapter: canonical request/event model,
 Main intentional shortcuts are hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
 Important remaining test gaps: invalid credentials/models, probabilistic load balancing, parallel tool calls, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
-Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing stateful conversations, provider registry auto-detection, a live-verified OpenAI Responses continuation backend, and a broader integration matrix.
+Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing provider registry auto-detection and a broader integration matrix. Stateful conversation ownership has moved to agentsdk.
 ```
 
 Next planned phase:
 
 ```text
-Priority: the modeldb, Claude compatibility, caching, usage/pricing, conversation, and CLI tracks below are the highest-priority work items for the next implementation rounds.
+Priority: provider registry/CLI, modeldb, Claude compatibility, caching, usage/pricing, provider parity, and broader live conformance tracks below are the highest-priority work items for the next implementation rounds.
 Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, and explicit route alias resolution are in place; next add dynamic per-request pricing only after model resolution is explicit.
 Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, and fixed-route gateway pricing wiring are in place.
 Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, and live prompt-cache/tool/gateway smokes are in place.
-Conversation layer: add an optional package above unified.Client for stateful sessions, replay/native continuation, cache policy, and commit-safe history, keeping gateway/router stateless.
-Prompt caching: next add conversation-level cache policy once the session package exists; Anthropic block cache_control and OpenAI Responses cache-key extensions are in place.
+Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
+Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
 CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
 ```
@@ -284,8 +287,8 @@ agentapis has a richer canonical stream shape than llmadapter today:
 - TokenItems with input.new, input.cache_read, input.cache_write, output, and output.reasoning categories
 - CostItems derived from usage through an injected CostCalculator
 - request identity, cache hints, request extras, and protocol-specific cache/prompt controls
-- stateful conversation.Session with committed canonical history, replay versus previous_response_id strategies, MessageProjector hooks, prompt cache keys, and commit callbacks
-- conversation-level tests for tool loops, multi-turn memory, usage/cost enrichment, and cache policy behavior
+- stateful conversation.Session with committed canonical history, replay versus previous_response_id strategies, MessageProjector hooks, prompt cache keys, and commit callbacks (owned by agentsdk)
+- conversation-level tests for tool loops, multi-turn memory, usage/cost enrichment, and cache policy behavior (owned by agentsdk)
 
 llmproviders has a higher-level provider service layer than llmadapter today:
 - modeldb-backed service/offering/model lookup
@@ -299,7 +302,7 @@ Do not copy these layers directly into llmadapter core. Port the durable concept
 - modeldb catalog adapter for endpoint metadata and pricing
 - event processor for cost enrichment
 - provider auth options for Claude OAuth compatibility
-- optional conversation package that wraps unified.Client
+- stateless unified.Client primitives consumed by agentsdk conversation/runtime layers
 - adapter-native CLI commands for serving, model/route inspection, resolving, and smoke testing
 - shared e2e matrix scenarios that exercise the public outside-in surface
 ```
@@ -418,10 +421,10 @@ Implementation pieces:
 Safety rule: Claude OAuth compatibility stays an Anthropic provider option/sub-provider, not a new canonical API family. Only split a new API kind if the wire request/stream format diverges from Anthropic Messages.
 ```
 
-Caching, usage, pricing, and conversation integration plan:
+Caching, usage, pricing, and agentsdk conversation integration plan:
 
 ```text
-Design constraint: llmadapter core and gateway remain stateless per request. Stateful conversations, cache policy, and cost attribution are additive layers around unified.Client and unified.Event streams.
+Design constraint: llmadapter core and gateway remain stateless per request. Stateful conversations and cache policy are owned by agentsdk or another wrapper above unified.Client; llmadapter owns explicit request/event primitives and optional cost attribution processors.
 
 Usage/cost foundation:
 1. Replace flat unified.UsageEvent counters with structured token categories: (implemented)
@@ -449,13 +452,10 @@ Prompt caching:
 5. Test cache accounting using provider-reported cache_read/cache_write tokens, not local token estimation.
 
 Conversations:
-1. Add a separate conversation package that depends on unified.Client, not gateway internals.
-2. Session owns committed canonical history, pending turn projection, and in-flight turn protection.
-3. Failed/incomplete turns must not mutate committed history.
-4. Support replay strategy for stateless providers and previous_response_id strategy for OpenAI Responses-compatible providers. (provider extension surface implemented; conversation package still pending; OpenRouter Responses live test did not preserve context through previous_response_id)
-5. Use MessageProjector hooks for provider/service-specific replay constraints such as OpenRouter Responses quirks.
-6. Use session IDs for prompt_cache_key where supported, but do not leak session state into router health or provider endpoint selection.
-7. Add outside-in e2e scenarios for one-shot text, tool roundtrip, usage reported, costs present, multi-turn memory, and prompt-cache behavior.
+1. Keep conversation/session implementation in agentsdk, not llmadapter.
+2. llmadapter exposes explicit request primitives for agentsdk: previous_response_id, store, prompt_cache_key, prompt_cache_retention, provider-specific session hints, response IDs, and usage/cost events.
+3. Replay strategy, commit-safe history, MessageProjector hooks, and session cache policy remain agentsdk responsibilities.
+4. llmadapter e2e validates provider semantics that agentsdk depends on, especially native OpenAI Responses previous_response_id behavior.
 ```
 
 MiniMax research notes:

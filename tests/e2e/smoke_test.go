@@ -12,6 +12,7 @@ import (
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
+	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
 	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
@@ -318,6 +319,9 @@ func TestSmokeResponsesContinuation(t *testing.T) {
 				}},
 				Stream: true,
 			}
+			if err := firstReq.Extensions.Set(unified.ExtOpenAIStore, true); err != nil {
+				t.Fatal(err)
+			}
 
 			first, err := collectSmokeResponse(ctx, client, firstReq)
 			if err != nil {
@@ -390,6 +394,17 @@ func smokeProviders() []smokeProvider {
 			tools:     true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openai.NewClient(openai.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:                  "openai_responses",
+			apiKeyEnv:             []string{"OPENAI_API_KEY", "OPENAI_KEY"},
+			modelEnv:              "OPENAI_RESPONSES_MODEL",
+			model:                 "gpt-4.1-mini",
+			tools:                 true,
+			responsesContinuation: true,
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openairesponses.NewClient(openairesponses.WithAPIKey(apiKey))
 			},
 		},
 		{

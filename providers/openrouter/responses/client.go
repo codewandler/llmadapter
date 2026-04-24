@@ -17,9 +17,10 @@ import (
 const defaultBaseURL = "https://openrouter.ai/api"
 
 type Client struct {
-	apiKey    string
-	baseURL   string
-	transport transport.ByteStreamTransport
+	apiKey        string
+	baseURL       string
+	warningSource string
+	transport     transport.ByteStreamTransport
 }
 
 func NewClient(opts ...Option) (unified.Client, error) {
@@ -33,7 +34,10 @@ func NewClient(opts ...Option) (unified.Client, error) {
 	if cfg.transport == nil {
 		cfg.transport = transport.NewHTTPByteStreamTransport(transport.HTTPTransportConfig{FrameFormat: transport.FrameFormatSSE})
 	}
-	return &Client{apiKey: cfg.apiKey, baseURL: cfg.baseURL, transport: cfg.transport}, nil
+	if cfg.warningSource == "" {
+		cfg.warningSource = "openrouter.responses"
+	}
+	return &Client{apiKey: cfg.apiKey, baseURL: cfg.baseURL, warningSource: cfg.warningSource, transport: cfg.transport}, nil
 }
 
 func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unified.Event, error) {
@@ -68,7 +72,7 @@ func (c *Client) readStream(ctx context.Context, warnings []mappingWarning, stre
 		select {
 		case <-ctx.Done():
 			return
-		case out <- warning.event("openrouter.responses"):
+		case out <- warning.event(c.warningSource):
 		}
 	}
 	decoder := streamDecoder{}

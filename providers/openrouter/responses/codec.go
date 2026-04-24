@@ -49,7 +49,7 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 		for _, call := range msg.ToolCalls {
 			out.Input = append(out.Input, inputItemWire{
 				Type:      "function_call",
-				ID:        call.ID,
+				ID:        functionCallItemID(call.ID),
 				CallID:    call.ID,
 				Name:      call.Name,
 				Arguments: string(call.Arguments),
@@ -58,7 +58,6 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 		for j, result := range msg.ToolResults {
 			out.Input = append(out.Input, inputItemWire{
 				Type:   "function_call_output",
-				ID:     "output_" + result.ToolCallID,
 				CallID: result.ToolCallID,
 				Output: contentText(result.Content, "messages."+strconv.Itoa(i)+".tool_results."+strconv.Itoa(j)+".content", &warnings),
 			})
@@ -115,6 +114,13 @@ func appendContentPart(out []contentPartWire, part unified.ContentPart, role uni
 		addWarning(warnings, field, "non-text content part was dropped")
 	}
 	return out
+}
+
+func functionCallItemID(id string) string {
+	if strings.HasPrefix(id, "fc") {
+		return id
+	}
+	return ""
 }
 
 func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions) {

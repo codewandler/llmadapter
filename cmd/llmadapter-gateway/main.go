@@ -22,6 +22,7 @@ import (
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
+	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
 	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
@@ -301,6 +302,8 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true}, nil
 	case "openai_chat":
 		return adapt.ApiOpenAIChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
+	case "openai_responses":
+		return adapt.ApiOpenAIResponses, adapt.FamilyOpenAIResponses, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
 	case "openrouter_chat":
 		return adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
 	case "openrouter_responses":
@@ -384,6 +387,16 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 			opts = append(opts, openai.WithBaseURL(provider.BaseURL))
 		}
 		return openai.NewClient(opts...)
+	case "openai_responses":
+		apiKey := providerAPIKey(provider, "OPENAI_API_KEY", "OPENAI_KEY")
+		if apiKey == "" {
+			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
+		}
+		opts := []openairesponses.Option{openairesponses.WithAPIKey(apiKey)}
+		if provider.BaseURL != "" {
+			opts = append(opts, openairesponses.WithBaseURL(provider.BaseURL))
+		}
+		return openairesponses.NewClient(opts...)
 	case "openrouter_chat":
 		apiKey := providerAPIKey(provider, "OPENROUTER_API_KEY", "OPENROUTER_KEY")
 		if apiKey == "" {

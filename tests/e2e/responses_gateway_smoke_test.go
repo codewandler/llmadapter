@@ -15,86 +15,130 @@ import (
 	"github.com/codewandler/llmadapter/adapt"
 	responsesendpoint "github.com/codewandler/llmadapter/endpoints/openairesponses"
 	"github.com/codewandler/llmadapter/gateway"
+	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
 	"github.com/codewandler/llmadapter/router"
+	"github.com/codewandler/llmadapter/unified"
 )
 
 func TestResponsesGatewaySmokeNonStreaming(t *testing.T) {
-	handler, model := newResponsesGateway(t)
-	body := `{
-		"model":` + jsonQuote(model) + `,
-		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Reply with exactly: llmadapter responses gateway smoke ok"}]}],
-		"max_output_tokens":64
-	}`
+	for _, provider := range responsesGatewayProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			handler, model := newResponsesGateway(t, provider)
+			body := `{
+				"model":` + jsonQuote(model) + `,
+				"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Reply with exactly: llmadapter responses gateway smoke ok"}]}],
+				"max_output_tokens":64
+			}`
 
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body)))
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body)))
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
-	}
-	var resp struct {
-		Object string `json:"object"`
-		Output []struct {
-			Type    string `json:"type"`
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		} `json:"output"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Object != "response" {
-		t.Fatalf("unexpected response: %+v", resp)
-	}
-	if !strings.Contains(strings.ToLower(responsesOutputText(resp.Output)), "llmadapter responses gateway smoke ok") {
-		t.Fatalf("unexpected output: %+v", resp.Output)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+			}
+			var resp struct {
+				Object string `json:"object"`
+				Output []struct {
+					Type    string `json:"type"`
+					Content []struct {
+						Type string `json:"type"`
+						Text string `json:"text"`
+					} `json:"content"`
+				} `json:"output"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatal(err)
+			}
+			if resp.Object != "response" {
+				t.Fatalf("unexpected response: %+v", resp)
+			}
+			if !strings.Contains(strings.ToLower(responsesOutputText(resp.Output)), "llmadapter responses gateway smoke ok") {
+				t.Fatalf("unexpected output: %+v", resp.Output)
+			}
+		})
 	}
 }
 
 func TestResponsesGatewaySmokeStreaming(t *testing.T) {
-	handler, model := newResponsesGateway(t)
-	body := `{
-		"model":` + jsonQuote(model) + `,
-		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Reply with exactly: llmadapter responses gateway stream ok"}]}],
-		"max_output_tokens":64,
-		"stream":true
-	}`
+	for _, provider := range responsesGatewayProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			handler, model := newResponsesGateway(t, provider)
+			body := `{
+				"model":` + jsonQuote(model) + `,
+				"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Reply with exactly: llmadapter responses gateway stream ok"}]}],
+				"max_output_tokens":64,
+				"stream":true
+			}`
 
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body)))
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body)))
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
-	}
-	text, done, err := collectResponsesStreamText(w.Body.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !done {
-		t.Fatalf("stream did not include response.done: %s", w.Body.String())
-	}
-	if !strings.Contains(strings.ToLower(text), "llmadapter responses gateway stream ok") {
-		t.Fatalf("unexpected stream text: %q", text)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+			}
+			text, done, err := collectResponsesStreamText(w.Body.Bytes())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !done {
+				t.Fatalf("stream did not include response.done: %s", w.Body.String())
+			}
+			if !strings.Contains(strings.ToLower(text), "llmadapter responses gateway stream ok") {
+				t.Fatalf("unexpected stream text: %q", text)
+			}
+		})
 	}
 }
 
-func newResponsesGateway(t *testing.T) (http.Handler, string) {
+type responsesGatewayProvider struct {
+	name      string
+	apiKind   adapt.ApiKind
+	apiKeyEnv []string
+	modelEnv  string
+	model     string
+	newClient func(apiKey string) (unified.Client, error)
+}
+
+func responsesGatewayProviders() []responsesGatewayProvider {
+	return []responsesGatewayProvider{
+		{
+			name:      "openai_responses",
+			apiKind:   adapt.ApiOpenAIResponses,
+			apiKeyEnv: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
+			modelEnv:  "OPENAI_RESPONSES_MODEL",
+			model:     "gpt-4.1-mini",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openairesponses.NewClient(openairesponses.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:      "openrouter_responses",
+			apiKind:   adapt.ApiOpenRouterResponses,
+			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:  "OPENROUTER_RESPONSES_MODEL",
+			model:     "openai/gpt-4.1-mini",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey(apiKey))
+			},
+		},
+	}
+}
+
+func newResponsesGateway(t *testing.T, provider responsesGatewayProvider) (http.Handler, string) {
 	t.Helper()
 	if os.Getenv("TEST_INTEGRATION") == "" {
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
 	}
-	apiKey := firstSetEnv("OPENROUTER_API_KEY", "OPENROUTER_KEY")
+	apiKey := firstSetEnv(provider.apiKeyEnv...)
 	if apiKey == "" {
-		t.Skip("set OPENROUTER_API_KEY or OPENROUTER_KEY to run Responses gateway e2e smoke tests")
+		t.Skipf("set one of %s to run %s Responses gateway e2e smoke tests", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
-	model := "openai/gpt-4.1-mini"
-	if fromEnv := os.Getenv("OPENROUTER_RESPONSES_MODEL"); fromEnv != "" {
+	model := provider.model
+	if fromEnv := os.Getenv(provider.modelEnv); fromEnv != "" {
 		model = fromEnv
 	}
-	client, err := openrouterresponses.NewClient(openrouterresponses.WithAPIKey(apiKey))
+	client, err := provider.newClient(apiKey)
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
@@ -107,8 +151,8 @@ func newResponsesGateway(t *testing.T) (http.Handler, string) {
 			Router: router.NewStaticRouter(router.StaticRoute{
 				SourceAPI: adapt.ApiOpenAIResponses,
 				Endpoint: router.ProviderEndpoint{
-					ProviderName: "openrouter_responses",
-					APIKind:      adapt.ApiOpenRouterResponses,
+					ProviderName: provider.name,
+					APIKind:      provider.apiKind,
 					Family:       adapt.FamilyOpenAIResponses,
 					Client:       client,
 					Capabilities: router.CapabilitySet{Streaming: true, Tools: true},

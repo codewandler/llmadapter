@@ -10,6 +10,16 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-04-24
+
+### Added
+
+- Added a native `openai_responses` provider endpoint backed by the OpenAI Responses API.
+
+### Changed
+
+- Clarified that stateful conversation/session ownership belongs above llmadapter, for example in `agentsdk`; llmadapter owns only stateless request/event/provider primitives.
+
 ## [0.28.0] - 2026-04-24
 
 ### Added

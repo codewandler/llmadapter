@@ -7,7 +7,7 @@ Current implemented surface:
 - Core packages: `unified`, `adapt`, `pipeline`, `transport`, `router`, `gateway`.
 - Utility packages: `pricing` for modeldb-backed usage cost enrichment and `modelmeta` for modeldb-backed endpoint metadata mapping.
 - Endpoint codecs: OpenAI-compatible `/v1/chat/completions`, OpenAI-compatible `/v1/responses`, Anthropic-compatible `/v1/messages`.
-- Providers: Anthropic Messages, Claude Code-compatible Anthropic Messages, OpenAI Chat Completions, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
+- Providers: Anthropic Messages, Claude Code-compatible Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
 - Live e2e smoke tests for text streaming, tool calls, tool-result continuation, prompt caching, and gateway routing.
 
 ## Quick Start
@@ -39,6 +39,7 @@ Provider model override env vars:
 - `ANTHROPIC_MODEL`
 - `CLAUDE_MODEL`
 - `OPENAI_MODEL`
+- `OPENAI_RESPONSES_MODEL`
 - `OPENROUTER_MODEL`
 - `OPENROUTER_RESPONSES_MODEL`
 - `OPENROUTER_MESSAGES_MODEL`
@@ -70,6 +71,7 @@ Example provider endpoint types:
 - `anthropic`
 - `claude_messages`
 - `openai_chat`
+- `openai_responses`
 - `openrouter_chat`
 - `openrouter_responses`
 - `openrouter_messages`
@@ -165,7 +167,9 @@ Malformed tool-call argument JSON from OpenAI Chat and OpenAI Responses inputs i
 
 OpenRouter-specific request controls are carried through `unified.Request.Extensions` using namespaced keys such as `openrouter.provider`, `openrouter.plugins`, `openrouter.debug`, `openrouter.trace`, and `openrouter.session_id`. The OpenRouter Chat, Responses, and Messages providers encode those extensions back into upstream request bodies.
 
-OpenAI Responses-compatible continuation and cache-key controls are also carried through extensions. `openai.responses.previous_response_id`, `openai.responses.store`, `openai.responses.prompt_cache_key`, and `openai.responses.prompt_cache_retention` are decoded by the `/v1/responses` endpoint and encoded by the OpenRouter Responses provider without adding gateway/session state.
+OpenAI Responses-compatible continuation and cache-key controls are also carried through extensions. `openai.responses.previous_response_id`, `openai.responses.store`, `openai.responses.prompt_cache_key`, and `openai.responses.prompt_cache_retention` are decoded by the `/v1/responses` endpoint and encoded by OpenAI/OpenRouter Responses providers without adding gateway/session state.
+
+Conversation/session state belongs above llmadapter, for example in `agentsdk`. llmadapter only exposes stateless request/event/provider primitives needed by those layers.
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 
@@ -186,7 +190,7 @@ See `DESIGN.md` for the target architecture and `PLAN.md` for current status, kn
 - Capability defaults are endpoint-family guesses. Use provider `capabilities` overrides for model-specific support before routing production traffic.
 - Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
 - OpenRouter extension passthrough preserves raw JSON controls but does not yet validate provider-specific extension schemas.
-- OpenRouter Responses encodes OpenAI Responses continuation fields, but live `previous_response_id` context preservation is not advertised because the current backend smoke did not preserve prior-turn context.
+- Native OpenAI Responses has live smoke coverage for `previous_response_id` continuation. OpenRouter Responses encodes the same fields, but live context preservation is not advertised because the current backend smoke did not preserve prior-turn context.
 - Modeldb-backed metadata and pricing only work for configured fixed-model routes; dynamic per-request model lookup and catalog overlays are still planned.
-- Prompt cache request hints currently map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions; a higher-level session cache policy is still planned.
+- Prompt cache request hints currently map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions; higher-level session cache policy belongs above llmadapter.
 - Provider and endpoint codecs cover smoke-tested text, tools, structured output, and basic image inputs; they are not full conformance implementations for every provider field.

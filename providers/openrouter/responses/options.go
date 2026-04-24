@@ -11,9 +11,10 @@ type Option interface {
 }
 
 type config struct {
-	apiKey    string
-	baseURL   string
-	transport transport.ByteStreamTransport
+	apiKey        string
+	baseURL       string
+	warningSource string
+	transport     transport.ByteStreamTransport
 }
 
 type optionFunc func(*config)
@@ -35,5 +36,11 @@ func WithBaseURL(url string) Option {
 func WithTransport(t transport.ByteStreamTransport) Option {
 	return optionFunc(func(c *config) {
 		c.transport = t
+	})
+}
+
+func WithWarningSource(source string) Option {
+	return optionFunc(func(c *config) {
+		c.warningSource = source
 	})
 }

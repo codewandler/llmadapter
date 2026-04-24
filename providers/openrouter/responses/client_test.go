@@ -123,10 +123,10 @@ func TestEncodeRequestTools(t *testing.T) {
 	if len(wire.Input) != 2 {
 		t.Fatalf("input = %+v", wire.Input)
 	}
-	if wire.Input[0].Type != "function_call" || wire.Input[0].CallID != "call_1" || wire.Input[0].Arguments != `{"q":"x"}` {
+	if wire.Input[0].Type != "function_call" || wire.Input[0].ID != "" || wire.Input[0].CallID != "call_1" || wire.Input[0].Arguments != `{"q":"x"}` {
 		t.Fatalf("unexpected function call input: %+v", wire.Input[0])
 	}
-	if wire.Input[1].Type != "function_call_output" || wire.Input[1].CallID != "call_1" || wire.Input[1].Output != "result" {
+	if wire.Input[1].Type != "function_call_output" || wire.Input[1].ID != "" || wire.Input[1].CallID != "call_1" || wire.Input[1].Output != "result" {
 		t.Fatalf("unexpected function output input: %+v", wire.Input[1])
 	}
 	if len(wire.Tools) != 1 || wire.Tools[0].Name != "lookup" {
@@ -135,6 +135,23 @@ func TestEncodeRequestTools(t *testing.T) {
 	choice, ok := wire.ToolChoice.(map[string]string)
 	if !ok || choice["type"] != "function" || choice["name"] != "lookup" {
 		t.Fatalf("tool choice = %#v", wire.ToolChoice)
+	}
+}
+
+func TestEncodeRequestPreservesOpenAIResponsesFunctionCallItemID(t *testing.T) {
+	wire, _ := encodeRequest(unified.Request{
+		Model: "openai/test",
+		Messages: []unified.Message{{
+			Role: unified.RoleAssistant,
+			ToolCalls: []unified.ToolCall{{
+				ID:        "fc_1",
+				Name:      "lookup",
+				Arguments: json.RawMessage(`{"q":"x"}`),
+			}},
+		}},
+	})
+	if len(wire.Input) != 1 || wire.Input[0].ID != "fc_1" || wire.Input[0].CallID != "fc_1" {
+		t.Fatalf("unexpected function call input: %+v", wire.Input)
 	}
 }
 
