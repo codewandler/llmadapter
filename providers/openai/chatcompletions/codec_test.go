@@ -65,6 +65,8 @@ func TestEncodeToolResults(t *testing.T) {
 
 func TestClientStreamWithFakeTransport(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`: OPENROUTER PROCESSING`),
+		[]byte(`data:`),
 		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"}}]}`),
 		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"content":"hello"}}]}`),
 		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}`),

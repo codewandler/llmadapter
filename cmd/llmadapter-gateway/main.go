@@ -13,6 +13,7 @@ import (
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
+	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -105,6 +106,22 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 			opts = append(opts, openai.WithBaseURL(provider.BaseURL))
 		}
 		return openai.NewClient(opts...)
+	case "openrouter_chat":
+		apiKey := provider.APIKey
+		if apiKey == "" && provider.APIKeyEnv != "" {
+			apiKey = os.Getenv(provider.APIKeyEnv)
+		}
+		if apiKey == "" {
+			apiKey = firstEnv("OPENROUTER_API_KEY", "OPENROUTER_KEY")
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
+		}
+		opts := []openrouter.Option{openrouter.WithAPIKey(apiKey)}
+		if provider.BaseURL != "" {
+			opts = append(opts, openrouter.WithBaseURL(provider.BaseURL))
+		}
+		return openrouter.NewClient(opts...)
 	default:
 		return nil, fmt.Errorf("unsupported provider type %q", provider.Type)
 	}

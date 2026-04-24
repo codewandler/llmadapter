@@ -105,7 +105,7 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	if string(frame.Data) == "[DONE]" {
+	if len(strings.TrimSpace(string(frame.Data))) == 0 || string(frame.Data) == "[DONE]" {
 		return nil, nil
 	}
 	var chunk chunkWire

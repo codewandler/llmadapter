@@ -10,6 +10,7 @@ import (
 
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
+	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -235,6 +236,15 @@ func smokeProviders() []smokeProvider {
 			model:     "gpt-4.1-mini",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openai.NewClient(openai.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:      "openrouter_chat",
+			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:  "OPENROUTER_MODEL",
+			model:     "openai/gpt-4.1-mini",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openrouter.NewClient(openrouter.WithAPIKey(apiKey))
 			},
 		},
 	}

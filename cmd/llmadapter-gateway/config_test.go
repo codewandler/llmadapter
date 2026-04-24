@@ -47,3 +47,12 @@ func TestBuildProviderOpenAIRequiresKey(t *testing.T) {
 		t.Fatalf("expected missing key error")
 	}
 }
+
+func TestBuildProviderOpenRouterRequiresKey(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	t.Setenv("OPENROUTER_KEY", "")
+	_, err := buildProvider(providerConfig{Name: "openrouter", Type: "openrouter_chat"})
+	if err == nil {
+		t.Fatalf("expected missing key error")
+	}
+}

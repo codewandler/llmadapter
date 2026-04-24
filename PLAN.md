@@ -26,6 +26,7 @@ Provider support slice: OpenAI Chat Completions upstream provider
 Gateway provider matrix slice: OpenAI-backed route covered by live gateway smoke tests
 Tool-use provider slice: OpenAI streamed tool calls and shared live tool-use smoke tests
 Tool loop e2e slice: shared live tool-result continuation smoke tests
+OpenRouter provider slice: native Chat Completions provider wrapper and shared smoke matrix entry
 ```
 
 Verified:
@@ -40,6 +41,10 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/openai_chat' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolUse' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream/openrouter_chat' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolUse/openrouter_chat' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/openrouter_chat' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/openrouter_chat' -count=1 -v
 ```
 
 Implemented package surface:
@@ -51,6 +56,7 @@ pipeline/
 transport/
 providers/anthropic/messages/
 providers/openai/chatcompletions/
+providers/openrouter/chatcompletions/
 tests/e2e/
 endpoints/openaichatcompletions/
 gateway/
@@ -112,6 +118,9 @@ default Anthropic smoke-test model: claude-haiku-4-5-20251001
 OPENAI_API_KEY or OPENAI_KEY provides OpenAI credentials
 OPENAI_MODEL overrides the default OpenAI smoke-test model
 default OpenAI smoke-test model: gpt-4.1-mini
+OPENROUTER_API_KEY or OPENROUTER_KEY provides OpenRouter credentials
+OPENROUTER_MODEL overrides the default OpenRouter smoke-test model
+default OpenRouter smoke-test model: openai/gpt-4.1-mini
 ```
 
 Known follow-up gaps:
@@ -125,9 +134,10 @@ Raw/unmapped event preservation is minimal and should be expanded before gateway
 router is static and does not yet include capability checks or fallback routing
 gateway config is intentionally minimal and does not yet support multiple provider implementations
 OpenAI provider is stream-first and covers smoke-tested text and tool-use paths
+OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
-OpenRouter should be added next as a provider family with native Chat Completions, Responses, and Anthropic-compatible Messages support
+OpenRouter provider family still needs native Responses and Anthropic-compatible Messages support
 streaming provider errors after response start need a final policy
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
 ```
@@ -135,7 +145,7 @@ runnable gateway uses one Anthropic route and can optionally override upstream m
 Next planned phase:
 
 ```text
-Provider support continuation: add OpenRouter as a provider family, starting with native Chat Completions and reusing the shared smoke matrix
+Provider support continuation: add OpenRouter native Responses and Anthropic-compatible Messages packages, then expand route/provider capability tests
 ```
 
 ---
