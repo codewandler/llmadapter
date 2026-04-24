@@ -182,7 +182,15 @@ func TestResolveCommandShowsRankedCandidates(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, want := range []string{"Matches: 3 candidates", "[01]", "Provider type: claude_messages", "Provider type: anthropic", "Provider type: openrouter_responses"} {
+	for _, want := range []string{
+		"Matches: 3 candidates",
+		"[01] source=anthropic.messages provider=claude type=claude_messages api=anthropic.messages",
+		"Provider type: claude_messages",
+		"[02] source=anthropic.messages provider=anthropic type=anthropic api=anthropic.messages",
+		"Provider type: anthropic",
+		"[03] source=openai.responses provider=openrouter type=openrouter_responses api=openrouter.responses",
+		"Provider type: openrouter_responses",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
