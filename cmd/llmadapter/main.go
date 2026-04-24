@@ -1033,7 +1033,15 @@ func printResolutionCandidates(w io.Writer, resolutions []resolutionInfo) {
 	}
 	fmt.Fprintf(w, "Matches: %d candidates\n", len(resolutions))
 	for i, resolution := range resolutions {
-		fmt.Fprintf(w, "\n[%.2d]\n", i+1)
+		fmt.Fprintf(w, "\n[%.2d] source=%s provider=%s type=%s api=%s weight=%d priority=%d\n",
+			i+1,
+			resolution.SourceAPI,
+			resolution.Provider,
+			resolution.ProviderType,
+			resolution.ProviderAPI,
+			resolution.Weight,
+			resolution.Priority,
+		)
 		printResolution(w, resolution)
 	}
 }
