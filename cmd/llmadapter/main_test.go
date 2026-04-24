@@ -141,6 +141,22 @@ func TestResolveCommandWithConfig(t *testing.T) {
 	}
 }
 
+func TestResolveCommandWithModelDBAliasConfig(t *testing.T) {
+	path := writeTestAliasConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"resolve", "haiku", "--config", path})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{"Matched as:   public_model", "Public model: haiku", "Native model: gpt-haiku-test"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestResolveCommandJSONWithConfig(t *testing.T) {
 	path := writeTestConfig(t)
 	var out, errOut bytes.Buffer
@@ -226,6 +242,40 @@ func writeTestCatalogConfig(t *testing.T) string {
 	}
 	configPath := filepath.Join(dir, "llmadapter.json")
 	data := []byte(`{"modeldb":{"catalog_path":` + strconv.Quote(catalogPath) + `}}`)
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return configPath
+}
+
+func writeTestAliasConfig(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	catalogPath := filepath.Join(dir, "catalog.json")
+	catalog := modeldb.NewCatalog()
+	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "haiku"}
+	catalog.Services["openai"] = modeldb.Service{ID: "openai", Name: "OpenAI"}
+	catalog.Models[key] = modeldb.ModelRecord{Key: key, Name: "GPT Haiku Test"}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "openai", WireModelID: "gpt-haiku-test"}] = modeldb.Offering{
+		ServiceID:   "openai",
+		WireModelID: "gpt-haiku-test",
+		ModelKey:    key,
+		Exposures: []modeldb.OfferingExposure{{
+			APIType: modeldb.APITypeOpenAIResponses,
+		}},
+	}
+	if err := modeldb.SaveJSON(catalogPath, catalog); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(dir, "llmadapter.json")
+	data := []byte(`{
+		"modeldb":{
+			"catalog_path":` + strconv.Quote(catalogPath) + `,
+			"aliases":[{"name":"haiku","service_id":"openai","wire_model_id":"gpt-haiku-test"}]
+		},
+		"providers":[{"name":"openai","type":"openai_responses","api_key":"test","modeldb_service_id":"openai","model":"provider-default"}],
+		"routes":[{"source_api":"openai.responses","model":"haiku","provider":"openai","modeldb_model":"haiku","weight":100}]
+	}`)
 	if err := os.WriteFile(configPath, data, 0o600); err != nil {
 		t.Fatal(err)
 	}

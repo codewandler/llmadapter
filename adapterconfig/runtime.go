@@ -84,7 +84,7 @@ func BuildRouter(cfg Config) (router.Router, error) {
 		}
 		if modelDBEnabled {
 			var err error
-			route, err = resolveRouteModelDBModel(route, endpoint, catalog, cfg.ModelDB)
+			route, err = ResolveRouteModelDBModel(route, endpoint, catalog, cfg.ModelDB)
 			if err != nil {
 				return nil, err
 			}

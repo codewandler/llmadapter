@@ -8,6 +8,7 @@ import (
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/unified"
+	"github.com/codewandler/modeldb"
 )
 
 func TestAutoMuxClientDetectsOpenAIEnv(t *testing.T) {
@@ -149,10 +150,10 @@ func TestAutoMuxClientModelDBIntentPrefersMatchingProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Config.Routes) != 1 {
-		t.Fatalf("expected one route, got %+v", result.Config.Routes)
+	route, ok := autoRouteModel(result.Config, adapt.ApiOpenAIResponses, "opus")
+	if !ok {
+		t.Fatalf("missing opus route: %+v", result.Config.Routes)
 	}
-	route := result.Config.Routes[0]
 	if route.Model != "opus" || route.Provider != "claude_messages" || route.ModelDBModel != "opus" || route.NativeModel != "" {
 		t.Fatalf("unexpected modeldb intent route: %+v", route)
 	}
@@ -234,6 +235,130 @@ func TestAutoMuxClientCanAddDynamicRoutesWithIntents(t *testing.T) {
 	}
 }
 
+func TestAutoMuxClientAddsDefaultModelAliasRoutes(t *testing.T) {
+	clearAutoEnv(t)
+	claudeDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	if err := os.WriteFile(filepath.Join(claudeDir, ".credentials.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:         false,
+		EnableLocalClaude: true,
+		UseModelDB:        true,
+		SourceAPI:         adapt.ApiOpenAIResponses,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		alias string
+		wire  string
+	}{
+		{"haiku", "claude-haiku-4-5-20251001"},
+		{"sonnet", "claude-sonnet-4-6"},
+		{"opus", "claude-opus-4-6"},
+	} {
+		t.Run(tt.alias, func(t *testing.T) {
+			r, err := BuildRouter(result.Config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			selected, err := r.Route(context.Background(), adapt.Request{
+				SourceAPI: adapt.ApiOpenAIResponses,
+				Unified:   unified.Request{Model: tt.alias, Stream: true},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if selected.ProviderName != "claude_messages" || selected.NativeModel != tt.wire {
+				t.Fatalf("unexpected alias route: %+v", selected)
+			}
+		})
+	}
+}
+
+func TestAutoMuxClientAcceptsExternalModelDBAliases(t *testing.T) {
+	clearAutoEnv(t)
+	claudeDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	if err := os.WriteFile(filepath.Join(claudeDir, ".credentials.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:         false,
+		EnableLocalClaude: true,
+		UseModelDB:        true,
+		SourceAPI:         adapt.ApiOpenAIResponses,
+		ModelDBAliases: []ModelDBAliasConfig{{
+			Name:        "flagship",
+			ServiceID:   "anthropic",
+			WireModelID: "claude-opus-4-6",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := BuildRouter(result.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified:   unified.Request{Model: "flagship", Stream: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.NativeModel != "claude-opus-4-6" {
+		t.Fatalf("unexpected external alias route: %+v", selected)
+	}
+}
+
+func TestModelDBAliasOverridesCatalogAlias(t *testing.T) {
+	catalog, err := LoadModelDBCatalog(ModelDBConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, ok := resolveModelDBItem(catalog, ModelDBConfig{
+		Aliases: []ModelDBAliasConfig{{
+			Name:        "opus",
+			ServiceID:   "anthropic",
+			WireModelID: "claude-opus-4-6",
+		}},
+	}, "anthropic", modeldb.APITypeAnthropicMessages, "opus")
+	if !ok {
+		t.Fatal("expected alias to resolve")
+	}
+	if item.Offering.WireModelID != "claude-opus-4-6" {
+		t.Fatalf("alias resolved to %q", item.Offering.WireModelID)
+	}
+}
+
+func TestDefaultModelDBAliases(t *testing.T) {
+	aliases := DefaultModelDBAliases()
+	want := map[string]string{
+		"anthropic/haiku":  "claude-haiku-4-5-20251001",
+		"anthropic/sonnet": "claude-sonnet-4-6",
+		"anthropic/opus":   "claude-opus-4-6",
+	}
+	for _, alias := range aliases {
+		key := alias.ServiceID + "/" + alias.Name
+		if want[key] == "" {
+			continue
+		}
+		if alias.WireModelID != want[key] {
+			t.Fatalf("%s = %q, want %q", key, alias.WireModelID, want[key])
+		}
+		delete(want, key)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing aliases: %+v", want)
+	}
+}
+
 func TestAutoMuxClientErrorsWithoutDetectedProviders(t *testing.T) {
 	clearAutoEnv(t)
 
@@ -287,6 +412,15 @@ func autoEnabled(providers []AutoProvider, providerType string) bool {
 func autoRoute(cfg Config, sourceAPI adapt.ApiKind) (RouteConfig, bool) {
 	for _, route := range cfg.Routes {
 		if route.SourceAPI == sourceAPI {
+			return route, true
+		}
+	}
+	return RouteConfig{}, false
+}
+
+func autoRouteModel(cfg Config, sourceAPI adapt.ApiKind, model string) (RouteConfig, bool) {
+	for _, route := range cfg.Routes {
+		if route.SourceAPI == sourceAPI && route.Model == model {
 			return route, true
 		}
 	}

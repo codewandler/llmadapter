@@ -913,6 +913,17 @@ func resolveModel(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKin
 		if err != nil {
 			return resolutionInfo{}, err
 		}
+		if adapterconfig.ConfigUsesModelDB(cfg) {
+			catalog, err := adapterconfig.LoadModelDBCatalog(cfg.ModelDB)
+			if err != nil {
+				return resolutionInfo{}, err
+			}
+			route, err = adapterconfig.ResolveRouteModelDBModel(route, endpoint, catalog, cfg.ModelDB)
+			if err != nil {
+				return resolutionInfo{}, err
+			}
+			endpoint = adapterconfig.EndpointWithModelDBMetadata(endpoint, route, catalog)
+		}
 		nativeModel := route.NativeModel
 		if nativeModel == "" && route.DynamicModels {
 			nativeModel = model

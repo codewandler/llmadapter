@@ -21,6 +21,7 @@ type AutoOptions struct {
 	DynamicModels     bool
 	SourceAPI         adapt.ApiKind
 	Intents           []AutoIntent
+	ModelDBAliases    []ModelDBAliasConfig
 }
 
 type AutoIntent struct {
@@ -49,7 +50,7 @@ func AutoMuxClient(opts AutoOptions) (AutoResult, error) {
 		opts.EnableLocalClaude = true
 		opts.EnableLocalCodex = true
 	}
-	cfg := Config{}
+	cfg := Config{ModelDB: autoModelDBConfig(opts)}
 	var enabled []AutoProvider
 	var skipped []AutoProvider
 	for _, descriptor := range providerregistry.List() {
@@ -132,7 +133,7 @@ func autoProviderConfig(descriptor providerregistry.Descriptor, apiKeyEnv string
 }
 
 func autoRoutes(cfg Config, opts AutoOptions) ([]RouteConfig, error) {
-	catalog, modelDBEnabled, err := autoModelDBCatalog(opts)
+	catalog, modelDBEnabled, err := autoModelDBCatalog(cfg, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +150,7 @@ func autoRoutes(cfg Config, opts AutoOptions) ([]RouteConfig, error) {
 				}
 			}
 		}
+		out = append(out, autoModelAliasRoutes(cfg, opts, catalog, modelDBEnabled, out)...)
 		return out, nil
 	}
 	var routes []RouteConfig
@@ -161,7 +163,70 @@ func autoRoutes(cfg Config, opts AutoOptions) ([]RouteConfig, error) {
 			}
 		}
 	}
+	routes = append(routes, autoModelAliasRoutes(cfg, opts, catalog, modelDBEnabled, routes)...)
 	return routes, nil
+}
+
+func autoModelAliasRoutes(cfg Config, opts AutoOptions, catalog modeldb.Catalog, modelDBEnabled bool, existing []RouteConfig) []RouteConfig {
+	if !opts.UseModelDB || !modelDBEnabled {
+		return nil
+	}
+	var out []RouteConfig
+	for _, sourceAPI := range modelAliasRouteSourceAPIs(opts, existing) {
+		for _, alias := range modelDBAliasNames(cfg.ModelDB) {
+			if hasRouteModel(existing, sourceAPI, alias) || hasRouteModel(out, sourceAPI, alias) {
+				continue
+			}
+			route, ok := modelDBRouteForIntent(cfg, alias, sourceAPI, catalog)
+			if !ok {
+				continue
+			}
+			out = append(out, route)
+		}
+	}
+	return out
+}
+
+func modelAliasRouteSourceAPIs(opts AutoOptions, existing []RouteConfig) []adapt.ApiKind {
+	if opts.SourceAPI != "" {
+		return []adapt.ApiKind{opts.SourceAPI}
+	}
+	seen := map[adapt.ApiKind]bool{}
+	var out []adapt.ApiKind
+	for _, route := range existing {
+		if route.SourceAPI == "" || seen[route.SourceAPI] {
+			continue
+		}
+		seen[route.SourceAPI] = true
+		out = append(out, route.SourceAPI)
+	}
+	if len(out) != 0 {
+		return out
+	}
+	return []adapt.ApiKind{adapt.ApiOpenAIResponses}
+}
+
+func modelDBAliasNames(cfg ModelDBConfig) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, alias := range cfg.Aliases {
+		name := normalizeModelDBAlias(alias.Name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	return out
+}
+
+func hasRouteModel(routes []RouteConfig, sourceAPI adapt.ApiKind, model string) bool {
+	for _, route := range routes {
+		if route.SourceAPI == sourceAPI && route.Model == model {
+			return true
+		}
+	}
+	return false
 }
 
 func dynamicRoute(route RouteConfig) RouteConfig {
@@ -228,11 +293,20 @@ func modelDBRouteForIntent(cfg Config, intentName string, sourceAPI adapt.ApiKin
 	return RouteConfig{}, false
 }
 
-func autoModelDBCatalog(opts AutoOptions) (modeldb.Catalog, bool, error) {
+func autoModelDBConfig(opts AutoOptions) ModelDBConfig {
+	if !opts.UseModelDB {
+		return ModelDBConfig{}
+	}
+	aliases := DefaultModelDBAliases()
+	aliases = append(aliases, opts.ModelDBAliases...)
+	return ModelDBConfig{Aliases: aliases}
+}
+
+func autoModelDBCatalog(cfg Config, opts AutoOptions) (modeldb.Catalog, bool, error) {
 	if !opts.UseModelDB {
 		return modeldb.Catalog{}, false, nil
 	}
-	catalog, err := LoadModelDBCatalog(ModelDBConfig{})
+	catalog, err := LoadModelDBCatalog(cfg.ModelDB)
 	if err != nil {
 		return modeldb.Catalog{}, false, fmt.Errorf("load modeldb catalog for auto routes: %w", err)
 	}

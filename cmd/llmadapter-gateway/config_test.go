@@ -228,7 +228,7 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		{"openrouter_chat", adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, true},
 		{"openrouter_responses", adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, true},
 		{"openrouter_messages", adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, true},
-		{"minimax_chat", adapt.ApiMiniMaxChatCompletions, adapt.FamilyOpenAIChatCompletions, false},
+		{"minimax_chat", adapt.ApiMiniMaxChatCompletions, adapt.FamilyOpenAIChatCompletions, true},
 		{"minimax_messages", adapt.ApiMiniMaxAnthropicMessages, adapt.FamilyAnthropicMessages, true},
 	}
 	for _, tt := range tests {

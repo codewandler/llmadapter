@@ -113,7 +113,7 @@ var descriptors = []Descriptor{
 		Type:              "minimax_chat",
 		APIKind:           adapt.ApiMiniMaxChatCompletions,
 		Family:            adapt.FamilyOpenAIChatCompletions,
-		Capabilities:      router.CapabilitySet{Streaming: true},
+		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true},
 		DefaultAPIKeyEnvs: []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
 		DefaultModelEnv:   "MINIMAX_MODEL",
 		DefaultModel:      "MiniMax-M2.7",

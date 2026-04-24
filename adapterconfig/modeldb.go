@@ -68,7 +68,7 @@ func LoadModelDBCatalog(cfg ModelDBConfig) (modeldb.Catalog, error) {
 	return catalog, nil
 }
 
-func resolveRouteModelDBModel(route RouteConfig, endpoint router.ProviderEndpoint, catalog modeldb.Catalog, cfg ModelDBConfig) (RouteConfig, error) {
+func ResolveRouteModelDBModel(route RouteConfig, endpoint router.ProviderEndpoint, catalog modeldb.Catalog, cfg ModelDBConfig) (RouteConfig, error) {
 	if route.ModelDBModel == "" {
 		return route, nil
 	}
@@ -97,6 +97,9 @@ func resolveRouteModelDBModel(route RouteConfig, endpoint router.ProviderEndpoin
 }
 
 func resolveModelDBItem(catalog modeldb.Catalog, cfg ModelDBConfig, serviceID string, apiType modeldb.APIType, name string) (modeldb.Item, bool) {
+	if item, ok := resolveConfiguredModelDBAlias(catalog, cfg, serviceID, apiType, name); ok {
+		return item, true
+	}
 	view := modeldb.ServiceView(catalog, serviceID, modeldb.ViewOptions{
 		AliasOverlay: modelDBAliasOverlay(cfg),
 		Filters: []modeldb.ItemFilter{
@@ -123,6 +126,25 @@ func resolveModelDBItem(catalog modeldb.Catalog, cfg ModelDBConfig, serviceID st
 	}
 	offering := selection.Offerings[0]
 	return modeldb.Item{Model: offering.Model, Offering: offering.Offering}, true
+}
+
+func resolveConfiguredModelDBAlias(catalog modeldb.Catalog, cfg ModelDBConfig, serviceID string, apiType modeldb.APIType, name string) (modeldb.Item, bool) {
+	normalized := normalizeModelDBAlias(name)
+	for i := len(cfg.Aliases) - 1; i >= 0; i-- {
+		alias := cfg.Aliases[i]
+		if alias.ServiceID != serviceID || alias.WireModelID == "" {
+			continue
+		}
+		if normalizeModelDBAlias(alias.Name) != normalized {
+			continue
+		}
+		offering, ok := catalog.Offerings[modeldb.OfferingRef{ServiceID: alias.ServiceID, WireModelID: alias.WireModelID}]
+		if !ok || !offering.HasExposure(apiType) {
+			continue
+		}
+		return modeldb.Item{Model: catalog.Models[offering.ModelKey], Offering: offering}, true
+	}
+	return modeldb.Item{}, false
 }
 
 func modelDBAliasOverlay(cfg ModelDBConfig) *modeldb.AliasOverlay {

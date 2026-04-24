@@ -64,6 +64,7 @@ CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types,
 Container slice: Dockerfile builds a standalone `llmadapter` image that runs `llmadapter serve`
 Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled
 Auto mux modeldb intent slice: when `UseModelDB` is enabled, auto intents choose a provider whose catalog service can resolve the requested model alias before falling back to provider defaults
+Model alias slice: `adapterconfig.DefaultModelDBAliases()` centralizes built-in provider-local aliases for Claude-family `haiku`, `sonnet`, and `opus`; auto mux callers can inject or override aliases through `AutoOptions.ModelDBAliases`
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
 Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, Anthropic modeldb service identity, and Anthropic extended-thinking request mapping
@@ -255,9 +256,8 @@ OpenAI Responses provider is stream-first and covers the canonical Responses-fam
 OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
 OpenRouter Responses provider is stream-first and covers smoke-tested text and function-call tool loops
 OpenRouter Messages provider reuses the Anthropic-compatible stream path against OpenRouter's native messages endpoint
-MiniMax Chat provider reuses the OpenAI-compatible stream path against MiniMax's /v1/chat/completions endpoint
-MiniMax Messages provider reuses the Anthropic-compatible stream path against MiniMax's /anthropic/v1/messages endpoint
-MiniMax Chat is currently marked text-streaming capable only; MiniMax Messages is the first MiniMax endpoint advertised as tool-capable
+MiniMax Chat provider reuses the OpenAI-compatible stream path against MiniMax's /v1/chat/completions endpoint and advertises live-verified text/tool support
+MiniMax Messages provider reuses the Anthropic-compatible stream path against MiniMax's /anthropic/v1/messages endpoint and advertises live-verified text/tool/reasoning support
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
 Provider support is currently strong for text + function-tool loops, OpenAI-family structured-output requests, and basic image input passthrough; broad multimodal/media conformance is not complete
@@ -293,7 +293,7 @@ CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, reso
 Catalog CLI slice: `llmadapter models --catalog` inspects the built-in or configured modeldb catalog with filters for service, API type, parameter, identity, and query text.
 Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; gateway serving now uses the same adapterconfig router construction in the Cobra CLI path.
 Dynamic model access slice: routes can opt into `dynamic_models` to pass arbitrary requested model IDs through to a provider endpoint while fixed weighted routes remain deterministic.
-Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
+Provider parity backlog: MiniMax Chat tool validation is complete; continue expanding endpoint conformance after the metadata/accounting boundaries are in place.
 Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, and shared smoke entries are in place; next harden live tool/stream semantics and any Codex-specific reasoning/caching extensions after successful live verification.
 ```
 

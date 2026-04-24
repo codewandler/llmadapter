@@ -10,6 +10,14 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-04-24
+
+### Added
+
+- Added central modeldb aliases for Claude-family `haiku`, `sonnet`, and `opus` provider-local routing, with `sonnet` and `opus` pinned to Claude 4.6.
+- `AutoOptions.ModelDBAliases` can inject or override auto mux model aliases from callers.
+- MiniMax Chat now advertises canonical tool support after live tool-use and tool-result continuation validation.
+
 ## [0.47.0] - 2026-04-24
 
 ### Added
@@ -415,7 +423,8 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.47.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.48.0...HEAD
+[0.48.0]: https://github.com/codewandler/llmadapter/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/codewandler/llmadapter/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/codewandler/llmadapter/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/codewandler/llmadapter/compare/v0.44.0...v0.45.0

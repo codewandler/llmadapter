@@ -485,6 +485,7 @@ func smokeProviders() []smokeProvider {
 			apiKeyEnv: []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
 			modelEnv:  "MINIMAX_MODEL",
 			model:     "MiniMax-M2.7",
+			tools:     true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return minimax.NewClient(minimax.WithAPIKey(apiKey))
 			},

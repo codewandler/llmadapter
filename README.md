@@ -8,7 +8,7 @@ Current implemented surface:
 - Utility packages: `pricing` for modeldb-backed usage cost enrichment and `modelmeta` for modeldb-backed endpoint metadata mapping.
 - Endpoint codecs: OpenAI-compatible `/v1/chat/completions`, OpenAI-compatible `/v1/responses`, Anthropic-compatible `/v1/messages`.
 - Providers: Anthropic Messages, Claude Code-compatible Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, Codex Responses, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
-- Live e2e smoke tests for text streaming, tool calls, tool-result continuation, prompt caching, and gateway routing.
+- Live e2e smoke tests for text streaming, tool calls, tool-result continuation, reasoning streams, prompt caching, and gateway routing.
 
 ## Quick Start
 
@@ -222,6 +222,8 @@ Conversation/session state belongs above llmadapter, for example in `agentsdk`. 
 The in-process mux client is a stateless library layer over provider endpoints and router selection. `adapterconfig.NewMuxClient` can build it from llmadapter JSON config, including modeldb-backed model alias resolution, capability metadata, and pricing processors, without requiring an HTTP gateway process.
 
 `adapterconfig.AutoMuxClient` can build the same stateless mux client from detected credentials. It checks registered provider endpoint env vars such as `OPENAI_API_KEY`/`OPENAI_KEY`, Anthropic/OpenRouter/MiniMax keys, Claude bearer token env vars, and local Claude Code OAuth credentials when enabled. With `UseModelDB`, detected providers are tagged with their default modeldb service IDs so fixed-route capability metadata and fixed or dynamic-route pricing enrichment can work without hand-written provider config. Auto intents also use modeldb aliases to choose a provider that can resolve the requested model name, for example routing `opus` to a Claude-compatible endpoint when available.
+
+Built-in modeldb aliases are centralized in `adapterconfig.DefaultModelDBAliases()`. Claude-family `haiku`, `sonnet`, and `opus` resolve to provider-local Anthropic/OpenRouter wire IDs, with `sonnet` and `opus` pinned to Claude 4.6. JSON configs can override aliases through `modeldb.aliases`; auto mux callers can append or override aliases through `AutoOptions.ModelDBAliases`.
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 
