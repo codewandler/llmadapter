@@ -13,8 +13,21 @@ import (
 type config struct {
 	Addr           string           `json:"addr,omitempty"`
 	HealthCooldown string           `json:"health_cooldown,omitempty"`
+	ModelDB        modelDBConfig    `json:"modeldb,omitempty"`
 	Providers      []providerConfig `json:"providers,omitempty"`
 	Routes         []routeConfig    `json:"routes,omitempty"`
+}
+
+type modelDBConfig struct {
+	CatalogPath  string               `json:"catalog_path,omitempty"`
+	OverlayPaths []string             `json:"overlay_paths,omitempty"`
+	Aliases      []modelDBAliasConfig `json:"aliases,omitempty"`
+}
+
+type modelDBAliasConfig struct {
+	Name        string `json:"name"`
+	ServiceID   string `json:"service_id"`
+	WireModelID string `json:"wire_model_id"`
 }
 
 type providerConfig struct {
@@ -34,6 +47,7 @@ type routeConfig struct {
 	Model              string        `json:"model,omitempty"`
 	Provider           string        `json:"provider"`
 	ProviderAPI        adapt.ApiKind `json:"provider_api,omitempty"`
+	ModelDBModel       string        `json:"modeldb_model,omitempty"`
 	NativeModel        string        `json:"native_model,omitempty"`
 	ModelDBWireModelID string        `json:"modeldb_wire_model_id,omitempty"`
 	Weight             int           `json:"weight,omitempty"`

@@ -55,6 +55,9 @@ Configuration:
 - Routes select a provider endpoint with `provider` and optional `provider_api`.
 - Routes can set `weight`; providers can set `priority`. Compatible routes are ranked by weight first, then endpoint priority, with declaration order as the final tie-breaker.
 - `health_cooldown` is an optional Go duration string such as `30s`; recently failed provider endpoint/model pairs are deprioritized for that window.
+- `modeldb.catalog_path` optionally replaces the built-in modeldb catalog with a JSON catalog file.
+- `modeldb.overlay_paths` optionally merges one or more JSON catalog files after the base catalog.
+- `modeldb.aliases` can bind local intent names to explicit service/wire-model pairs; route `modeldb_model` resolves a catalog alias/name into a fixed native model for that route.
 - Provider `capabilities` can override default endpoint metadata for a configured model, for example to disable `vision` or `json_schema` on a model that does not support it.
 - Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
@@ -75,6 +78,16 @@ Example config:
 {
   "addr": ":8080",
   "health_cooldown": "30s",
+  "modeldb": {
+    "overlay_paths": ["./local-modeldb.json"],
+    "aliases": [
+      {
+        "name": "fast",
+        "service_id": "openrouter",
+        "wire_model_id": "openai/gpt-4.1-mini"
+      }
+    ]
+  },
   "providers": [
     {
       "name": "openrouter",
@@ -104,8 +117,7 @@ Example config:
       "model": "public-fast",
       "provider": "openrouter",
       "provider_api": "openrouter.chat_completions",
-      "native_model": "openai/gpt-4.1-mini",
-      "modeldb_wire_model_id": "openai/gpt-4.1-mini",
+      "modeldb_model": "fast",
       "weight": 100
     },
     {

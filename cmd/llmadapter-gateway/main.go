@@ -111,6 +111,11 @@ func buildRouter(cfg config) (router.Router, error) {
 			return nil, fmt.Errorf("route references unknown provider endpoint %q %q", route.Provider, route.ProviderAPI)
 		}
 		if modelDBEnabled {
+			var err error
+			route, err = resolveRouteModelDBModel(route, endpoint, catalog, cfg.ModelDB)
+			if err != nil {
+				return nil, err
+			}
 			endpoint = endpointWithModelDBMetadata(endpoint, route, catalog)
 			endpoint = endpointWithPricing(endpoint, route, catalog)
 		}
@@ -165,21 +170,26 @@ func modelDBCatalog(cfg config) (modeldb.Catalog, bool, error) {
 	if !configUsesModelDB(cfg) {
 		return modeldb.Catalog{}, false, nil
 	}
-	catalog, err := modeldb.LoadBuiltIn()
+	catalog, err := loadModelDBCatalog(cfg.ModelDB)
 	if err != nil {
-		return modeldb.Catalog{}, false, fmt.Errorf("load modeldb catalog: %w", err)
+		return modeldb.Catalog{}, false, err
 	}
 	return catalog, true, nil
 }
 
 func configUsesModelDB(cfg config) bool {
+	if cfg.ModelDB.CatalogPath != "" || len(cfg.ModelDB.OverlayPaths) != 0 || len(cfg.ModelDB.Aliases) != 0 {
+		return true
+	}
 	for _, route := range cfg.Routes {
-		if pricingWireModel(route) == "" {
-			continue
+		if route.ModelDBModel != "" {
+			return true
 		}
-		for _, provider := range cfg.Providers {
-			if providerMatchesRoute(provider, route) && provider.ModelDBServiceID != "" {
-				return true
+		if pricingWireModel(route) != "" {
+			for _, provider := range cfg.Providers {
+				if providerMatchesRoute(provider, route) && provider.ModelDBServiceID != "" {
+					return true
+				}
 			}
 		}
 	}
@@ -188,6 +198,42 @@ func configUsesModelDB(cfg config) bool {
 
 func configUsesPricing(cfg config) bool {
 	return configUsesModelDB(cfg)
+}
+
+func loadModelDBCatalog(cfg modelDBConfig) (modeldb.Catalog, error) {
+	var (
+		catalog modeldb.Catalog
+		err     error
+	)
+	if cfg.CatalogPath != "" {
+		catalog, err = modeldb.LoadJSON(cfg.CatalogPath)
+		if err != nil {
+			return modeldb.Catalog{}, fmt.Errorf("load modeldb catalog %q: %w", cfg.CatalogPath, err)
+		}
+	} else {
+		catalog, err = modeldb.LoadBuiltIn()
+		if err != nil {
+			return modeldb.Catalog{}, fmt.Errorf("load built-in modeldb catalog: %w", err)
+		}
+	}
+	for _, path := range cfg.OverlayPaths {
+		overlay, err := modeldb.LoadJSON(path)
+		if err != nil {
+			return modeldb.Catalog{}, fmt.Errorf("load modeldb overlay %q: %w", path, err)
+		}
+		if err := mergeCatalog(&catalog, overlay); err != nil {
+			return modeldb.Catalog{}, fmt.Errorf("merge modeldb overlay %q: %w", path, err)
+		}
+	}
+	return catalog, nil
+}
+
+func mergeCatalog(dst *modeldb.Catalog, src modeldb.Catalog) error {
+	return modeldb.MergeCatalogFragment(dst, &modeldb.Fragment{
+		Services:  catalogServices(src),
+		Models:    catalogModels(src),
+		Offerings: catalogOfferings(src),
+	})
 }
 
 func providerMatchesRoute(provider providerConfig, route routeConfig) bool {

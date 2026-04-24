@@ -34,6 +34,7 @@ type routeInspection struct {
 	PublicModel  string               `json:"public_model,omitempty"`
 	Provider     string               `json:"provider"`
 	ProviderAPI  adapt.ApiKind        `json:"provider_api,omitempty"`
+	ModelDBModel string               `json:"modeldb_model,omitempty"`
 	TargetAPI    adapt.ApiKind        `json:"target_api"`
 	TargetFamily adapt.ApiFamily      `json:"target_family"`
 	NativeModel  string               `json:"native_model,omitempty"`
@@ -129,6 +130,11 @@ func inspectConfigWithCatalog(cfg config, catalog modeldb.Catalog, modelDBEnable
 			return configInspection{}, fmt.Errorf("route references unknown provider endpoint %q %q", route.Provider, route.ProviderAPI)
 		}
 		if modelDBEnabled {
+			var err error
+			route, err = resolveRouteModelDBModel(route, endpoint, catalog, cfg.ModelDB)
+			if err != nil {
+				return configInspection{}, err
+			}
 			endpoint = endpointWithModelDBMetadata(endpoint, route, catalog)
 		}
 		out.Routes = append(out.Routes, routeInspection{
@@ -136,6 +142,7 @@ func inspectConfigWithCatalog(cfg config, catalog modeldb.Catalog, modelDBEnable
 			PublicModel:  route.Model,
 			Provider:     route.Provider,
 			ProviderAPI:  route.ProviderAPI,
+			ModelDBModel: route.ModelDBModel,
 			TargetAPI:    endpoint.APIKind,
 			TargetFamily: endpoint.Family,
 			NativeModel:  route.NativeModel,

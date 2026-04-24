@@ -43,6 +43,27 @@ func TestLoadConfig(t *testing.T) {
 	}
 }
 
+func TestLoadConfigModelDBPaths(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{
+		"modeldb":{"catalog_path":"catalog.json","overlay_paths":["local.json"],"aliases":[{"name":"fast","service_id":"anthropic","wire_model_id":"claude-fast"}]},
+		"providers":[{"name":"anthropic","type":"anthropic"}],
+		"routes":[{"provider":"anthropic","modeldb_model":"fast"}]
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ModelDB.CatalogPath != "catalog.json" || len(cfg.ModelDB.OverlayPaths) != 1 || cfg.ModelDB.OverlayPaths[0] != "local.json" {
+		t.Fatalf("unexpected modeldb config: %+v", cfg.ModelDB)
+	}
+	if len(cfg.ModelDB.Aliases) != 1 || cfg.ModelDB.Aliases[0].Name != "fast" || cfg.Routes[0].ModelDBModel != "fast" {
+		t.Fatalf("unexpected modeldb alias config: %+v %+v", cfg.ModelDB, cfg.Routes[0])
+	}
+}
+
 func TestDefaultConfigIncludesGatewayRoutes(t *testing.T) {
 	t.Setenv("LLMADAPTER_ADDR", "")
 	t.Setenv("ANTHROPIC_API_KEY", "key")
@@ -210,6 +231,95 @@ func TestConfigUsesPricingForConfiguredModelDBOffering(t *testing.T) {
 	}
 }
 
+func TestLoadModelDBCatalogFromConfiguredPathAndOverlays(t *testing.T) {
+	dir := t.TempDir()
+	basePath := filepath.Join(dir, "base.json")
+	overlayPath := filepath.Join(dir, "overlay.json")
+	if err := modeldb.SaveJSON(basePath, testModelDBCatalog("base-model", nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := modeldb.SaveJSON(overlayPath, testModelDBCatalog("overlay-model", &modeldb.Pricing{Input: 1, Output: 2})); err != nil {
+		t.Fatal(err)
+	}
+
+	catalog, err := loadModelDBCatalog(modelDBConfig{
+		CatalogPath:  basePath,
+		OverlayPaths: []string{overlayPath},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := catalog.Offerings[modeldb.OfferingRef{ServiceID: "testsvc", WireModelID: "base-model"}]; !ok {
+		t.Fatalf("expected base offering")
+	}
+	offering, ok := catalog.Offerings[modeldb.OfferingRef{ServiceID: "testsvc", WireModelID: "overlay-model"}]
+	if !ok {
+		t.Fatalf("expected overlay offering")
+	}
+	if offering.Pricing == nil || offering.Pricing.Input != 1 {
+		t.Fatalf("expected overlay pricing: %+v", offering.Pricing)
+	}
+}
+
+func TestResolveRouteModelDBModelUsesConfiguredAlias(t *testing.T) {
+	catalog := testResolvableModelDBCatalog("openrouter", "openai/gpt-test", []string{"gpt-test"})
+	route, err := resolveRouteModelDBModel(routeConfig{
+		Provider:     "openrouter",
+		ProviderAPI:  adapt.ApiOpenRouterResponses,
+		ModelDBModel: "fast",
+	}, router.ProviderEndpoint{
+		ProviderName: "openrouter",
+		Family:       adapt.FamilyOpenAIResponses,
+		Tags:         map[string]string{tagModelDBServiceID: "openrouter"},
+	}, catalog, modelDBConfig{Aliases: []modelDBAliasConfig{{
+		Name:        "fast",
+		ServiceID:   "openrouter",
+		WireModelID: "openai/gpt-test",
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.NativeModel != "openai/gpt-test" || route.ModelDBWireModelID != "openai/gpt-test" {
+		t.Fatalf("unexpected resolved route: %+v", route)
+	}
+}
+
+func TestResolveRouteModelDBModelUsesCatalogModelAlias(t *testing.T) {
+	catalog := testResolvableModelDBCatalog("openrouter", "openai/gpt-test", []string{"fast-model"})
+	route, err := resolveRouteModelDBModel(routeConfig{
+		Provider:     "openrouter",
+		ProviderAPI:  adapt.ApiOpenRouterResponses,
+		ModelDBModel: "fast-model",
+	}, router.ProviderEndpoint{
+		ProviderName: "openrouter",
+		Family:       adapt.FamilyOpenAIResponses,
+		Tags:         map[string]string{tagModelDBServiceID: "openrouter"},
+	}, catalog, modelDBConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.NativeModel != "openai/gpt-test" || route.ModelDBWireModelID != "openai/gpt-test" {
+		t.Fatalf("unexpected resolved route: %+v", route)
+	}
+}
+
+func TestResolveRouteModelDBModelRejectsConflictingNativeModel(t *testing.T) {
+	catalog := testResolvableModelDBCatalog("openrouter", "openai/gpt-test", []string{"fast-model"})
+	_, err := resolveRouteModelDBModel(routeConfig{
+		Provider:     "openrouter",
+		ProviderAPI:  adapt.ApiOpenRouterResponses,
+		ModelDBModel: "fast-model",
+		NativeModel:  "other-model",
+	}, router.ProviderEndpoint{
+		ProviderName: "openrouter",
+		Family:       adapt.FamilyOpenAIResponses,
+		Tags:         map[string]string{tagModelDBServiceID: "openrouter"},
+	}, catalog, modelDBConfig{})
+	if err == nil {
+		t.Fatalf("expected conflict error")
+	}
+}
+
 func TestEndpointWithPricingEnrichesUsageEvents(t *testing.T) {
 	catalog := modeldb.NewCatalog()
 	catalog.Offerings[modeldb.OfferingRef{ServiceID: "anthropic", WireModelID: "claude-test"}] = modeldb.Offering{
@@ -352,8 +462,78 @@ func TestInspectConfigResolvesRoutesWithoutProviderCredentials(t *testing.T) {
 	}
 }
 
+func TestInspectConfigReportsResolvedModelDBModel(t *testing.T) {
+	catalog := testResolvableModelDBCatalog("openrouter", "openai/gpt-test", []string{"fast-model"})
+	cfg := config{
+		Providers: []providerConfig{{
+			Name:             "openrouter",
+			Type:             "openrouter_responses",
+			ModelDBServiceID: "openrouter",
+		}},
+		Routes: []routeConfig{{
+			SourceAPI:    adapt.ApiOpenAIResponses,
+			Provider:     "openrouter",
+			ProviderAPI:  adapt.ApiOpenRouterResponses,
+			ModelDBModel: "fast-model",
+		}},
+	}
+	applyConfigDefaults(&cfg)
+
+	inspection, err := inspectConfigWithCatalog(cfg, catalog, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inspection.Routes) != 1 {
+		t.Fatalf("routes = %+v", inspection.Routes)
+	}
+	route := inspection.Routes[0]
+	if route.ModelDBModel != "fast-model" || route.NativeModel != "openai/gpt-test" {
+		t.Fatalf("unexpected resolved route inspection: %+v", route)
+	}
+	if route.ModelDB.WireModelID != "openai/gpt-test" || !route.ModelDB.ExposureFound {
+		t.Fatalf("unexpected modeldb inspection: %+v", route.ModelDB)
+	}
+}
+
 type fakeClient struct {
 	events []unified.Event
+}
+
+func testModelDBCatalog(wireModelID string, pricing *modeldb.Pricing) modeldb.Catalog {
+	catalog := modeldb.NewCatalog()
+	key := modeldb.ModelKey{Creator: "test", Family: wireModelID}
+	catalog.Services["testsvc"] = modeldb.Service{ID: "testsvc", Name: "Test Service"}
+	catalog.Models[key] = modeldb.ModelRecord{Key: key}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "testsvc", WireModelID: wireModelID}] = modeldb.Offering{
+		ServiceID:   "testsvc",
+		WireModelID: wireModelID,
+		ModelKey:    key,
+		Pricing:     pricing,
+		PricingStatus: func() string {
+			if pricing != nil {
+				return "known"
+			}
+			return "unknown"
+		}(),
+	}
+	return catalog
+}
+
+func testResolvableModelDBCatalog(serviceID, wireModelID string, aliases []string) modeldb.Catalog {
+	catalog := modeldb.NewCatalog()
+	key := modeldb.ModelKey{Creator: "test", Family: "model"}
+	catalog.Services[serviceID] = modeldb.Service{ID: serviceID, Name: "Test Service"}
+	catalog.Models[key] = modeldb.ModelRecord{Key: key, Aliases: aliases}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: serviceID, WireModelID: wireModelID}] = modeldb.Offering{
+		ServiceID:   serviceID,
+		WireModelID: wireModelID,
+		ModelKey:    key,
+		Exposures: []modeldb.OfferingExposure{{
+			APIType:             modeldb.APITypeOpenAIResponses,
+			ExposedCapabilities: &modeldb.Capabilities{Streaming: true},
+		}},
+	}
+	return catalog
 }
 
 func (c fakeClient) Request(context.Context, unified.Request) (<-chan unified.Event, error) {

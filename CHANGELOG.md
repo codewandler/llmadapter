@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-04-24
+
+### Added
+
+- Gateway config now supports `modeldb.catalog_path` and `modeldb.overlay_paths` for operator-supplied catalog bases and overlays.
+- Gateway routes can now set `modeldb_model` to resolve catalog aliases or local `modeldb.aliases` into explicit native/modeldb wire model IDs.
+
 ## [0.25.0] - 2026-04-24
 
 ### Added

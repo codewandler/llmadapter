@@ -57,6 +57,8 @@ Pricing slice: `pricing` package adds a modeldb-backed event processor that enri
 Gateway pricing slice: configured fixed-model routes can wrap provider clients with modeldb-backed usage cost enrichment via provider `modeldb_service_id` plus route `native_model` or `modeldb_wire_model_id`
 Model metadata slice: `modelmeta` maps modeldb offering exposures into route capability narrowing and model token limits for configured fixed-model gateway routes
 Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved providers, routes, capabilities, limits, modeldb metadata, and pricing availability without constructing provider clients
+Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
+Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
 ```
 
 Verified:
@@ -126,7 +128,8 @@ LLMADAPTER_UPSTREAM_MODEL sets the default native model override when no config 
 provider config supports api_key or api_key_env
 provider config supports base_url, model, priority, and capability overrides
 provider config supports modeldb_service_id for pricing/catalog service identity
-route config supports source_api, model, provider, provider_api, native_model, modeldb_wire_model_id, and weight
+modeldb config supports catalog_path, overlay_paths, and aliases
+route config supports source_api, model, provider, provider_api, modeldb_model, native_model, modeldb_wire_model_id, and weight
 health_cooldown configures the in-memory provider endpoint/model failure deprioritization window
 llmadapter-gateway -inspect-config prints resolved config metadata as JSON and does not require provider API keys
 ```
@@ -181,6 +184,8 @@ Anthropic, OpenAI Chat, and OpenRouter Responses provider decoders emit structur
 fixed-model gateway routes can enrich provider usage events with modeldb pricing when configured with explicit service/model metadata
 fixed-model gateway routes can narrow endpoint capabilities and attach token limits from modeldb OfferingExposure metadata
 gateway config inspection exposes the resolved metadata path for debugging route/API/modeldb configuration
+gateway modeldb loading can use built-in catalog data, an explicit JSON catalog path, and local JSON overlays
+route modeldb_model resolution can turn catalog/local aliases into explicit native models before metadata/pricing enrichment
 ```
 
 Live e2e defaults:
@@ -245,15 +250,15 @@ Foundation is solid for a vertical-slice adapter: canonical request/event model,
 Main intentional shortcuts are hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
 Important remaining test gaps: invalid credentials/models, probabilistic load balancing, parallel tool calls, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
-Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing model catalog integration, alias/intent resolution, structured cost accounting, stateful conversations, provider registry auto-detection, Claude OAuth compatibility, and a broader integration matrix.
+Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing stateful conversations, provider registry auto-detection, Claude OAuth compatibility, and a broader integration matrix.
 ```
 
 Next planned phase:
 
 ```text
 Priority: the modeldb, Claude compatibility, caching, usage/pricing, conversation, and CLI tracks below are the highest-priority work items for the next implementation rounds.
-Model/catalog integration: fixed-route modeldb pricing, capability, exposure, and limit lookup plus route inspection are in place; next add operator-configurable catalog sources/overlays.
-Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, and fixed-route gateway pricing wiring are in place; next add dynamic per-request pricing only after model resolution is explicit.
+Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, and explicit route alias resolution are in place; next add dynamic per-request pricing only after model resolution is explicit.
+Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, and fixed-route gateway pricing wiring are in place.
 Claude compatibility: add a Claude Code/CLI OAuth auth mode as an Anthropic Messages-compatible provider endpoint under provider name "claude".
 Conversation layer: add an optional package above unified.Client for stateful sessions, replay/native continuation, cache policy, and commit-safe history, keeping gateway/router stateless.
 CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
