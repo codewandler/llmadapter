@@ -60,6 +60,7 @@ Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved 
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
 Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, and Anthropic modeldb service identity
+Prompt cache slice: canonical TextPart cache_control hints encode through Anthropic-family system/content blocks and live prompt-cache smoke verifies provider-reported cache write/read usage for Anthropic and Claude Code-compatible access
 ```
 
 Verified:
@@ -90,6 +91,7 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/minimax_messages' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestAnthropicMessagesGatewaySmoke' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestResponsesGatewaySmoke' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokePromptCache/(anthropic|claude_messages)' -count=1 -v
 env GOCACHE=/tmp/go-cache go test ./...
 ```
 
@@ -144,6 +146,7 @@ HTTP byte-stream request construction
 default HTTP transport supports gzip, deflate, br, and zstd response decompression
 optional bearer/OAuth auth instead of x-api-key for Claude Code-compatible access
 Claude Code-compatible headers, beta=true query behavior, local OAuth token refresh, and request preflight metadata
+Anthropic system/content text blocks encode canonical cache_control hints
 raw SSE event block parsing
 Anthropic wire event decoding
 Anthropic wire event -> unified.Event mapping
@@ -154,6 +157,7 @@ structured token categories for input.new, input.cache_read, input.cache_write, 
 unified.Collect(...)
 fake transport integration tests
 live Anthropic smoke test through unified.Client
+live prompt-cache smoke checks provider-reported cache write/read tokens for Anthropic and claude_messages
 ```
 
 Gateway path coverage:
@@ -246,9 +250,8 @@ streaming provider errors after response start need a final policy; current beha
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
 modeldb is integrated only for fixed-route metadata/pricing enrichment; provider endpoint base capabilities still come from hardcoded family defaults plus manual config overrides
 usage now carries structured token and cost item fields as the canonical accounting surface; modeldb-backed pricing enrichment is wired for configured fixed-model gateway routes but not dynamic per-request models
-prompt caching is only decoded from provider usage counters; canonical request-side cache hints and provider-specific cache controls are not modeled yet
 stateful conversations are intentionally absent from llmadapter core; any conversation/session layer must wrap unified.Client instead of mutating gateway/router state
-Claude Code/CLI OAuth compatibility has a first Anthropic Messages-compatible slice; request-side system block cache_control and live Claude OAuth e2e coverage are still pending
+Prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; a conversation-level cache policy is still pending
 ```
 
 Implementation assessment:
@@ -258,7 +261,7 @@ Foundation is solid for a vertical-slice adapter: canonical request/event model,
 Main intentional shortcuts are hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
 Important remaining test gaps: invalid credentials/models, probabilistic load balancing, parallel tool calls, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
-Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing stateful conversations, provider registry auto-detection, full Claude Code cache-control parity, and a broader integration matrix.
+Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing stateful conversations, provider registry auto-detection, a live-verified OpenAI Responses continuation backend, and a broader integration matrix.
 ```
 
 Next planned phase:
@@ -267,8 +270,9 @@ Next planned phase:
 Priority: the modeldb, Claude compatibility, caching, usage/pricing, conversation, and CLI tracks below are the highest-priority work items for the next implementation rounds.
 Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, and explicit route alias resolution are in place; next add dynamic per-request pricing only after model resolution is explicit.
 Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, and fixed-route gateway pricing wiring are in place.
-Claude compatibility: first Claude Code/CLI OAuth auth mode is in place as `claude_messages`; next add live e2e coverage and request-side system block cache_control support.
+Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, and live prompt-cache/tool/gateway smokes are in place.
 Conversation layer: add an optional package above unified.Client for stateful sessions, replay/native continuation, cache policy, and commit-safe history, keeping gateway/router stateless.
+Prompt caching: next add conversation-level cache policy once the session package exists; Anthropic block cache_control and OpenAI Responses cache-key extensions are in place.
 CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
 ```
@@ -400,15 +404,15 @@ Implementation pieces:
    - add Claude CLI-style User-Agent, X-App, X-Stainless-* headers, direct browser access header, Accept-Encoding, and beta=true query parameter
    (implemented)
 4. Add Claude request transforms:
-   - prepend Claude billing/system preflight system text (implemented)
+   - prepend Claude billing/system preflight system blocks (implemented)
    - set metadata user_id derived from ~/.claude.json device/account/session data when available (implemented)
-   - optionally add cache_control to the last system block with default TTL (pending; needs non-string system block representation)
+   - optionally add cache_control to the last system block with default TTL (implemented)
    - coerce thinking temperature to an Anthropic-valid value when extended thinking is enabled (pending)
 5. Add gateway config provider type "claude_messages". (implemented)
 6. Add e2e tests gated by TEST_INTEGRATION and local Claude credentials:
    - text stream (implemented)
    - thinking stream
-   - prompt cache write/read behavior
+   - prompt cache write/read behavior (implemented)
    - tool use/tool result continuation if Claude OAuth account supports it (implemented as regular tool smoke entries)
 
 Safety rule: Claude OAuth compatibility stays an Anthropic provider option/sub-provider, not a new canonical API family. Only split a new API kind if the wire request/stream format diverges from Anthropic Messages.
@@ -438,9 +442,9 @@ Usage/cost foundation:
 5. Keep pricing absent-safe: if catalog pricing is missing, emit usage without costs.
 
 Prompt caching:
-1. Add canonical request/message cache hints only where they map to real provider controls.
-2. Encode Anthropic-style per-message/block cache_control through Anthropic-family codecs.
-3. Encode OpenAI Responses prompt_cache_key and prompt_cache_retention through Responses-family codecs.
+1. Add canonical request/message cache hints only where they map to real provider controls. (implemented for TextPart cache_control)
+2. Encode Anthropic-style per-message/block cache_control through Anthropic-family codecs. (implemented)
+3. Encode OpenAI Responses prompt_cache_key and prompt_cache_retention through Responses-family codecs. (implemented for endpoint decode and OpenRouter Responses provider encode)
 4. Keep OpenAI implicit caching observational only unless a request-side parameter exists.
 5. Test cache accounting using provider-reported cache_read/cache_write tokens, not local token estimation.
 
@@ -448,7 +452,7 @@ Conversations:
 1. Add a separate conversation package that depends on unified.Client, not gateway internals.
 2. Session owns committed canonical history, pending turn projection, and in-flight turn protection.
 3. Failed/incomplete turns must not mutate committed history.
-4. Support replay strategy for stateless providers and previous_response_id strategy for OpenAI Responses-compatible providers.
+4. Support replay strategy for stateless providers and previous_response_id strategy for OpenAI Responses-compatible providers. (provider extension surface implemented; conversation package still pending; OpenRouter Responses live test did not preserve context through previous_response_id)
 5. Use MessageProjector hooks for provider/service-specific replay constraints such as OpenRouter Responses quirks.
 6. Use session IDs for prompt_cache_key where supported, but do not leak session state into router health or provider endpoint selection.
 7. Add outside-in e2e scenarios for one-shot text, tool roundtrip, usage reported, costs present, multi-turn memory, and prompt-cache behavior.
@@ -725,6 +729,8 @@ Extension keys to add now:
 ```text
 ExtOpenAIPreviousResponseID
 ExtOpenAIStore
+ExtOpenAIPromptCacheKey
+ExtOpenAIPromptCacheRetention
 ExtAnthropicBetas
 ExtGeminiSafetySettings
 ExtOpenRouterProviderPrefs

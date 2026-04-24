@@ -83,6 +83,26 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterSessionID, `"sess_1"`)
 }
 
+func TestDecodeHTTPOpenAIResponsesExtensions(t *testing.T) {
+	body := `{
+		"model":"gpt-test",
+		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}],
+		"previous_response_id":"resp_prev",
+		"store":false,
+		"prompt_cache_key":"cache_key_1",
+		"prompt_cache_retention":"24h"
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenAIPreviousResponseID, `"resp_prev"`)
+	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenAIStore, `false`)
+	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenAIPromptCacheKey, `"cache_key_1"`)
+	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenAIPromptCacheRetention, `"24h"`)
+}
+
 func TestDecodeHTTPImageContent(t *testing.T) {
 	body := `{
 		"model":"gpt-test",

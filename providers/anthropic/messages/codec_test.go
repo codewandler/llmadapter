@@ -37,7 +37,7 @@ func TestCodecEncodeRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if wire.Model != "claude-test" || wire.MaxTokens != 128 || wire.System != "be brief" || !wire.Stream {
+	if wire.Model != "claude-test" || wire.MaxTokens != 128 || wire.System.Text() != "be brief" || !wire.Stream {
 		t.Fatalf("unexpected wire request: %+v", wire)
 	}
 	if len(wire.Messages) != 1 || wire.Messages[0].Role != "user" || wire.Messages[0].Content[0].Text != "hello" {
@@ -48,6 +48,44 @@ func TestCodecEncodeRequest(t *testing.T) {
 	}
 	if wire.ToolChoice == nil || wire.ToolChoice.Type != "tool" || wire.ToolChoice.Name != "lookup" {
 		t.Fatalf("unexpected tool choice: %+v", wire.ToolChoice)
+	}
+}
+
+func TestCodecEncodeSystemCacheControl(t *testing.T) {
+	maxTokens := 128
+	req := adapt.Request{Unified: unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Instructions: []unified.Instruction{{
+			Kind: unified.InstructionSystem,
+			Content: []unified.ContentPart{unified.TextPart{
+				Text:         "cache this stable prefix",
+				CacheControl: unified.EphemeralCache("5m"),
+			}},
+		}},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	}}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw struct {
+		System []ContentBlock `json:"system"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(raw.System) != 1 || raw.System[0].Cache == nil || raw.System[0].Cache.Type != "ephemeral" || raw.System[0].Cache.TTL != "5m" {
+		t.Fatalf("unexpected system cache control: %s", body)
 	}
 }
 

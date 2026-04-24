@@ -20,7 +20,8 @@ type ContentPart interface {
 }
 
 type TextPart struct {
-	Text string `json:"text,omitempty"`
+	Text         string        `json:"text,omitempty"`
+	CacheControl *CacheControl `json:"cache_control,omitempty"`
 }
 
 func (TextPart) contentKind() ContentKind { return ContentKindText }

@@ -112,10 +112,10 @@ func decodeRequest(wire anthropic.MessageRequest) (unified.Request, []adapt.Warn
 		Stop:            append([]string(nil), wire.StopSequences...),
 		Stream:          wire.Stream,
 	}
-	if wire.System != "" {
+	if wire.System != nil && len(wire.System.Blocks) > 0 {
 		out.Instructions = append(out.Instructions, unified.Instruction{
 			Kind:    unified.InstructionSystem,
-			Content: []unified.ContentPart{unified.TextPart{Text: wire.System}},
+			Content: decodeSystemContent(wire.System.Blocks),
 		})
 	}
 	var warnings []adapt.Warning
@@ -154,6 +154,19 @@ func copyOpenRouterExtensions(extensions *unified.Extensions, wire anthropic.Mes
 	})
 }
 
+func decodeSystemContent(blocks []anthropic.ContentBlock) []unified.ContentPart {
+	var out []unified.ContentPart
+	for _, block := range blocks {
+		switch block.Type {
+		case "text":
+			out = append(out, unified.TextPart{Text: block.Text, CacheControl: decodeCacheControl(block.Cache)})
+		case "thinking":
+			out = append(out, unified.ReasoningPart{Text: block.Thinking})
+		}
+	}
+	return out
+}
+
 func decodeMessage(msg anthropic.InputMessage, field string) ([]unified.Message, []adapt.Warning) {
 	var content []unified.ContentPart
 	var toolCalls []unified.ToolCall
@@ -163,7 +176,7 @@ func decodeMessage(msg anthropic.InputMessage, field string) ([]unified.Message,
 		blockField := field + ".content." + strconv.Itoa(i)
 		switch block.Type {
 		case "text":
-			content = append(content, unified.TextPart{Text: block.Text})
+			content = append(content, unified.TextPart{Text: block.Text, CacheControl: decodeCacheControl(block.Cache)})
 		case "thinking":
 			content = append(content, unified.ReasoningPart{Text: block.Thinking})
 		case "image":
@@ -212,6 +225,13 @@ func decodeMessage(msg anthropic.InputMessage, field string) ([]unified.Message,
 		Content:   content,
 		ToolCalls: toolCalls,
 	}}, warnings
+}
+
+func decodeCacheControl(cache *anthropic.CacheControl) *unified.CacheControl {
+	if cache == nil {
+		return nil
+	}
+	return &unified.CacheControl{Type: unified.CacheControlType(cache.Type), TTL: cache.TTL}
 }
 
 func decodeImageBlockSource(source anthropic.BlockSource) (unified.ImagePart, bool) {

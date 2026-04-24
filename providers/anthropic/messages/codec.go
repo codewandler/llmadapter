@@ -50,12 +50,12 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 
 	for _, msg := range ureq.Messages {
 		if msg.Role == unified.RoleSystem {
-			text := contentText(msg.Content)
-			if text != "" {
-				if out.System != "" {
-					out.System += "\n"
+			blocks := encodeSystemContentParts(msg.Content)
+			if len(blocks) != 0 {
+				if out.System == nil {
+					out.System = &SystemContent{}
 				}
-				out.System += text
+				out.System.Append(blocks...)
 			}
 			continue
 		}
@@ -116,15 +116,33 @@ func unsupported(req *adapt.Request, field string, condition bool) error {
 	return nil
 }
 
-func encodeInstructions(instructions []unified.Instruction) (string, error) {
-	var parts []string
+func encodeInstructions(instructions []unified.Instruction) (*SystemContent, error) {
+	var blocks []ContentBlock
 	for _, inst := range instructions {
-		text := contentText(inst.Content)
-		if text != "" {
-			parts = append(parts, text)
+		blocks = append(blocks, encodeSystemContentParts(inst.Content)...)
+	}
+	return NewSystemContent(blocks...), nil
+}
+
+func encodeSystemContentParts(parts []unified.ContentPart) []ContentBlock {
+	var blocks []ContentBlock
+	for _, part := range parts {
+		switch p := part.(type) {
+		case unified.TextPart:
+			if p.Text != "" {
+				blocks = append(blocks, ContentBlock{Type: "text", Text: p.Text, Cache: encodeCacheControl(p.CacheControl)})
+			}
+		case unified.ReasoningPart:
+			if p.Text != "" {
+				blocks = append(blocks, ContentBlock{Type: "text", Text: p.Text})
+			}
+		case unified.RefusalPart:
+			if p.Text != "" {
+				blocks = append(blocks, ContentBlock{Type: "text", Text: p.Text})
+			}
 		}
 	}
-	return strings.Join(parts, "\n"), nil
+	return blocks
 }
 
 func encodeMessage(req *adapt.Request, msg unified.Message) (InputMessage, error) {
@@ -168,7 +186,7 @@ func encodeMessage(req *adapt.Request, msg unified.Message) (InputMessage, error
 func encodeContentPart(req *adapt.Request, part unified.ContentPart) (ContentBlock, error) {
 	switch p := part.(type) {
 	case unified.TextPart:
-		return ContentBlock{Type: "text", Text: p.Text}, nil
+		return ContentBlock{Type: "text", Text: p.Text, Cache: encodeCacheControl(p.CacheControl)}, nil
 	case unified.ImagePart:
 		src := BlockSource{MediaType: p.Source.MIMEType}
 		switch p.Source.Kind {
@@ -191,6 +209,13 @@ func encodeContentPart(req *adapt.Request, part unified.ContentPart) (ContentBlo
 		}
 		return ContentBlock{}, nil
 	}
+}
+
+func encodeCacheControl(cache *unified.CacheControl) *CacheControl {
+	if cache == nil {
+		return nil
+	}
+	return &CacheControl{Type: string(cache.Type), TTL: cache.TTL}
 }
 
 func encodeToolChoice(req *adapt.Request, choice unified.ToolChoice) (*ToolChoiceWire, error) {

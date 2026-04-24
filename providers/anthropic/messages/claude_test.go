@@ -86,8 +86,9 @@ func TestClaudeCodeOptionsShapeRequest(t *testing.T) {
 	if err := json.Unmarshal(body, &wire); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(wire.System, claudeBillingHeader) || !strings.Contains(wire.System, claudeSystemCore) || !strings.Contains(wire.System, "be concise") {
-		t.Fatalf("unexpected system preflight: %q", wire.System)
+	system := wire.System.Text()
+	if !strings.Contains(system, claudeBillingHeader) || !strings.Contains(system, claudeSystemCore) || !strings.Contains(system, "be concise") {
+		t.Fatalf("unexpected system preflight: %q", system)
 	}
 	rawUserID, ok := wire.Metadata["user_id"].(string)
 	if !ok {
@@ -99,5 +100,21 @@ func TestClaudeCodeOptionsShapeRequest(t *testing.T) {
 	}
 	if userID["device_id"] != "device-1" || userID["account_uuid"] != "acct-1" || userID["session_id"] == "" {
 		t.Fatalf("unexpected user metadata: %+v", userID)
+	}
+}
+
+func TestSystemCacheControlProcessor(t *testing.T) {
+	req := MessageRequest{System: NewSystemContent(
+		ContentBlock{Type: "text", Text: "first"},
+		ContentBlock{Type: "text", Text: "last"},
+	)}
+	if err := (systemCacheControlProcessor{ttl: "5m"}).ProcessProviderRequest(context.Background(), &req); err != nil {
+		t.Fatal(err)
+	}
+	if req.System.Blocks[0].Cache != nil {
+		t.Fatalf("expected first block to remain uncached: %+v", req.System.Blocks)
+	}
+	if got := req.System.Blocks[1].Cache; got == nil || got.Type != "ephemeral" || got.TTL != "5m" {
+		t.Fatalf("unexpected cache control: %+v", req.System.Blocks)
 	}
 }

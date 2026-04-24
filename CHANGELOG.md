@@ -10,6 +10,16 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-04-24
+
+### Added
+
+- Added canonical `TextPart.CacheControl` hints and Anthropic-family block-level `cache_control` request encoding.
+- Added live prompt-cache smoke coverage for Anthropic and Claude Code-compatible access, checking provider-reported cache write/read token usage.
+- Added OpenAI Responses-compatible continuation and prompt-cache extension keys, with `/v1/responses` endpoint decode and OpenRouter Responses provider encode support.
+- Added an e2e smoke harness for Responses `previous_response_id` continuation; no current provider is flagged until a backend has live verified continuation semantics.
+- Claude Code request preflight now uses Anthropic system blocks and applies cache control to the last system text block.
+
 ## [0.27.0] - 2026-04-24
 
 ### Added

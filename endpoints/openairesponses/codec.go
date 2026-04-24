@@ -136,8 +136,24 @@ func decodeRequest(wire Request) (unified.Request, []adapt.Warning, error) {
 		out.ResponseFormat = responseFormat
 		warnings = append(warnings, responseFormatWarnings...)
 	}
+	copyOpenAIResponsesExtensions(&out.Extensions, wire)
 	copyOpenRouterExtensions(&out.Extensions, wire)
 	return out, warnings, nil
+}
+
+func copyOpenAIResponsesExtensions(extensions *unified.Extensions, wire Request) {
+	if wire.PreviousResponseID != "" {
+		_ = extensions.Set(unified.ExtOpenAIPreviousResponseID, wire.PreviousResponseID)
+	}
+	if wire.Store != nil {
+		_ = extensions.Set(unified.ExtOpenAIStore, *wire.Store)
+	}
+	if wire.PromptCacheKey != "" {
+		_ = extensions.Set(unified.ExtOpenAIPromptCacheKey, wire.PromptCacheKey)
+	}
+	if wire.PromptCacheRetention != "" {
+		_ = extensions.Set(unified.ExtOpenAIPromptCacheRetention, wire.PromptCacheRetention)
+	}
 }
 
 func copyOpenRouterExtensions(extensions *unified.Extensions, wire Request) {

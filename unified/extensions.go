@@ -7,19 +7,21 @@ import (
 )
 
 const (
-	ExtOpenAIPreviousResponseID = "openai.responses.previous_response_id"
-	ExtOpenAIStore              = "openai.responses.store"
-	ExtAnthropicBetas           = "anthropic.betas"
-	ExtGeminiSafetySettings     = "gemini.safety_settings"
-	ExtOpenRouterModels         = "openrouter.models"
-	ExtOpenRouterRoute          = "openrouter.route"
-	ExtOpenRouterProvider       = "openrouter.provider"
-	ExtOpenRouterProviderPrefs  = "openrouter.provider_preferences"
-	ExtOpenRouterPlugins        = "openrouter.plugins"
-	ExtOpenRouterDebug          = "openrouter.debug"
-	ExtOpenRouterTrace          = "openrouter.trace"
-	ExtOpenRouterSessionID      = "openrouter.session_id"
-	ExtOllamaOptions            = "ollama.options"
+	ExtOpenAIPreviousResponseID   = "openai.responses.previous_response_id"
+	ExtOpenAIStore                = "openai.responses.store"
+	ExtOpenAIPromptCacheKey       = "openai.responses.prompt_cache_key"
+	ExtOpenAIPromptCacheRetention = "openai.responses.prompt_cache_retention"
+	ExtAnthropicBetas             = "anthropic.betas"
+	ExtGeminiSafetySettings       = "gemini.safety_settings"
+	ExtOpenRouterModels           = "openrouter.models"
+	ExtOpenRouterRoute            = "openrouter.route"
+	ExtOpenRouterProvider         = "openrouter.provider"
+	ExtOpenRouterProviderPrefs    = "openrouter.provider_preferences"
+	ExtOpenRouterPlugins          = "openrouter.plugins"
+	ExtOpenRouterDebug            = "openrouter.debug"
+	ExtOpenRouterTrace            = "openrouter.trace"
+	ExtOpenRouterSessionID        = "openrouter.session_id"
+	ExtOllamaOptions              = "ollama.options"
 )
 
 type Extensions struct {

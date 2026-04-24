@@ -8,7 +8,7 @@ Current implemented surface:
 - Utility packages: `pricing` for modeldb-backed usage cost enrichment and `modelmeta` for modeldb-backed endpoint metadata mapping.
 - Endpoint codecs: OpenAI-compatible `/v1/chat/completions`, OpenAI-compatible `/v1/responses`, Anthropic-compatible `/v1/messages`.
 - Providers: Anthropic Messages, Claude Code-compatible Anthropic Messages, OpenAI Chat Completions, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
-- Live e2e smoke tests for text streaming, tool calls, tool-result continuation, and gateway routing.
+- Live e2e smoke tests for text streaming, tool calls, tool-result continuation, prompt caching, and gateway routing.
 
 ## Quick Start
 
@@ -165,13 +165,17 @@ Malformed tool-call argument JSON from OpenAI Chat and OpenAI Responses inputs i
 
 OpenRouter-specific request controls are carried through `unified.Request.Extensions` using namespaced keys such as `openrouter.provider`, `openrouter.plugins`, `openrouter.debug`, `openrouter.trace`, and `openrouter.session_id`. The OpenRouter Chat, Responses, and Messages providers encode those extensions back into upstream request bodies.
 
+OpenAI Responses-compatible continuation and cache-key controls are also carried through extensions. `openai.responses.previous_response_id`, `openai.responses.store`, `openai.responses.prompt_cache_key`, and `openai.responses.prompt_cache_retention` are decoded by the `/v1/responses` endpoint and encoded by the OpenRouter Responses provider without adding gateway/session state.
+
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
+
+Canonical `unified.TextPart` values can carry `CacheControl` hints. Anthropic-family providers encode those hints as block-level `cache_control`, and the shared prompt-cache smoke verifies provider-reported cache write/read accounting for Anthropic and Claude Code-compatible access.
 
 The `modelmeta` package maps modeldb offering exposures into route capabilities and limits. The gateway uses it only for configured fixed-model routes; modeldb can narrow advertised capabilities and add token limits, but it never creates hidden providers, clients, or routes.
 
 The `pricing` package can enrich `unified.UsageEvent` values with `CostItems` using `modeldb` offering pricing for an explicit service/model pair. Pricing enrichment is an optional event processor and is not hardcoded into provider codecs. The gateway wires this processor only for configured routes with explicit `modeldb_service_id` and fixed model metadata.
 
-The `claude_messages` provider type is an Anthropic Messages-compatible endpoint variant for Claude Code-style access. It uses bearer/OAuth auth instead of `x-api-key`, adds Claude CLI compatibility headers and `beta=true`, reads local Claude OAuth credentials when no bearer token env var is configured, and applies a minimal Claude Code request preflight.
+The `claude_messages` provider type is an Anthropic Messages-compatible endpoint variant for Claude Code-style access. It uses bearer/OAuth auth instead of `x-api-key`, adds Claude CLI compatibility headers and `beta=true`, reads local Claude OAuth credentials when no bearer token env var is configured, and applies Claude Code request preflight system blocks with cache control.
 
 The default HTTP byte-stream transport advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression. Custom HTTP clients can preserve that behavior by starting from `transport.CloneDefaultHTTPClient()`.
 
@@ -182,6 +186,7 @@ See `DESIGN.md` for the target architecture and `PLAN.md` for current status, kn
 - Capability defaults are endpoint-family guesses. Use provider `capabilities` overrides for model-specific support before routing production traffic.
 - Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
 - OpenRouter extension passthrough preserves raw JSON controls but does not yet validate provider-specific extension schemas.
+- OpenRouter Responses encodes OpenAI Responses continuation fields, but live `previous_response_id` context preservation is not advertised because the current backend smoke did not preserve prior-turn context.
 - Modeldb-backed metadata and pricing only work for configured fixed-model routes; dynamic per-request model lookup and catalog overlays are still planned.
-- Claude Code request preflight currently uses string system text; Anthropic system block `cache_control` support needs a later wire-model change.
+- Prompt cache request hints currently map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions; a higher-level session cache policy is still planned.
 - Provider and endpoint codecs cover smoke-tested text, tools, structured output, and basic image inputs; they are not full conformance implementations for every provider field.

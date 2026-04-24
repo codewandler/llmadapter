@@ -359,6 +359,7 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 		opts := []anthropic.Option{
 			anthropic.WithClaudeHeaders(),
 			anthropic.WithClaudeCodePreflight(),
+			anthropic.WithSystemCacheControl(""),
 			anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
 				req.Unified.Stream = true
 				return nil

@@ -150,6 +150,7 @@ func gatewayProviders() []gatewayProvider {
 					anthropic.WithBearerTokenProvider(anthropic.NewStaticTokenProvider(anthropic.NewStaticBearerToken(apiKey))),
 					anthropic.WithClaudeHeaders(),
 					anthropic.WithClaudeCodePreflight(),
+					anthropic.WithSystemCacheControl(""),
 					anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
 						req.Unified.Stream = true
 						return nil

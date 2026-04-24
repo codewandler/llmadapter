@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/codewandler/llmadapter/transport"
@@ -60,6 +59,7 @@ func WithClaudeCode() Option {
 			WithLocalClaudeOAuth(),
 			WithClaudeHeaders(),
 			WithClaudeCodePreflight(),
+			WithSystemCacheControl(""),
 		} {
 			if err := opt.applyAnthropic(c); err != nil {
 				return err
@@ -109,12 +109,13 @@ func NewClaudeCodePreflightProcessor() *ClaudeCodePreflightProcessor {
 }
 
 func (p *ClaudeCodePreflightProcessor) ProcessProviderRequest(ctx context.Context, req *MessageRequest) error {
-	prefix := strings.Join([]string{claudeBillingHeader, claudeSystemCore}, "\n")
-	if req.System == "" {
-		req.System = prefix
-	} else {
-		req.System = prefix + "\n" + req.System
+	if req.System == nil {
+		req.System = &SystemContent{}
 	}
+	req.System.Prepend(
+		ContentBlock{Type: "text", Text: claudeBillingHeader},
+		ContentBlock{Type: "text", Text: claudeSystemCore},
+	)
 
 	if userID := buildClaudeUserID(p.sessionID); userID != "" {
 		if req.Metadata == nil {
@@ -122,6 +123,25 @@ func (p *ClaudeCodePreflightProcessor) ProcessProviderRequest(ctx context.Contex
 		}
 		req.Metadata["user_id"] = userID
 	}
+	return nil
+}
+
+func WithSystemCacheControl(ttl string) Option {
+	return optionFunc(func(c *Config) error {
+		c.ProviderRequestProcessors = append(c.ProviderRequestProcessors, systemCacheControlProcessor{ttl: ttl})
+		return nil
+	})
+}
+
+type systemCacheControlProcessor struct {
+	ttl string
+}
+
+func (p systemCacheControlProcessor) ProcessProviderRequest(ctx context.Context, req *MessageRequest) error {
+	if req.System == nil {
+		return nil
+	}
+	req.System.ApplyCacheToLastText(&CacheControl{Type: "ephemeral", TTL: p.ttl})
 	return nil
 }
 

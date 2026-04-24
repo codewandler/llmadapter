@@ -19,14 +19,16 @@ import (
 )
 
 type smokeProvider struct {
-	name             string
-	apiKeyEnv        []string
-	localClaudeOAuth bool
-	modelEnv         string
-	model            string
-	tools            bool
-	maxOutputTokens  int
-	newClient        func(apiKey string) (unified.Client, error)
+	name                  string
+	apiKeyEnv             []string
+	localClaudeOAuth      bool
+	modelEnv              string
+	model                 string
+	tools                 bool
+	promptCache           bool
+	responsesContinuation bool
+	maxOutputTokens       int
+	newClient             func(apiKey string) (unified.Client, error)
 }
 
 func TestSmokeTextStream(t *testing.T) {
@@ -231,14 +233,141 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 	}
 }
 
+func TestSmokePromptCache(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+
+	for _, provider := range smokeProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			if !provider.promptCache {
+				t.Skipf("%s does not advertise prompt cache smoke support in this slice", provider.name)
+			}
+			client, model := newSmokeClient(t, provider)
+			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			defer cancel()
+
+			maxTokens := provider.maxTokens(16)
+			req := unified.Request{
+				Model:           model,
+				MaxOutputTokens: &maxTokens,
+				Instructions: []unified.Instruction{{
+					Kind: unified.InstructionSystem,
+					Content: []unified.ContentPart{unified.TextPart{
+						Text:         cacheSmokePrefix(),
+						CacheControl: unified.EphemeralCache(""),
+					}},
+				}},
+				Messages: []unified.Message{{
+					Role:    unified.RoleUser,
+					Content: []unified.ContentPart{unified.TextPart{Text: "Reply with exactly: cache smoke ok"}},
+				}},
+				Stream: true,
+			}
+
+			first, err := collectSmokeResponse(ctx, client, req)
+			if err != nil {
+				t.Fatalf("first request: %v", err)
+			}
+			if first.Usage.CacheWriteTokens() == 0 && first.Usage.CacheReadTokens() == 0 {
+				t.Fatalf("first request did not report cache usage: %+v", first.Usage)
+			}
+			if first.Usage.CacheReadTokens() > 0 {
+				return
+			}
+
+			var last unified.Response
+			for attempt := 0; attempt < 4; attempt++ {
+				time.Sleep(time.Duration(attempt+1) * time.Second)
+				last, err = collectSmokeResponse(ctx, client, req)
+				if err != nil {
+					t.Fatalf("cache read attempt %d: %v", attempt+1, err)
+				}
+				if last.Usage.CacheReadTokens() > 0 {
+					return
+				}
+			}
+			t.Fatalf("repeated requests did not report cache read usage; first=%+v last=%+v", first.Usage, last.Usage)
+		})
+	}
+}
+
+func TestSmokeResponsesContinuation(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+
+	for _, provider := range smokeProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			if !provider.responsesContinuation {
+				t.Skipf("%s does not advertise Responses previous_response_id smoke support in this slice", provider.name)
+			}
+			client, model := newSmokeClient(t, provider)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			maxTokens := provider.maxTokens(32)
+			firstReq := unified.Request{
+				Model:           model,
+				MaxOutputTokens: &maxTokens,
+				Messages: []unified.Message{{
+					Role: unified.RoleUser,
+					Content: []unified.ContentPart{
+						unified.TextPart{Text: "Remember the marker orchid-731. Reply with exactly: remembered"},
+					},
+				}},
+				Stream: true,
+			}
+
+			first, err := collectSmokeResponse(ctx, client, firstReq)
+			if err != nil {
+				t.Fatalf("first request: %v", err)
+			}
+			if first.ID == "" {
+				t.Fatalf("first response did not expose a response id: %+v", first)
+			}
+			if !strings.Contains(strings.ToLower(responseText(first)), "remembered") {
+				t.Fatalf("first response text = %q", responseText(first))
+			}
+
+			secondReq := unified.Request{
+				Model:           model,
+				MaxOutputTokens: &maxTokens,
+				Messages: []unified.Message{{
+					Role: unified.RoleUser,
+					Content: []unified.ContentPart{
+						unified.TextPart{Text: "What marker did I ask you to remember? Reply with only the marker."},
+					},
+				}},
+				Stream: true,
+			}
+			if err := secondReq.Extensions.Set(unified.ExtOpenAIPreviousResponseID, first.ID); err != nil {
+				t.Fatal(err)
+			}
+
+			second, err := collectSmokeResponse(ctx, client, secondReq)
+			if err != nil {
+				t.Fatalf("continuation request: %v", err)
+			}
+			if !strings.Contains(strings.ToLower(responseText(second)), "orchid-731") {
+				t.Fatalf("continuation text %q does not contain remembered marker; first id=%s response=%+v", responseText(second), first.ID, second)
+			}
+			if second.ID == "" {
+				t.Fatalf("continuation response did not expose a response id: %+v", second)
+			}
+		})
+	}
+}
+
 func smokeProviders() []smokeProvider {
 	return []smokeProvider{
 		{
-			name:      "anthropic",
-			apiKeyEnv: []string{"ANTHROPIC_API_KEY"},
-			modelEnv:  "ANTHROPIC_MODEL",
-			model:     "claude-haiku-4-5-20251001",
-			tools:     true,
+			name:        "anthropic",
+			apiKeyEnv:   []string{"ANTHROPIC_API_KEY"},
+			modelEnv:    "ANTHROPIC_MODEL",
+			model:       "claude-haiku-4-5-20251001",
+			tools:       true,
+			promptCache: true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return anthropic.NewClient(anthropic.WithAPIKey(apiKey))
 			},
@@ -250,6 +379,7 @@ func smokeProviders() []smokeProvider {
 			modelEnv:         "CLAUDE_MODEL",
 			model:            "claude-haiku-4-5-20251001",
 			tools:            true,
+			promptCache:      true,
 			newClient:        newClaudeSmokeClient,
 		},
 		{
@@ -316,6 +446,23 @@ func smokeProviders() []smokeProvider {
 	}
 }
 
+func collectSmokeResponse(ctx context.Context, client unified.Client, req unified.Request) (unified.Response, error) {
+	events, err := client.Request(ctx, req)
+	if err != nil {
+		return unified.Response{}, err
+	}
+	return unified.Collect(ctx, events)
+}
+
+func cacheSmokePrefix() string {
+	const sentence = "This stable llmadapter prompt-cache smoke prefix is intentionally repetitive so Anthropic can store it as reusable context. "
+	var b strings.Builder
+	for i := 0; i < 320; i++ {
+		b.WriteString(sentence)
+	}
+	return b.String()
+}
+
 func (p smokeProvider) maxTokens(defaultValue int) int {
 	if p.maxOutputTokens > 0 {
 		return p.maxOutputTokens
@@ -348,6 +495,7 @@ func newClaudeSmokeClient(token string) (unified.Client, error) {
 		anthropic.WithBearerTokenProvider(anthropic.NewStaticTokenProvider(anthropic.NewStaticBearerToken(token))),
 		anthropic.WithClaudeHeaders(),
 		anthropic.WithClaudeCodePreflight(),
+		anthropic.WithSystemCacheControl(""),
 	)
 }
 

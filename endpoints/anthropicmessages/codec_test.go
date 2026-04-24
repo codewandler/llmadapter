@@ -42,6 +42,27 @@ func TestDecodeHTTP(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPSystemCacheControl(t *testing.T) {
+	body := `{
+		"model":"claude-test",
+		"system":[{"type":"text","text":"stable prefix","cache_control":{"type":"ephemeral","ttl":"5m"}}],
+		"max_tokens":32,
+		"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(req.Unified.Instructions) != 1 || len(req.Unified.Instructions[0].Content) != 1 {
+		t.Fatalf("unexpected instructions: %+v", req.Unified.Instructions)
+	}
+	text, ok := req.Unified.Instructions[0].Content[0].(unified.TextPart)
+	if !ok || text.Text != "stable prefix" || text.CacheControl == nil || text.CacheControl.Type != unified.CacheControlEphemeral || text.CacheControl.TTL != "5m" {
+		t.Fatalf("unexpected cached system part: %+v", req.Unified.Instructions[0].Content[0])
+	}
+}
+
 func TestDecodeHTTPToolResult(t *testing.T) {
 	body := `{
 		"model":"claude-test",

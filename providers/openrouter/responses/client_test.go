@@ -48,6 +48,9 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" || resp.Usage.TotalTokens() != 15 {
 		t.Fatalf("unexpected response: %+v", resp)
 	}
+	if resp.ID != "resp_1" {
+		t.Fatalf("response id = %q, want resp_1", resp.ID)
+	}
 	if got, want := resp.Usage.Tokens.Count(unified.TokenKindInputNew), 7; got != want {
 		t.Fatalf("input.new = %d, want %d", got, want)
 	}
@@ -175,6 +178,65 @@ func TestEncodeOpenRouterExtensions(t *testing.T) {
 	}
 	if string(wire.OpenRouterSessionID) != `"sess_1"` {
 		t.Fatalf("session_id = %s", wire.OpenRouterSessionID)
+	}
+}
+
+func TestEncodeOpenAIResponsesExtensions(t *testing.T) {
+	req := unified.Request{Model: "openai/test"}
+	if err := req.Extensions.Set(unified.ExtOpenAIPreviousResponseID, "resp_prev"); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenAIStore, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenAIPromptCacheKey, "cache_key_1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenAIPromptCacheRetention, "24h"); err != nil {
+		t.Fatal(err)
+	}
+	wire, warnings := encodeRequest(req)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if wire.PreviousResponseID != "resp_prev" {
+		t.Fatalf("previous_response_id = %q", wire.PreviousResponseID)
+	}
+	if wire.Store == nil || *wire.Store {
+		t.Fatalf("store = %+v, want false pointer", wire.Store)
+	}
+	if wire.PromptCacheKey != "cache_key_1" {
+		t.Fatalf("prompt_cache_key = %q", wire.PromptCacheKey)
+	}
+	if wire.PromptCacheRetention != "24h" {
+		t.Fatalf("prompt_cache_retention = %q", wire.PromptCacheRetention)
+	}
+}
+
+func TestEncodeOpenAIResponsesExtensionsInvalid(t *testing.T) {
+	req := unified.Request{Model: "openai/test"}
+	if err := req.Extensions.SetRaw(unified.ExtOpenAIPreviousResponseID, json.RawMessage(`123`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.SetRaw(unified.ExtOpenAIStore, json.RawMessage(`"true"`)); err != nil {
+		t.Fatal(err)
+	}
+	wire, warnings := encodeRequest(req)
+	if wire.PreviousResponseID != "" || wire.Store != nil {
+		t.Fatalf("invalid extensions should be dropped: %+v", wire)
+	}
+	if len(warnings) != 2 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
+func TestEncodeRequestWithoutExtensionsLeavesContinuationFieldsEmpty(t *testing.T) {
+	wire, warnings := encodeRequest(unified.Request{Model: "openai/test"})
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if wire.PreviousResponseID != "" || wire.Store != nil || wire.PromptCacheKey != "" || wire.PromptCacheRetention != "" {
+		t.Fatalf("unexpected continuation fields: %+v", wire)
 	}
 }
 
