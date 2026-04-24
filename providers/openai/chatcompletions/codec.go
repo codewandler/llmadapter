@@ -56,7 +56,7 @@ func encodeRequestForAPI(req unified.Request, apiKind adapt.ApiKind) (requestWir
 			}
 			continue
 		}
-		wire := messageWire{Role: string(msg.Role), Content: contentText(msg.Content, "messages."+strconv.Itoa(i)+".content", &warnings), Name: msg.Name}
+		wire := messageWire{Role: string(msg.Role), Content: encodeMessageContent(msg.Content, "messages."+strconv.Itoa(i)+".content", &warnings), Name: msg.Name}
 		for _, call := range msg.ToolCalls {
 			wire.ToolCalls = append(wire.ToolCalls, toolCallWire{
 				Index: call.Index,
@@ -96,6 +96,38 @@ func encodeRequestForAPI(req unified.Request, apiKind adapt.ApiKind) (requestWir
 		applyOpenRouterExtensions(&out, req.Extensions)
 	}
 	return out, warnings, nil
+}
+
+func encodeMessageContent(parts []unified.ContentPart, field string, warnings *[]mappingWarning) any {
+	if len(parts) == 0 {
+		return nil
+	}
+	wireParts := make([]contentPartWire, 0, len(parts))
+	textOnly := true
+	var textParts []string
+	for i, part := range parts {
+		switch p := part.(type) {
+		case unified.TextPart:
+			wireParts = append(wireParts, contentPartWire{Type: "text", Text: p.Text})
+			textParts = append(textParts, p.Text)
+		case unified.ImagePart:
+			textOnly = false
+			switch p.Source.Kind {
+			case unified.BlobSourceURL:
+				wireParts = append(wireParts, contentPartWire{Type: "image_url", ImageURL: &imageURLPartWire{URL: p.Source.URL}})
+			case unified.BlobSourceBase64:
+				wireParts = append(wireParts, contentPartWire{Type: "image_url", ImageURL: &imageURLPartWire{URL: "data:" + p.Source.MIMEType + ";base64," + p.Source.Base64}})
+			default:
+				addWarning(warnings, field+"."+strconv.Itoa(i), "unsupported image source was dropped")
+			}
+		default:
+			addWarning(warnings, field+"."+strconv.Itoa(i), "non-text content part was dropped")
+		}
+	}
+	if textOnly {
+		return strings.Join(textParts, "\n")
+	}
+	return wireParts
 }
 
 func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions) {

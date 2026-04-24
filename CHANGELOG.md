@@ -15,6 +15,7 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - **Endpoint image input decode** - OpenAI Chat, OpenAI Responses, and Anthropic Messages endpoint codecs now decode supported image URL/base64/file references into canonical `unified.ImagePart` values instead of dropping them.
+- **Provider image input passthrough** - OpenAI Chat-compatible providers and OpenRouter Responses now encode canonical image inputs upstream, and gateway metadata advertises vision capability for image-capable endpoint families.
 
 ## [0.19.0] - 2026-04-24
 

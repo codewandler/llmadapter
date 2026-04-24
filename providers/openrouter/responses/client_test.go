@@ -182,6 +182,25 @@ func TestEncodeResponseFormat(t *testing.T) {
 	}
 }
 
+func TestEncodeImageContent(t *testing.T) {
+	wire, warnings := encodeRequest(unified.Request{
+		Model: "openai/test",
+		Messages: []unified.Message{{
+			Role: unified.RoleUser,
+			Content: []unified.ContentPart{
+				unified.TextPart{Text: "describe"},
+				unified.ImagePart{Source: unified.BlobSource{Kind: unified.BlobSourceURL, URL: "https://example.com/image.png"}},
+			},
+		}},
+	})
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if len(wire.Input) != 1 || len(wire.Input[0].Content) != 2 || wire.Input[0].Content[1].Type != "input_image" || wire.Input[0].Content[1].ImageURL != "https://example.com/image.png" {
+		t.Fatalf("input = %+v", wire.Input)
+	}
+}
+
 func TestClientEmitsEncodeWarnings(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"openai/test","status":"in_progress"}}`),

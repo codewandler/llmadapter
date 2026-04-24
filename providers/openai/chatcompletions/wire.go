@@ -31,10 +31,20 @@ type streamOptionsWire struct {
 
 type messageWire struct {
 	Role       string         `json:"role"`
-	Content    string         `json:"content,omitempty"`
+	Content    any            `json:"content,omitempty"`
 	Name       string         `json:"name,omitempty"`
 	ToolCallID string         `json:"tool_call_id,omitempty"`
 	ToolCalls  []toolCallWire `json:"tool_calls,omitempty"`
+}
+
+type contentPartWire struct {
+	Type     string            `json:"type"`
+	Text     string            `json:"text,omitempty"`
+	ImageURL *imageURLPartWire `json:"image_url,omitempty"`
+}
+
+type imageURLPartWire struct {
+	URL string `json:"url"`
 }
 
 type toolWire struct {

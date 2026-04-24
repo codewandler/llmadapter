@@ -144,5 +144,8 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		if (tt.providerType == "openai_chat" || tt.providerType == "openrouter_chat" || tt.providerType == "openrouter_responses") && (!capabilities.JSONMode || !capabilities.JSONSchema) {
 			t.Fatalf("expected JSON capabilities: %+v", capabilities)
 		}
+		if (tt.providerType == "openai_chat" || tt.providerType == "openrouter_chat" || tt.providerType == "openrouter_responses" || tt.providerType == "openrouter_messages") && !capabilities.Vision {
+			t.Fatalf("expected vision capability: %+v", capabilities)
+		}
 	}
 }

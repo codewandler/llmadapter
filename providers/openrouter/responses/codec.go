@@ -41,16 +41,7 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 			item.Status = "completed"
 		}
 		for j, part := range msg.Content {
-			text, ok := part.(unified.TextPart)
-			if !ok {
-				addWarning(&warnings, "messages."+strconv.Itoa(i)+".content."+strconv.Itoa(j), "non-text content part was dropped")
-				continue
-			}
-			partType := "input_text"
-			if msg.Role == unified.RoleAssistant {
-				partType = "output_text"
-			}
-			item.Content = append(item.Content, contentPartWire{Type: partType, Text: text.Text})
+			item.Content = appendContentPart(item.Content, part, msg.Role, "messages."+strconv.Itoa(i)+".content."+strconv.Itoa(j), &warnings)
 		}
 		if len(item.Content) > 0 {
 			out.Input = append(out.Input, item)
@@ -98,6 +89,31 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 	}
 	applyOpenRouterExtensions(&out, req.Extensions)
 	return out, warnings
+}
+
+func appendContentPart(out []contentPartWire, part unified.ContentPart, role unified.Role, field string, warnings *[]mappingWarning) []contentPartWire {
+	switch p := part.(type) {
+	case unified.TextPart:
+		partType := "input_text"
+		if role == unified.RoleAssistant {
+			partType = "output_text"
+		}
+		return append(out, contentPartWire{Type: partType, Text: p.Text})
+	case unified.ImagePart:
+		switch p.Source.Kind {
+		case unified.BlobSourceURL:
+			return append(out, contentPartWire{Type: "input_image", ImageURL: p.Source.URL})
+		case unified.BlobSourceFileID:
+			return append(out, contentPartWire{Type: "input_image", FileID: p.Source.FileID})
+		case unified.BlobSourceBase64:
+			return append(out, contentPartWire{Type: "input_image", ImageURL: "data:" + p.Source.MIMEType + ";base64," + p.Source.Base64})
+		default:
+			addWarning(warnings, field, "unsupported image source was dropped")
+		}
+	default:
+		addWarning(warnings, field, "non-text content part was dropped")
+	}
+	return out
 }
 
 func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions) {

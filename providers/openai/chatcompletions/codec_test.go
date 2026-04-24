@@ -111,6 +111,29 @@ func TestEncodeResponseFormat(t *testing.T) {
 	}
 }
 
+func TestEncodeImageContent(t *testing.T) {
+	wire, warnings, err := encodeRequest(unified.Request{
+		Model: "gpt-test",
+		Messages: []unified.Message{{
+			Role: unified.RoleUser,
+			Content: []unified.ContentPart{
+				unified.TextPart{Text: "describe"},
+				unified.ImagePart{Source: unified.BlobSource{Kind: unified.BlobSourceURL, URL: "https://example.com/image.png"}},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	parts, ok := wire.Messages[0].Content.([]contentPartWire)
+	if !ok || len(parts) != 2 || parts[1].Type != "image_url" || parts[1].ImageURL.URL != "https://example.com/image.png" {
+		t.Fatalf("content = %#v", wire.Messages[0].Content)
+	}
+}
+
 func TestEncodeOpenRouterExtensions(t *testing.T) {
 	req := unified.Request{Model: "openrouter/test"}
 	if err := req.Extensions.Set(unified.ExtOpenRouterProvider, map[string]any{"order": []string{"anthropic"}}); err != nil {
