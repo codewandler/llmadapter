@@ -141,5 +141,8 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		if !capabilities.Streaming || capabilities.Tools != tt.tools {
 			t.Fatalf("unexpected capabilities: %+v", capabilities)
 		}
+		if (tt.providerType == "openai_chat" || tt.providerType == "openrouter_chat") && (!capabilities.JSONMode || !capabilities.JSONSchema) {
+			t.Fatalf("expected JSON capabilities: %+v", capabilities)
+		}
 	}
 }

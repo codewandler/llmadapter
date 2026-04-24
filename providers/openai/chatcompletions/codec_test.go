@@ -88,6 +88,29 @@ func TestEncodeRequestWarnings(t *testing.T) {
 	}
 }
 
+func TestEncodeResponseFormat(t *testing.T) {
+	wire, _, err := encodeRequest(unified.Request{
+		Model: "gpt-test",
+		ResponseFormat: &unified.ResponseFormat{
+			Kind:   unified.ResponseFormatJSONSchema,
+			Name:   "answer",
+			Schema: json.RawMessage(`{"type":"object"}`),
+			Strict: true,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	format, ok := wire.ResponseFormat.(map[string]any)
+	if !ok || format["type"] != "json_schema" {
+		t.Fatalf("response format = %#v", wire.ResponseFormat)
+	}
+	schema, ok := format["json_schema"].(map[string]any)
+	if !ok || schema["name"] != "answer" || schema["strict"] != true || string(schema["schema"].(json.RawMessage)) != `{"type":"object"}` {
+		t.Fatalf("json schema = %#v", format["json_schema"])
+	}
+}
+
 func TestEncodeOpenRouterExtensions(t *testing.T) {
 	req := unified.Request{Model: "openrouter/test"}
 	if err := req.Extensions.Set(unified.ExtOpenRouterProvider, map[string]any{"order": []string{"anthropic"}}); err != nil {

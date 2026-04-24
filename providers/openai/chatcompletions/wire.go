@@ -11,6 +11,7 @@ type requestWire struct {
 	Stop                []string           `json:"stop,omitempty"`
 	Stream              bool               `json:"stream,omitempty"`
 	StreamOptions       *streamOptionsWire `json:"stream_options,omitempty"`
+	ResponseFormat      any                `json:"response_format,omitempty"`
 	Tools               []toolWire         `json:"tools,omitempty"`
 	ToolChoice          any                `json:"tool_choice,omitempty"`
 	User                string             `json:"user,omitempty"`

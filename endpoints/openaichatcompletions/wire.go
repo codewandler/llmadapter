@@ -13,6 +13,7 @@ type Request struct {
 	TopP                *float64        `json:"top_p,omitempty"`
 	Stop                any             `json:"stop,omitempty"`
 	Stream              bool            `json:"stream,omitempty"`
+	ResponseFormat      json.RawMessage `json:"response_format,omitempty"`
 	Tools               []Tool          `json:"tools,omitempty"`
 	ToolChoice          json.RawMessage `json:"tool_choice,omitempty"`
 	User                string          `json:"user,omitempty"`

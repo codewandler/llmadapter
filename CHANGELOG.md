@@ -10,6 +10,10 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- **OpenAI Chat structured output mapping** - OpenAI Chat-compatible endpoint decoding and provider encoding now preserve `response_format` JSON mode and JSON schema requests, and gateway metadata advertises those capabilities for OpenAI Chat and OpenRouter Chat endpoints.
+
 ## [0.17.0] - 2026-04-24
 
 ### Added

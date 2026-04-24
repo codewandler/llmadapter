@@ -68,6 +68,26 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterSessionID, `"sess_1"`)
 }
 
+func TestDecodeHTTPResponseFormat(t *testing.T) {
+	body := `{
+		"model":"test-model",
+		"messages":[{"role":"user","content":"hello"}],
+		"response_format":{
+			"type":"json_schema",
+			"json_schema":{"name":"answer","schema":{"type":"object"},"strict":true}
+		}
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	format := req.Unified.ResponseFormat
+	if format == nil || format.Kind != unified.ResponseFormatJSONSchema || format.Name != "answer" || !format.Strict || string(format.Schema) != `{"type":"object"}` {
+		t.Fatalf("response format = %+v", format)
+	}
+}
+
 func TestWriteEventsNonStreaming(t *testing.T) {
 	events := make(chan unified.Event, 8)
 	events <- unified.MessageStartEvent{ID: "msg", Model: "model"}
