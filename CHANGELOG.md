@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added a shared `providerregistry` package for provider endpoint descriptors and direct client construction.
+- Added an initial `llmadapter` CLI with `providers` and direct-provider `smoke` commands.
+- Documented the planned stateless in-process mux client layer for gateway-like routing without an HTTP server.
+
 ## [0.29.0] - 2026-04-24
 
 ### Added

@@ -57,6 +57,8 @@ Pricing slice: `pricing` package adds a modeldb-backed event processor that enri
 Gateway pricing slice: configured fixed-model routes can wrap provider clients with modeldb-backed usage cost enrichment via provider `modeldb_service_id` plus route `native_model` or `modeldb_wire_model_id`
 Model metadata slice: `modelmeta` maps modeldb offering exposures into route capability narrowing and model token limits for configured fixed-model gateway routes
 Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved providers, routes, capabilities, limits, modeldb metadata, and pricing availability without constructing provider clients
+Provider registry slice: shared `providerregistry` package lists endpoint types and can construct direct provider clients for CLI/library use
+CLI slice: `cmd/llmadapter` can list provider endpoint types and run a minimal direct text smoke request
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
 Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, and Anthropic modeldb service identity
@@ -270,13 +272,14 @@ Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stat
 Next planned phase:
 
 ```text
-Priority: provider registry/CLI, modeldb, Claude compatibility, caching, usage/pricing, provider parity, and broader live conformance tracks below are the highest-priority work items for the next implementation rounds.
+Priority: provider registry/CLI, in-process mux client, modeldb, Claude compatibility, caching, usage/pricing, provider parity, and broader live conformance tracks below are the highest-priority work items for the next implementation rounds.
 Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, and explicit route alias resolution are in place; next add dynamic per-request pricing only after model resolution is explicit.
 Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, and fixed-route gateway pricing wiring are in place.
 Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, and live prompt-cache/tool/gateway smokes are in place.
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
 Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
 CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
+Mux client layer: add a stateless in-process client that uses providerregistry, modeldb, and router logic to construct provider clients, resolve model aliases/capabilities, choose compatible provider endpoints/API kinds, and route upstream without an HTTP gateway process.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
 ```
 
@@ -304,6 +307,7 @@ Do not copy these layers directly into llmadapter core. Port the durable concept
 - provider auth options for Claude OAuth compatibility
 - stateless unified.Client primitives consumed by agentsdk conversation/runtime layers
 - adapter-native CLI commands for serving, model/route inspection, resolving, and smoke testing
+- in-process mux client for library users that want gateway-like routing without running an HTTP server
 - shared e2e matrix scenarios that exercise the public outside-in surface
 ```
 
@@ -328,7 +332,7 @@ Initial commands:
 4. providers
    - list configured providers, provider endpoint types, API kinds, health status, and credential source names without printing secrets
 5. smoke
-   - run a minimal outside-in request against one configured route for text streaming and optionally tools
+   - run a minimal outside-in request against one provider endpoint for text streaming (implemented for direct provider endpoints)
 6. catalog
    - wrap modeldb catalog inspection once modeldb is an explicit dependency
 
@@ -339,6 +343,33 @@ Non-goals for the first CLI slice:
 - full replacement for go test e2e matrix
 
 Design rule: CLI commands are operator ergonomics over configured provider endpoints. They must use the same route/config/modeldb metadata path as the gateway so CLI behavior does not drift from server behavior.
+```
+
+Mux client plan:
+
+```text
+Goal: provide a library-level client comparable to agentapis' mux client while preserving llmadapter's stateless architecture.
+
+Shape:
+- package muxclient or client
+- exposes unified.Client
+- accepts config/modeldb/providerregistry inputs
+- constructs configured provider endpoints
+- resolves public model aliases through modeldb when configured
+- chooses an API kind/provider endpoint from request needs and endpoint capabilities
+- uses router.StaticRouter or a compatible router interface internally
+- optionally applies modeldb-backed pricing processors just like the gateway
+
+Non-goals:
+- conversation/session state
+- durable history
+- hidden provider credentials outside explicit config/env discovery
+- provider-native continuation state
+
+Why it belongs here:
+- it is stateless request routing over provider endpoints
+- agentsdk can use it as an upstream unified.Client
+- it lets tools/tests run gateway-equivalent routing without an HTTP server
 ```
 
 modeldb integration plan:

@@ -26,6 +26,13 @@ Run live e2e tests:
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -v
 ```
 
+List provider endpoint types and run a minimal direct smoke through the CLI:
+
+```sh
+go run ./cmd/llmadapter providers
+go run ./cmd/llmadapter smoke -type openai_responses
+```
+
 Live tests skip when credentials are missing. Supported credential env vars:
 
 - `ANTHROPIC_API_KEY`
@@ -46,7 +53,16 @@ Provider model override env vars:
 - `MINIMAX_MODEL`
 - `MINIMAX_MESSAGES_MODEL`
 
-## Gateway
+## CLI And Gateway
+
+The main CLI command is `cmd/llmadapter`.
+
+Initial commands:
+
+- `llmadapter providers` lists registered provider endpoint types, API kinds, families, model env vars, and default smoke models.
+- `llmadapter smoke` runs a minimal direct text request through a configured provider endpoint type.
+
+Gateway serving is still owned by `cmd/llmadapter-gateway` while the CLI surface is being built out.
 
 The gateway command is `cmd/llmadapter-gateway`.
 
@@ -170,6 +186,8 @@ OpenRouter-specific request controls are carried through `unified.Request.Extens
 OpenAI Responses-compatible continuation and cache-key controls are also carried through extensions. `openai.responses.previous_response_id`, `openai.responses.store`, `openai.responses.prompt_cache_key`, and `openai.responses.prompt_cache_retention` are decoded by the `/v1/responses` endpoint and encoded by OpenAI/OpenRouter Responses providers without adding gateway/session state.
 
 Conversation/session state belongs above llmadapter, for example in `agentsdk`. llmadapter only exposes stateless request/event/provider primitives needed by those layers.
+
+A future in-process mux client is planned as a stateless library layer over the same provider registry, modeldb metadata, and router selection used by the gateway. It should be able to construct provider clients, resolve configured/modeldb-backed models, choose compatible API kinds, and route upstream without requiring an HTTP gateway process.
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 
