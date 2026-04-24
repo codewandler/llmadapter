@@ -166,6 +166,22 @@ func TestEncodeOpenRouterExtensions(t *testing.T) {
 	}
 }
 
+func TestEncodeResponseFormat(t *testing.T) {
+	wire, _ := encodeRequest(unified.Request{
+		Model: "openai/test",
+		ResponseFormat: &unified.ResponseFormat{
+			Kind:   unified.ResponseFormatJSONSchema,
+			Name:   "answer",
+			Schema: json.RawMessage(`{"type":"object"}`),
+			Strict: true,
+		},
+	})
+	format, ok := wire.Text.Format.(map[string]any)
+	if !ok || format["type"] != "json_schema" || format["name"] != "answer" || format["strict"] != true || string(format["schema"].(json.RawMessage)) != `{"type":"object"}` {
+		t.Fatalf("text format = %#v", wire.Text.Format)
+	}
+}
+
 func TestClientEmitsEncodeWarnings(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"openai/test","status":"in_progress"}}`),

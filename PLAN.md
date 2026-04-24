@@ -44,6 +44,7 @@ OpenRouter extension passthrough slice: endpoint codecs preserve OpenRouter rout
 Weighted routing slice: static router ranks compatible candidates by route weight and endpoint priority while falling back past capability mismatches
 Gateway fallback slice: gateway handlers retry lower-ranked route candidates when the selected provider fails before response bytes are written
 OpenAI Chat structured-output slice: OpenAI Chat-compatible endpoint decode and provider encode preserve response_format JSON mode and JSON schema requests
+OpenAI Responses structured-output slice: OpenAI Responses endpoint decode and OpenRouter Responses provider encode preserve text.format JSON mode and JSON schema requests
 ```
 
 Verified:
@@ -201,7 +202,7 @@ MiniMax Messages provider reuses the Anthropic-compatible stream path against Mi
 MiniMax Chat is currently marked text-streaming capable only; MiniMax Messages is the first MiniMax endpoint advertised as tool-capable
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
-Provider support is currently strong for text + function-tool loops and OpenAI Chat-family structured-output requests, not broad multimodal or media APIs
+Provider support is currently strong for text + function-tool loops and OpenAI-family structured-output requests, not broad multimodal or media APIs
 OpenRouter extension passthrough is raw JSON preservation; extension schemas and validation are intentionally deferred
 streaming provider errors after response start need a final policy
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
@@ -213,7 +214,7 @@ Implementation assessment:
 Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, deterministic weighted routing, pre-response gateway fallback, fake transport unit tests, and live outside-in e2e tests are all working.
 Main intentional shortcuts are hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
-Important remaining test gaps: invalid credentials/models, active health scoring, parallel tool calls, malformed tool args, OpenAI Responses structured-output behavior, deeper endpoint-codec conformance, broader reasoning/citations conformance, multimodal input, and provider-specific extension schema validation.
+Important remaining test gaps: invalid credentials/models, active health scoring, parallel tool calls, malformed tool args, deeper endpoint-codec conformance, broader reasoning/citations conformance, multimodal input, and provider-specific extension schema validation.
 ```
 
 Next planned phase:

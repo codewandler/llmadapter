@@ -11,6 +11,7 @@ type Request struct {
 	TopP                *float64        `json:"top_p,omitempty"`
 	Stream              bool            `json:"stream,omitempty"`
 	User                string          `json:"user,omitempty"`
+	Text                TextConfig      `json:"text,omitempty"`
 	Tools               []Tool          `json:"tools,omitempty"`
 	ToolChoice          json.RawMessage `json:"tool_choice,omitempty"`
 	OpenRouterModels    json.RawMessage `json:"models,omitempty"`
@@ -21,6 +22,10 @@ type Request struct {
 	OpenRouterDebug     json.RawMessage `json:"debug,omitempty"`
 	OpenRouterTrace     json.RawMessage `json:"trace,omitempty"`
 	OpenRouterSessionID json.RawMessage `json:"session_id,omitempty"`
+}
+
+type TextConfig struct {
+	Format json.RawMessage `json:"format,omitempty"`
 }
 
 type InputItem struct {

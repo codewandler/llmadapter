@@ -131,6 +131,11 @@ func decodeRequest(wire Request) (unified.Request, []adapt.Warning, error) {
 		out.ToolChoice = toolChoice
 		warnings = append(warnings, toolChoiceWarnings...)
 	}
+	if len(wire.Text.Format) > 0 {
+		responseFormat, responseFormatWarnings := decodeResponseFormat(wire.Text.Format, "text.format")
+		out.ResponseFormat = responseFormat
+		warnings = append(warnings, responseFormatWarnings...)
+	}
 	copyOpenRouterExtensions(&out.Extensions, wire)
 	return out, warnings, nil
 }
@@ -223,6 +228,33 @@ func decodeToolChoice(raw json.RawMessage, field string) (*unified.ToolChoice, [
 		return &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: obj.Name}, nil
 	}
 	return nil, []adapt.Warning{decodeWarning(field, "unsupported tool_choice object was dropped")}
+}
+
+func decodeResponseFormat(raw json.RawMessage, field string) (*unified.ResponseFormat, []adapt.Warning) {
+	var obj struct {
+		Type   string          `json:"type"`
+		Name   string          `json:"name"`
+		Schema json.RawMessage `json:"schema"`
+		Strict bool            `json:"strict"`
+	}
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, []adapt.Warning{decodeWarning(field, "invalid text format was dropped")}
+	}
+	switch obj.Type {
+	case "text":
+		return &unified.ResponseFormat{Kind: unified.ResponseFormatText}, nil
+	case "json_object":
+		return &unified.ResponseFormat{Kind: unified.ResponseFormatJSON}, nil
+	case "json_schema":
+		return &unified.ResponseFormat{
+			Kind:   unified.ResponseFormatJSONSchema,
+			Name:   obj.Name,
+			Schema: append(json.RawMessage(nil), obj.Schema...),
+			Strict: obj.Strict,
+		}, nil
+	default:
+		return nil, []adapt.Warning{decodeWarning(field+".type", fmt.Sprintf("unsupported text format type %q was dropped", obj.Type))}
+	}
 }
 
 func decodeWarning(field, message string) adapt.Warning {

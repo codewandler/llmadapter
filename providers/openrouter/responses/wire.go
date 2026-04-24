@@ -12,6 +12,7 @@ type requestWire struct {
 	TopK                *int            `json:"top_k,omitempty"`
 	Stream              bool            `json:"stream,omitempty"`
 	User                string          `json:"user,omitempty"`
+	Text                textConfigWire  `json:"text,omitempty"`
 	Tools               []toolWire      `json:"tools,omitempty"`
 	ToolChoice          any             `json:"tool_choice,omitempty"`
 	OpenRouterModels    json.RawMessage `json:"models,omitempty"`
@@ -22,6 +23,10 @@ type requestWire struct {
 	OpenRouterDebug     json.RawMessage `json:"debug,omitempty"`
 	OpenRouterTrace     json.RawMessage `json:"trace,omitempty"`
 	OpenRouterSessionID json.RawMessage `json:"session_id,omitempty"`
+}
+
+type textConfigWire struct {
+	Format any `json:"format,omitempty"`
 }
 
 type inputItemWire struct {

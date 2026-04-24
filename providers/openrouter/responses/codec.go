@@ -88,6 +88,14 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 	if req.ToolChoice != nil {
 		out.ToolChoice = encodeToolChoice(*req.ToolChoice)
 	}
+	if req.ResponseFormat != nil {
+		responseFormat := encodeResponseFormat(*req.ResponseFormat)
+		if responseFormat == nil {
+			addWarning(&warnings, "response_format", "unsupported response format was dropped")
+		} else {
+			out.Text.Format = responseFormat
+		}
+	}
 	applyOpenRouterExtensions(&out, req.Extensions)
 	return out, warnings
 }
@@ -121,6 +129,28 @@ func encodeToolChoice(choice unified.ToolChoice) any {
 		return "required"
 	case unified.ToolChoiceTool:
 		return map[string]string{"type": "function", "name": choice.Name}
+	default:
+		return nil
+	}
+}
+
+func encodeResponseFormat(format unified.ResponseFormat) any {
+	switch format.Kind {
+	case unified.ResponseFormatText, "":
+		return map[string]string{"type": "text"}
+	case unified.ResponseFormatJSON:
+		return map[string]string{"type": "json_object"}
+	case unified.ResponseFormatJSONSchema:
+		name := format.Name
+		if name == "" {
+			name = "response"
+		}
+		return map[string]any{
+			"type":   "json_schema",
+			"name":   name,
+			"schema": format.Schema,
+			"strict": format.Strict,
+		}
 	default:
 		return nil
 	}
