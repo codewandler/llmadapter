@@ -10,12 +10,17 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-04-24
+
+### Added
+
+- **Tool argument decode hardening** - OpenAI Chat and OpenAI Responses endpoint codecs now replace malformed tool-call argument JSON with `{}` and retain decode warnings instead of carrying invalid JSON forward.
+
 ## [0.21.0] - 2026-04-24
 
 ### Added
 
 - **Provider image input passthrough** - OpenAI Chat-compatible providers and OpenRouter Responses now encode canonical image inputs upstream, and gateway metadata advertises vision capability for image-capable endpoint families.
-- **Tool argument decode hardening** - OpenAI Chat and OpenAI Responses endpoint codecs now replace malformed tool-call argument JSON with `{}` and retain decode warnings instead of carrying invalid JSON forward.
 
 ## [0.20.0] - 2026-04-24
 
@@ -214,7 +219,8 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/codewandler/llmadapter/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/codewandler/llmadapter/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/codewandler/llmadapter/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/codewandler/llmadapter/compare/v0.18.0...v0.19.0
