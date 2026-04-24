@@ -10,14 +10,20 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-04-24
+
+### Added
+
+- Added a stateless `muxclient` package implementing `unified.Client` over router/provider endpoints.
+- Added mux-routed mode to the `llmadapter smoke` command.
+- Documented the planned modeldb/config expansion for the mux client layer.
+
 ## [0.30.0] - 2026-04-24
 
 ### Added
 
 - Added a shared `providerregistry` package for provider endpoint descriptors and direct client construction.
-- Added a stateless `muxclient` package implementing `unified.Client` over router/provider endpoints.
-- Added an initial `llmadapter` CLI with `providers` plus direct and mux-routed `smoke` commands.
-- Documented the planned modeldb/config expansion for the mux client layer.
+- Added an initial `llmadapter` CLI with `providers` and direct-provider `smoke` commands.
 
 ## [0.29.0] - 2026-04-24
 
