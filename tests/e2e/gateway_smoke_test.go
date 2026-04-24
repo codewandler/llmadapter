@@ -27,15 +27,16 @@ import (
 )
 
 type gatewayProvider struct {
-	name            string
-	apiKind         adapt.ApiKind
-	family          adapt.ApiFamily
-	capabilities    router.CapabilitySet
-	apiKeyEnv       []string
-	modelEnv        string
-	model           string
-	maxOutputTokens int
-	newClient       func(apiKey string) (unified.Client, error)
+	name             string
+	apiKind          adapt.ApiKind
+	family           adapt.ApiFamily
+	capabilities     router.CapabilitySet
+	apiKeyEnv        []string
+	localClaudeOAuth bool
+	modelEnv         string
+	model            string
+	maxOutputTokens  int
+	newClient        func(apiKey string) (unified.Client, error)
 }
 
 func TestGatewaySmokeNonStreaming(t *testing.T) {
@@ -119,6 +120,36 @@ func gatewayProviders() []gatewayProvider {
 			newClient: func(apiKey string) (unified.Client, error) {
 				return anthropic.NewClient(
 					anthropic.WithAPIKey(apiKey),
+					anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
+						req.Unified.Stream = true
+						return nil
+					})),
+				)
+			},
+		},
+		{
+			name:             "claude_messages",
+			apiKind:          adapt.ApiAnthropicMessages,
+			family:           adapt.FamilyAnthropicMessages,
+			capabilities:     router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:        []string{"CLAUDE_ACCESS_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"},
+			localClaudeOAuth: true,
+			modelEnv:         "CLAUDE_MODEL",
+			model:            "claude-haiku-4-5-20251001",
+			newClient: func(apiKey string) (unified.Client, error) {
+				if apiKey == "" {
+					return anthropic.NewClient(
+						anthropic.WithClaudeCode(),
+						anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
+							req.Unified.Stream = true
+							return nil
+						})),
+					)
+				}
+				return anthropic.NewClient(
+					anthropic.WithBearerTokenProvider(anthropic.NewStaticTokenProvider(anthropic.NewStaticBearerToken(apiKey))),
+					anthropic.WithClaudeHeaders(),
+					anthropic.WithClaudeCodePreflight(),
 					anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
 						req.Unified.Stream = true
 						return nil
@@ -216,7 +247,7 @@ func newGateway(t *testing.T, provider gatewayProvider) (http.Handler, string) {
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
 	}
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
-	if apiKey == "" {
+	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) {
 		t.Skipf("set one of %s to run %s gateway e2e smoke tests", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
 	model := provider.model

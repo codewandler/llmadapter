@@ -24,7 +24,7 @@ type HTTPByteStreamTransport struct {
 func NewHTTPByteStreamTransport(cfg HTTPTransportConfig) *HTTPByteStreamTransport {
 	client := cfg.Client
 	if client == nil {
-		client = http.DefaultClient
+		client = DefaultHTTPClient()
 	}
 	format := cfg.FrameFormat
 	if format == "" {

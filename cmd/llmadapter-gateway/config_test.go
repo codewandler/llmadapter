@@ -158,6 +158,25 @@ func TestBuildProviderMiniMaxRequiresKey(t *testing.T) {
 	}
 }
 
+func TestBuildProviderClaudeMessagesAuthSources(t *testing.T) {
+	t.Setenv("CLAUDE_ACCESS_TOKEN", "token")
+	client, err := buildProvider(providerConfig{Name: "claude", Type: "claude_messages"})
+	if err != nil {
+		t.Fatalf("unexpected claude provider error: %v", err)
+	}
+	if client == nil {
+		t.Fatalf("expected client")
+	}
+
+	t.Setenv("CLAUDE_ACCESS_TOKEN", "")
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "")
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	_, err = buildProvider(providerConfig{Name: "claude", Type: "claude_messages"})
+	if err == nil {
+		t.Fatalf("expected missing local Claude credentials error")
+	}
+}
+
 func TestProviderEndpointMetadata(t *testing.T) {
 	tests := []struct {
 		providerType string
@@ -165,6 +184,7 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		family       adapt.ApiFamily
 		tools        bool
 	}{
+		{"claude_messages", adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, true},
 		{"openrouter_chat", adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, true},
 		{"openrouter_responses", adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, true},
 		{"openrouter_messages", adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, true},
@@ -211,6 +231,24 @@ func TestApplyCapabilityOverrides(t *testing.T) {
 	}
 	if caps.Vision || caps.JSONSchema || !caps.Reasoning {
 		t.Fatalf("unexpected overridden capabilities: %+v", caps)
+	}
+}
+
+func TestClaudeMessagesDefaultsModelDBServiceIDToAnthropic(t *testing.T) {
+	provider := providerConfig{Name: "claude", Type: "claude_messages"}
+	tags := providerEndpointTags(provider)
+	if tags[tagModelDBServiceID] != "anthropic" {
+		t.Fatalf("unexpected tags: %+v", tags)
+	}
+	cfg := config{
+		Providers: []providerConfig{provider},
+		Routes: []routeConfig{{
+			Provider:    "claude",
+			NativeModel: "claude-test",
+		}},
+	}
+	if !configUsesModelDB(cfg) {
+		t.Fatalf("expected Claude provider to enable modeldb pricing by default")
 	}
 }
 

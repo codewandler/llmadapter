@@ -7,7 +7,7 @@ Current implemented surface:
 - Core packages: `unified`, `adapt`, `pipeline`, `transport`, `router`, `gateway`.
 - Utility packages: `pricing` for modeldb-backed usage cost enrichment and `modelmeta` for modeldb-backed endpoint metadata mapping.
 - Endpoint codecs: OpenAI-compatible `/v1/chat/completions`, OpenAI-compatible `/v1/responses`, Anthropic-compatible `/v1/messages`.
-- Providers: Anthropic Messages, OpenAI Chat Completions, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
+- Providers: Anthropic Messages, Claude Code-compatible Anthropic Messages, OpenAI Chat Completions, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
 - Live e2e smoke tests for text streaming, tool calls, tool-result continuation, and gateway routing.
 
 ## Quick Start
@@ -32,10 +32,12 @@ Live tests skip when credentials are missing. Supported credential env vars:
 - `OPENAI_API_KEY` or `OPENAI_KEY`
 - `OPENROUTER_API_KEY` or `OPENROUTER_KEY`
 - `MINIMAX_API_KEY` or `MINIMAX_KEY`
+- `CLAUDE_ACCESS_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, or local Claude Code OAuth credentials in `~/.claude/.credentials.json`; set `CLAUDE_CONFIG_DIR` to override the local Claude config directory.
 
 Provider model override env vars:
 
 - `ANTHROPIC_MODEL`
+- `CLAUDE_MODEL`
 - `OPENAI_MODEL`
 - `OPENROUTER_MODEL`
 - `OPENROUTER_RESPONSES_MODEL`
@@ -60,11 +62,13 @@ Configuration:
 - `modeldb.aliases` can bind local intent names to explicit service/wire-model pairs; route `modeldb_model` resolves a catalog alias/name into a fixed native model for that route.
 - Provider `capabilities` can override default endpoint metadata for a configured model, for example to disable `vision` or `json_schema` on a model that does not support it.
 - Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route.
+- `claude_messages` defaults `modeldb_service_id` to `anthropic` because it invokes Anthropic Claude models through Claude Code-compatible auth.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
 
 Example provider endpoint types:
 
 - `anthropic`
+- `claude_messages`
 - `openai_chat`
 - `openrouter_chat`
 - `openrouter_responses`
@@ -108,6 +112,11 @@ Example config:
       "name": "anthropic",
       "type": "anthropic",
       "api_key_env": "ANTHROPIC_API_KEY",
+      "model": "claude-haiku-4-5-20251001"
+    },
+    {
+      "name": "claude",
+      "type": "claude_messages",
       "model": "claude-haiku-4-5-20251001"
     }
   ],
@@ -162,6 +171,10 @@ The `modelmeta` package maps modeldb offering exposures into route capabilities 
 
 The `pricing` package can enrich `unified.UsageEvent` values with `CostItems` using `modeldb` offering pricing for an explicit service/model pair. Pricing enrichment is an optional event processor and is not hardcoded into provider codecs. The gateway wires this processor only for configured routes with explicit `modeldb_service_id` and fixed model metadata.
 
+The `claude_messages` provider type is an Anthropic Messages-compatible endpoint variant for Claude Code-style access. It uses bearer/OAuth auth instead of `x-api-key`, adds Claude CLI compatibility headers and `beta=true`, reads local Claude OAuth credentials when no bearer token env var is configured, and applies a minimal Claude Code request preflight.
+
+The default HTTP byte-stream transport advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression. Custom HTTP clients can preserve that behavior by starting from `transport.CloneDefaultHTTPClient()`.
+
 See `DESIGN.md` for the target architecture and `PLAN.md` for current status, known gaps, and next implementation phases.
 
 ## Known Limitations
@@ -170,4 +183,5 @@ See `DESIGN.md` for the target architecture and `PLAN.md` for current status, kn
 - Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
 - OpenRouter extension passthrough preserves raw JSON controls but does not yet validate provider-specific extension schemas.
 - Modeldb-backed metadata and pricing only work for configured fixed-model routes; dynamic per-request model lookup and catalog overlays are still planned.
+- Claude Code request preflight currently uses string system text; Anthropic system block `cache_control` support needs a later wire-model change.
 - Provider and endpoint codecs cover smoke-tested text, tools, structured output, and basic image inputs; they are not full conformance implementations for every provider field.

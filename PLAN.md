@@ -59,6 +59,7 @@ Model metadata slice: `modelmeta` maps modeldb offering exposures into route cap
 Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved providers, routes, capabilities, limits, modeldb metadata, and pricing availability without constructing provider clients
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
+Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, and Anthropic modeldb service identity
 ```
 
 Verified:
@@ -128,6 +129,7 @@ LLMADAPTER_UPSTREAM_MODEL sets the default native model override when no config 
 provider config supports api_key or api_key_env
 provider config supports base_url, model, priority, and capability overrides
 provider config supports modeldb_service_id for pricing/catalog service identity
+provider type claude_messages defaults modeldb_service_id to anthropic
 modeldb config supports catalog_path, overlay_paths, and aliases
 route config supports source_api, model, provider, provider_api, modeldb_model, native_model, modeldb_wire_model_id, and weight
 health_cooldown configures the in-memory provider endpoint/model failure deprioritization window
@@ -139,6 +141,9 @@ Anthropic path coverage:
 ```text
 unified.Request -> Anthropic MessageRequest
 HTTP byte-stream request construction
+default HTTP transport supports gzip, deflate, br, and zstd response decompression
+optional bearer/OAuth auth instead of x-api-key for Claude Code-compatible access
+Claude Code-compatible headers, beta=true query behavior, local OAuth token refresh, and request preflight metadata
 raw SSE event block parsing
 Anthropic wire event decoding
 Anthropic wire event -> unified.Event mapping
@@ -186,6 +191,7 @@ fixed-model gateway routes can narrow endpoint capabilities and attach token lim
 gateway config inspection exposes the resolved metadata path for debugging route/API/modeldb configuration
 gateway modeldb loading can use built-in catalog data, an explicit JSON catalog path, and local JSON overlays
 route modeldb_model resolution can turn catalog/local aliases into explicit native models before metadata/pricing enrichment
+claude_messages can be routed as an Anthropic Messages-compatible endpoint while preserving Anthropic modeldb pricing/capability metadata
 ```
 
 Live e2e defaults:
@@ -210,6 +216,8 @@ MINIMAX_MODEL overrides the default MiniMax smoke-test model
 default MiniMax smoke-test model: MiniMax-M2.7
 MINIMAX_MESSAGES_MODEL overrides the default MiniMax Messages smoke-test model
 default MiniMax Messages smoke-test model: MiniMax-M2.7
+CLAUDE_ACCESS_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, or local Claude Code OAuth credentials provide claude_messages credentials when that provider type is configured
+CLAUDE_MODEL overrides the default claude_messages smoke-test model
 ```
 
 Known follow-up gaps:
@@ -240,7 +248,7 @@ modeldb is integrated only for fixed-route metadata/pricing enrichment; provider
 usage now carries structured token and cost item fields as the canonical accounting surface; modeldb-backed pricing enrichment is wired for configured fixed-model gateway routes but not dynamic per-request models
 prompt caching is only decoded from provider usage counters; canonical request-side cache hints and provider-specific cache controls are not modeled yet
 stateful conversations are intentionally absent from llmadapter core; any conversation/session layer must wrap unified.Client instead of mutating gateway/router state
-Claude Code/CLI OAuth compatibility is not implemented; current Anthropic support only covers API-key style Messages access
+Claude Code/CLI OAuth compatibility has a first Anthropic Messages-compatible slice; request-side system block cache_control and live Claude OAuth e2e coverage are still pending
 ```
 
 Implementation assessment:
@@ -250,7 +258,7 @@ Foundation is solid for a vertical-slice adapter: canonical request/event model,
 Main intentional shortcuts are hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
 Important remaining test gaps: invalid credentials/models, probabilistic load balancing, parallel tool calls, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
-Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing stateful conversations, provider registry auto-detection, Claude OAuth compatibility, and a broader integration matrix.
+Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing stateful conversations, provider registry auto-detection, full Claude Code cache-control parity, and a broader integration matrix.
 ```
 
 Next planned phase:
@@ -259,7 +267,7 @@ Next planned phase:
 Priority: the modeldb, Claude compatibility, caching, usage/pricing, conversation, and CLI tracks below are the highest-priority work items for the next implementation rounds.
 Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, and explicit route alias resolution are in place; next add dynamic per-request pricing only after model resolution is explicit.
 Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, and fixed-route gateway pricing wiring are in place.
-Claude compatibility: add a Claude Code/CLI OAuth auth mode as an Anthropic Messages-compatible provider endpoint under provider name "claude".
+Claude compatibility: first Claude Code/CLI OAuth auth mode is in place as `claude_messages`; next add live e2e coverage and request-side system block cache_control support.
 Conversation layer: add an optional package above unified.Client for stateful sessions, replay/native continuation, cache policy, and commit-safe history, keeping gateway/router stateless.
 CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
@@ -376,31 +384,32 @@ Provider endpoint shape:
 - modeldb ServiceID: anthropic, because the model catalog/offering identity is still Anthropic Claude models
 - capabilities: derived from Anthropic Messages exposure plus Claude OAuth compatibility tests
 
-Required implementation pieces:
+Implementation pieces:
 1. Add an Anthropic auth abstraction to providers/anthropic/messages:
-   - API key auth writes x-api-key
-   - OAuth auth writes Authorization: Bearer <access token>
-   - TokenProvider and TokenStore interfaces for refreshable OAuth tokens
+   - API key auth writes x-api-key (implemented)
+   - OAuth auth writes Authorization: Bearer <access token> (implemented)
+   - TokenProvider and TokenStore interfaces for refreshable OAuth tokens (implemented)
 2. Add local Claude credential support:
-   - respect CLAUDE_CONFIG_DIR when set
-   - otherwise read ~/.claude/.credentials.json
-   - preserve unknown JSON fields on token refresh
-   - refresh through Anthropic/Claude OAuth token endpoint when expired
+   - respect CLAUDE_CONFIG_DIR when set (implemented)
+   - otherwise read ~/.claude/.credentials.json (implemented)
+   - preserve unknown JSON fields on token refresh (implemented)
+   - refresh through Anthropic/Claude OAuth token endpoint when expired (implemented)
 3. Add Claude compatibility headers and query behavior:
    - Anthropic-Version remains required
    - Anthropic-Beta must include Claude/OAuth/interleaved-thinking/context-management/prompt-caching/effort betas
    - add Claude CLI-style User-Agent, X-App, X-Stainless-* headers, direct browser access header, Accept-Encoding, and beta=true query parameter
+   (implemented)
 4. Add Claude request transforms:
-   - prepend Claude billing/system preflight system blocks
-   - set metadata user_id derived from ~/.claude.json device/account/session data when available
-   - optionally add cache_control to the last system block with default TTL
-   - coerce thinking temperature to an Anthropic-valid value when extended thinking is enabled
-5. Add gateway config provider type "claude_messages".
+   - prepend Claude billing/system preflight system text (implemented)
+   - set metadata user_id derived from ~/.claude.json device/account/session data when available (implemented)
+   - optionally add cache_control to the last system block with default TTL (pending; needs non-string system block representation)
+   - coerce thinking temperature to an Anthropic-valid value when extended thinking is enabled (pending)
+5. Add gateway config provider type "claude_messages". (implemented)
 6. Add e2e tests gated by TEST_INTEGRATION and local Claude credentials:
-   - text stream
+   - text stream (implemented)
    - thinking stream
    - prompt cache write/read behavior
-   - tool use/tool result continuation if Claude OAuth account supports it
+   - tool use/tool result continuation if Claude OAuth account supports it (implemented as regular tool smoke entries)
 
 Safety rule: Claude OAuth compatibility stays an Anthropic provider option/sub-provider, not a new canonical API family. Only split a new API kind if the wire request/stream format diverges from Anthropic Messages.
 ```

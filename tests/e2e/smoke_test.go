@@ -19,13 +19,14 @@ import (
 )
 
 type smokeProvider struct {
-	name            string
-	apiKeyEnv       []string
-	modelEnv        string
-	model           string
-	tools           bool
-	maxOutputTokens int
-	newClient       func(apiKey string) (unified.Client, error)
+	name             string
+	apiKeyEnv        []string
+	localClaudeOAuth bool
+	modelEnv         string
+	model            string
+	tools            bool
+	maxOutputTokens  int
+	newClient        func(apiKey string) (unified.Client, error)
 }
 
 func TestSmokeTextStream(t *testing.T) {
@@ -243,6 +244,15 @@ func smokeProviders() []smokeProvider {
 			},
 		},
 		{
+			name:             "claude_messages",
+			apiKeyEnv:        []string{"CLAUDE_ACCESS_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"},
+			localClaudeOAuth: true,
+			modelEnv:         "CLAUDE_MODEL",
+			model:            "claude-haiku-4-5-20251001",
+			tools:            true,
+			newClient:        newClaudeSmokeClient,
+		},
+		{
 			name:      "openai_chat",
 			apiKeyEnv: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
 			modelEnv:  "OPENAI_MODEL",
@@ -316,7 +326,7 @@ func (p smokeProvider) maxTokens(defaultValue int) int {
 func newSmokeClient(t *testing.T, provider smokeProvider) (unified.Client, string) {
 	t.Helper()
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
-	if apiKey == "" {
+	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) {
 		t.Skipf("set one of %s to run %s e2e smoke test", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
 	model := provider.model
@@ -328,6 +338,17 @@ func newSmokeClient(t *testing.T, provider smokeProvider) (unified.Client, strin
 		t.Fatalf("new client: %v", err)
 	}
 	return client, model
+}
+
+func newClaudeSmokeClient(token string) (unified.Client, error) {
+	if token == "" {
+		return anthropic.NewClient(anthropic.WithClaudeCode())
+	}
+	return anthropic.NewClient(
+		anthropic.WithBearerTokenProvider(anthropic.NewStaticTokenProvider(anthropic.NewStaticBearerToken(token))),
+		anthropic.WithClaudeHeaders(),
+		anthropic.WithClaudeCodePreflight(),
+	)
 }
 
 func firstSetEnv(keys ...string) string {

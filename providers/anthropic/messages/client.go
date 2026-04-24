@@ -36,7 +36,9 @@ func (c *NativeClient) Request(ctx context.Context, req MessageRequest) (<-chan 
 	url := strings.TrimRight(c.baseURL, "/") + "/v1/messages"
 	headers := c.headers.Clone()
 	headers.Set("Content-Type", "application/json")
-	headers.Set("x-api-key", c.apiKey)
+	if c.apiKey != "" {
+		headers.Set("x-api-key", c.apiKey)
+	}
 	headers.Set("anthropic-version", c.version)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
@@ -52,7 +54,7 @@ func (c *NativeClient) Request(ctx context.Context, req MessageRequest) (<-chan 
 
 	stream, err := c.transport.Open(ctx, &transport.Request{
 		Method: http.MethodPost,
-		URL:    url,
+		URL:    httpReq.URL.String(),
 		Header: httpReq.Header.Clone(),
 		Body:   bytes.NewReader(body),
 	})

@@ -160,10 +160,21 @@ func providerEndpointConfig(provider providerConfig) (router.ProviderEndpoint, e
 }
 
 func providerEndpointTags(provider providerConfig) map[string]string {
-	if provider.ModelDBServiceID == "" {
+	serviceID := providerModelDBServiceID(provider)
+	if serviceID == "" {
 		return nil
 	}
-	return map[string]string{tagModelDBServiceID: provider.ModelDBServiceID}
+	return map[string]string{tagModelDBServiceID: serviceID}
+}
+
+func providerModelDBServiceID(provider providerConfig) string {
+	if provider.ModelDBServiceID != "" {
+		return provider.ModelDBServiceID
+	}
+	if provider.Type == "claude_messages" {
+		return "anthropic"
+	}
+	return ""
 }
 
 func modelDBCatalog(cfg config) (modeldb.Catalog, bool, error) {
@@ -187,7 +198,7 @@ func configUsesModelDB(cfg config) bool {
 		}
 		if pricingWireModel(route) != "" {
 			for _, provider := range cfg.Providers {
-				if providerMatchesRoute(provider, route) && provider.ModelDBServiceID != "" {
+				if providerMatchesRoute(provider, route) && providerModelDBServiceID(provider) != "" {
 					return true
 				}
 			}
@@ -286,6 +297,8 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 	switch providerType {
 	case "anthropic":
 		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true}, nil
+	case "claude_messages":
+		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true}, nil
 	case "openai_chat":
 		return adapt.ApiOpenAIChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
 	case "openrouter_chat":
@@ -336,6 +349,25 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 				req.Unified.Stream = true
 				return nil
 			})),
+		}
+		if provider.BaseURL != "" {
+			opts = append(opts, anthropic.WithBaseURL(provider.BaseURL))
+		}
+		return anthropic.NewClient(opts...)
+	case "claude_messages":
+		apiKey := providerAPIKey(provider, "CLAUDE_ACCESS_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
+		opts := []anthropic.Option{
+			anthropic.WithClaudeHeaders(),
+			anthropic.WithClaudeCodePreflight(),
+			anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
+				req.Unified.Stream = true
+				return nil
+			})),
+		}
+		if apiKey != "" {
+			opts = append(opts, anthropic.WithBearerTokenProvider(anthropic.NewStaticTokenProvider(anthropic.NewStaticBearerToken(apiKey))))
+		} else {
+			opts = append(opts, anthropic.WithLocalClaudeOAuth())
 		}
 		if provider.BaseURL != "" {
 			opts = append(opts, anthropic.WithBaseURL(provider.BaseURL))

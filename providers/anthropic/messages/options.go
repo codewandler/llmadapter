@@ -21,10 +21,11 @@ type Option interface {
 }
 
 type Config struct {
-	APIKey  string
-	BaseURL string
-	Version string
-	Betas   []string
+	APIKey       string
+	BaseURL      string
+	Version      string
+	Betas        []string
+	NoAPIKeyAuth bool
 
 	Headers   http.Header
 	HeaderFns []HeaderFunc
@@ -47,7 +48,7 @@ func NewClient(opts ...Option) (unified.Client, error) {
 			return nil, err
 		}
 	}
-	if cfg.APIKey == "" {
+	if cfg.APIKey == "" && !cfg.NoAPIKeyAuth {
 		return nil, fmt.Errorf("anthropic API key is required")
 	}
 	if cfg.Transport == nil {
@@ -82,6 +83,7 @@ func (f optionFunc) applyAnthropic(c *Config) error { return f(c) }
 func WithAPIKey(key string) Option {
 	return optionFunc(func(c *Config) error {
 		c.APIKey = key
+		c.NoAPIKeyAuth = false
 		return nil
 	})
 }

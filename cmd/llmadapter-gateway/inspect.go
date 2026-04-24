@@ -110,7 +110,7 @@ func inspectConfigWithCatalog(cfg config, catalog modeldb.Catalog, modelDBEnable
 			APIKind:          endpoint.APIKind,
 			Family:           endpoint.Family,
 			Model:            provider.Model,
-			ModelDBServiceID: provider.ModelDBServiceID,
+			ModelDBServiceID: providerModelDBServiceID(provider),
 			Priority:         provider.Priority,
 			Capabilities:     inspectCapabilities(endpoint.Capabilities),
 			Credential: credentialInspection{

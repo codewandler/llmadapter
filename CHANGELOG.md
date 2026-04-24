@@ -10,6 +10,15 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-04-24
+
+### Added
+
+- Added `claude_messages` as a Claude Code-compatible Anthropic Messages provider endpoint with bearer/local OAuth auth, Claude CLI headers, `beta=true` request shaping, and request preflight metadata.
+- Claude Code-compatible providers now default `modeldb_service_id` to `anthropic` so fixed-route pricing and capability metadata continue to use Anthropic Claude offerings.
+- Added `claude_messages` to the shared live text/tool/gateway smoke matrices, gated by `CLAUDE_ACCESS_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, or local Claude Code OAuth credentials.
+- Added a default decompressing HTTP transport that advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression.
+
 ## [0.26.0] - 2026-04-24
 
 ### Added
@@ -257,7 +266,11 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/codewandler/llmadapter/compare/v0.26.0...v0.27.0
+[0.26.0]: https://github.com/codewandler/llmadapter/compare/v0.25.0...v0.26.0
+[0.25.0]: https://github.com/codewandler/llmadapter/compare/v0.24.0...v0.25.0
+[0.24.0]: https://github.com/codewandler/llmadapter/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/codewandler/llmadapter/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/codewandler/llmadapter/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/codewandler/llmadapter/compare/v0.20.0...v0.21.0
