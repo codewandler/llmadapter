@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-04-24
+
 ### Added
 
 - **Gateway provider fallback** - Gateway handlers now try ordered route candidates and fall back to lower-ranked providers when the selected provider fails before response bytes are written.
@@ -187,7 +189,8 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/codewandler/llmadapter/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/codewandler/llmadapter/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/codewandler/llmadapter/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/codewandler/llmadapter/compare/v0.13.0...v0.14.0
