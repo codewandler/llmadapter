@@ -5,7 +5,7 @@
 Current implemented surface:
 
 - Core packages: `unified`, `adapt`, `pipeline`, `transport`, `router`, `gateway`.
-- Endpoint codecs: OpenAI-compatible `/v1/chat/completions`, Anthropic-compatible `/v1/messages`.
+- Endpoint codecs: OpenAI-compatible `/v1/chat/completions`, OpenAI-compatible `/v1/responses`, Anthropic-compatible `/v1/messages`.
 - Providers: Anthropic Messages, OpenAI Chat Completions, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
 - Live e2e smoke tests for text streaming, tool calls, tool-result continuation, and gateway routing.
 
@@ -51,7 +51,7 @@ Configuration:
 - `LLMADAPTER_CONFIG` points to a JSON config file.
 - `LLMADAPTER_ADDR` sets the listen address when no config file is used.
 - Routes select a provider endpoint with `provider` and optional `provider_api`.
-- The gateway exposes `/v1/chat/completions` and `/v1/messages`.
+- The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
 
 Example provider endpoint types:
 

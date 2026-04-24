@@ -73,6 +73,11 @@ func defaultConfigFromEnv() config {
 				Provider:    "anthropic",
 				NativeModel: os.Getenv("LLMADAPTER_UPSTREAM_MODEL"),
 			},
+			{
+				SourceAPI:   adapt.ApiOpenAIResponses,
+				Provider:    "anthropic",
+				NativeModel: os.Getenv("LLMADAPTER_UPSTREAM_MODEL"),
+			},
 		},
 	}
 	applyConfigDefaults(&cfg)

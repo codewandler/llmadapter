@@ -15,6 +15,9 @@ can be created to match these entries as the project starts publishing releases.
 - **Anthropic Messages endpoint** - Added a downstream `/v1/messages` gateway codec for Anthropic-compatible requests and responses.
 - **Anthropic Messages gateway route** - Wired `/v1/messages` into the gateway command and default Anthropic route set.
 - **Anthropic Messages gateway smokes** - Added live gateway smoke coverage for Anthropic, OpenRouter Messages, and MiniMax Messages upstreams.
+- **OpenAI Responses endpoint** - Added a downstream `/v1/responses` gateway codec for text and function-tool requests.
+- **OpenAI Responses gateway route** - Wired `/v1/responses` into the gateway command and default route set.
+- **OpenAI Responses gateway smokes** - Added live gateway smoke coverage against OpenRouter Responses.
 
 ## [0.10.1] - 2026-04-24
 

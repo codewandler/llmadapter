@@ -11,6 +11,7 @@ import (
 	"github.com/codewandler/llmadapter/adapt"
 	anthropicendpoint "github.com/codewandler/llmadapter/endpoints/anthropicmessages"
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
+	responsesendpoint "github.com/codewandler/llmadapter/endpoints/openairesponses"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
@@ -43,6 +44,10 @@ func main() {
 	})
 	mux.Handle("/v1/messages", gateway.Handler{
 		Endpoint: anthropicendpoint.Codec{},
+		Router:   r,
+	})
+	mux.Handle("/v1/responses", gateway.Handler{
+		Endpoint: responsesendpoint.Codec{},
 		Router:   r,
 	})
 
