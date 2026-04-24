@@ -11,6 +11,7 @@ import (
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
+	codex "github.com/codewandler/llmadapter/providers/openai/codex"
 	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
@@ -71,6 +72,15 @@ var descriptors = []Descriptor{
 		DefaultAPIKeyEnvs: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
 		DefaultModelEnv:   "OPENAI_RESPONSES_MODEL",
 		DefaultModel:      "gpt-4.1-mini",
+	},
+	{
+		Type:              "codex_responses",
+		APIKind:           adapt.ApiCodexResponses,
+		Family:            adapt.FamilyOpenAIResponses,
+		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true},
+		DefaultAPIKeyEnvs: []string{codex.EnvAccessToken, codex.EnvOAuthToken},
+		DefaultModelEnv:   codex.EnvModel,
+		DefaultModel:      codex.DefaultModel,
 	},
 	{
 		Type:              "openrouter_chat",
@@ -192,6 +202,15 @@ func NewClient(cfg ClientConfig) (unified.Client, error) {
 			opts = append(opts, openairesponses.WithBaseURL(cfg.BaseURL))
 		}
 		return openairesponses.NewClient(opts...)
+	case "codex_responses":
+		opts := []codex.Option{}
+		if cfg.APIKey != "" {
+			opts = append(opts, codex.WithAccessToken(cfg.APIKey))
+		}
+		if cfg.BaseURL != "" {
+			opts = append(opts, codex.WithBaseURL(cfg.BaseURL))
+		}
+		return codex.NewClient(opts...)
 	case "openrouter_chat":
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("provider type %q requires api key", providerType)

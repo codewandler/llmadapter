@@ -18,6 +18,7 @@ import (
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
+	codex "github.com/codewandler/llmadapter/providers/openai/codex"
 	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
@@ -198,6 +199,9 @@ func providerModelDBServiceID(provider providerConfig) string {
 	if provider.Type == "claude_messages" {
 		return "anthropic"
 	}
+	if provider.Type == "codex_responses" {
+		return "codex"
+	}
 	return ""
 }
 
@@ -327,6 +331,8 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 		return adapt.ApiOpenAIChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
 	case "openai_responses":
 		return adapt.ApiOpenAIResponses, adapt.FamilyOpenAIResponses, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
+	case "codex_responses":
+		return adapt.ApiCodexResponses, adapt.FamilyOpenAIResponses, router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true}, nil
 	case "openrouter_chat":
 		return adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
 	case "openrouter_responses":
@@ -420,6 +426,16 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 			opts = append(opts, openairesponses.WithBaseURL(provider.BaseURL))
 		}
 		return openairesponses.NewClient(opts...)
+	case "codex_responses":
+		apiKey := providerAPIKey(provider, codex.EnvAccessToken, codex.EnvOAuthToken)
+		opts := []codex.Option{}
+		if apiKey != "" {
+			opts = append(opts, codex.WithAccessToken(apiKey))
+		}
+		if provider.BaseURL != "" {
+			opts = append(opts, codex.WithBaseURL(provider.BaseURL))
+		}
+		return codex.NewClient(opts...)
 	case "openrouter_chat":
 		apiKey := providerAPIKey(provider, "OPENROUTER_API_KEY", "OPENROUTER_KEY")
 		if apiKey == "" {

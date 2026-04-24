@@ -38,6 +38,19 @@ func TestLoadAndValidate(t *testing.T) {
 	}
 }
 
+func TestProviderEndpointConfigCodexMetadata(t *testing.T) {
+	endpoint, err := ProviderEndpointConfig(ProviderConfig{Name: "codex", Type: "codex_responses"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if endpoint.APIKind != adapt.ApiCodexResponses || endpoint.Family != adapt.FamilyOpenAIResponses {
+		t.Fatalf("unexpected endpoint: %+v", endpoint)
+	}
+	if endpoint.Tags[TagModelDBServiceID] != "codex" {
+		t.Fatalf("unexpected tags: %+v", endpoint.Tags)
+	}
+}
+
 func TestBuildRouterResolvesModelDBAlias(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "catalog.json")
 	if err := modeldb.SaveJSON(path, testResolvableModelDBCatalog("openrouter", "openai/gpt-test", []string{"gpt-test"})); err != nil {

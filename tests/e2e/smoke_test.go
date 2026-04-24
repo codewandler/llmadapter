@@ -12,6 +12,7 @@ import (
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
+	codex "github.com/codewandler/llmadapter/providers/openai/codex"
 	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
@@ -23,6 +24,7 @@ type smokeProvider struct {
 	name                  string
 	apiKeyEnv             []string
 	localClaudeOAuth      bool
+	localCodexOAuth       bool
 	modelEnv              string
 	model                 string
 	tools                 bool
@@ -408,6 +410,15 @@ func smokeProviders() []smokeProvider {
 			},
 		},
 		{
+			name:            "codex_responses",
+			apiKeyEnv:       []string{codex.EnvAccessToken, codex.EnvOAuthToken},
+			localCodexOAuth: true,
+			modelEnv:        codex.EnvModel,
+			model:           codex.DefaultModel,
+			tools:           true,
+			newClient:       newCodexSmokeClient,
+		},
+		{
 			name:      "openrouter_chat",
 			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
 			modelEnv:  "OPENROUTER_MODEL",
@@ -488,7 +499,7 @@ func (p smokeProvider) maxTokens(defaultValue int) int {
 func newSmokeClient(t *testing.T, provider smokeProvider) (unified.Client, string) {
 	t.Helper()
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
-	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) {
+	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) && !(provider.localCodexOAuth && codex.LocalAvailable()) {
 		t.Skipf("set one of %s to run %s e2e smoke test", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
 	model := provider.model
@@ -500,6 +511,13 @@ func newSmokeClient(t *testing.T, provider smokeProvider) (unified.Client, strin
 		t.Fatalf("new client: %v", err)
 	}
 	return client, model
+}
+
+func newCodexSmokeClient(token string) (unified.Client, error) {
+	if token == "" {
+		return codex.NewClient()
+	}
+	return codex.NewClient(codex.WithAccessToken(token))
 }
 
 func newClaudeSmokeClient(token string) (unified.Client, error) {

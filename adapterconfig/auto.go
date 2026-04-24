@@ -6,12 +6,14 @@ import (
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/providerregistry"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	codex "github.com/codewandler/llmadapter/providers/openai/codex"
 	"github.com/codewandler/llmadapter/unified"
 )
 
 type AutoOptions struct {
 	EnableEnv         bool
 	EnableLocalClaude bool
+	EnableLocalCodex  bool
 	UseModelDB        bool
 	SourceAPI         adapt.ApiKind
 	Intents           []AutoIntent
@@ -38,9 +40,10 @@ type AutoProvider struct {
 }
 
 func AutoMuxClient(opts AutoOptions) (AutoResult, error) {
-	if !opts.EnableEnv && !opts.EnableLocalClaude {
+	if !opts.EnableEnv && !opts.EnableLocalClaude && !opts.EnableLocalCodex {
 		opts.EnableEnv = true
 		opts.EnableLocalClaude = true
+		opts.EnableLocalCodex = true
 	}
 	cfg := Config{}
 	var enabled []AutoProvider
@@ -82,6 +85,20 @@ func autoProvider(descriptor providerregistry.Descriptor, opts AutoOptions) (Pro
 			return autoProviderConfig(descriptor, "", model, opts), status, true
 		}
 		status.Reason = "missing Claude OAuth env/local credentials"
+		return ProviderConfig{}, status, false
+	}
+	if descriptor.Type == "codex_responses" {
+		if opts.EnableEnv {
+			if key, envName := firstEnvWithName(descriptor.DefaultAPIKeyEnvs...); key != "" {
+				status.Reason = "env:" + envName
+				return autoProviderConfig(descriptor, envName, model, opts), status, true
+			}
+		}
+		if opts.EnableLocalCodex && codex.LocalAvailable() {
+			status.Reason = "local_codex_oauth"
+			return autoProviderConfig(descriptor, "", model, opts), status, true
+		}
+		status.Reason = "missing Codex OAuth env/local credentials"
 		return ProviderConfig{}, status, false
 	}
 	if !opts.EnableEnv {
@@ -181,7 +198,7 @@ func bestProviderForAPI(cfg Config, sourceAPI adapt.ApiKind) (ProviderConfig, bo
 func preferredProviderTypes(sourceAPI adapt.ApiKind) []string {
 	switch sourceAPI {
 	case adapt.ApiOpenAIResponses:
-		return []string{"openai_responses", "openrouter_responses", "anthropic", "claude_messages", "openrouter_messages", "minimax_messages"}
+		return []string{"openai_responses", "openrouter_responses", "codex_responses", "anthropic", "claude_messages", "openrouter_messages", "minimax_messages"}
 	case adapt.ApiOpenAIChatCompletions:
 		return []string{"openai_chat", "openrouter_chat", "minimax_chat", "anthropic", "claude_messages"}
 	case adapt.ApiAnthropicMessages:
@@ -200,6 +217,8 @@ func autoModelDBServiceID(providerType string, enabled bool) string {
 		return "anthropic"
 	case "openai_chat", "openai_responses":
 		return "openai"
+	case "codex_responses":
+		return "codex"
 	case "openrouter_chat", "openrouter_responses", "openrouter_messages":
 		return "openrouter"
 	case "minimax_chat", "minimax_messages":

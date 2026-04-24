@@ -129,6 +129,7 @@ const (
     ApiOpenRouterAnthropicMessages ApiKind = "openrouter.anthropic_messages"
     ApiMiniMaxChatCompletions      ApiKind = "minimax.chat_completions"
     ApiMiniMaxAnthropicMessages    ApiKind = "minimax.anthropic_messages"
+    ApiCodexResponses              ApiKind = "codex.responses"
     ApiBedrockConverse             ApiKind = "bedrock.converse"
     ApiMistralChat                 ApiKind = "mistral.chat"
     ApiCohereChatV2                ApiKind = "cohere.chat_v2"

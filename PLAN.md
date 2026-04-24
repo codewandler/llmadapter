@@ -66,6 +66,7 @@ Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux clie
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
 Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, and Anthropic modeldb service identity
+Codex compatibility slice: `codex_responses` registers a Codex/ChatGPT OAuth-backed Responses endpoint with API kind `codex.responses`, OpenAI Responses family routing, Codex-specific URL/header/body handling, local auth detection, and Codex modeldb service identity
 Prompt cache slice: canonical TextPart cache_control hints encode through Anthropic-family system/content blocks and live prompt-cache smoke verifies provider-reported cache write/read usage for Anthropic and Claude Code-compatible access
 OpenAI Responses provider slice: native OpenAI Responses provider endpoint is registered and live-verified for text, tools, gateway routing, and previous_response_id continuation
 ```
@@ -140,6 +141,7 @@ provider config supports api_key or api_key_env
 provider config supports base_url, model, priority, and capability overrides
 provider config supports modeldb_service_id for pricing/catalog service identity
 provider type claude_messages defaults modeldb_service_id to anthropic
+provider type codex_responses defaults modeldb_service_id to codex
 modeldb config supports catalog_path, overlay_paths, and aliases
 route config supports source_api, model, provider, provider_api, modeldb_model, native_model, modeldb_wire_model_id, and weight
 health_cooldown configures the in-memory provider endpoint/model failure deprioritization window
@@ -230,6 +232,9 @@ MINIMAX_MESSAGES_MODEL overrides the default MiniMax Messages smoke-test model
 default MiniMax Messages smoke-test model: MiniMax-M2.7
 CLAUDE_ACCESS_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, or local Claude Code OAuth credentials provide claude_messages credentials when that provider type is configured
 CLAUDE_MODEL overrides the default claude_messages smoke-test model
+CODEX_ACCESS_TOKEN, CODEX_CODE_OAUTH_TOKEN, or local Codex OAuth credentials provide codex_responses credentials when that provider type is configured
+CODEX_AUTH_PATH overrides the Codex local auth file path, otherwise ~/.codex/auth.json is used
+CODEX_MODEL overrides the default codex_responses smoke-test model
 ```
 
 Known follow-up gaps:
@@ -286,6 +291,7 @@ CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, reso
 Catalog CLI slice: `llmadapter models --catalog` inspects the built-in or configured modeldb catalog with filters for service, API type, parameter, identity, and query text.
 Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; gateway serving now uses the same adapterconfig router construction in the Cobra CLI path.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
+Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, and shared smoke entries are in place; next harden live tool/stream semantics and any Codex-specific reasoning/caching extensions after successful live verification.
 ```
 
 Prototype parity notes from ../agentapis and ../llmproviders:
@@ -455,6 +461,25 @@ Implementation pieces:
    - tool use/tool result continuation if Claude OAuth account supports it (implemented as regular tool smoke entries)
 
 Safety rule: Claude OAuth compatibility stays an Anthropic provider option/sub-provider, not a new canonical API family. Only split a new API kind if the wire request/stream format diverges from Anthropic Messages.
+```
+
+Codex compatibility:
+
+```text
+Shape:
+- provider endpoint type: codex_responses
+- provider/service identity: codex
+- exact API kind: codex.responses
+- API family: openai.responses
+
+Implemented behavior:
+- auth supports CODEX_ACCESS_TOKEN, CODEX_CODE_OAUTH_TOKEN, or local ~/.codex/auth.json via CODEX_AUTH_PATH
+- request handling preserves the Responses compatibility surface while applying Codex-specific backend URL, auth headers, installation/session headers, default instructions, store=false, and unsupported body field removal
+- modeldb service identity is codex so catalog metadata/pricing stays separate from normal OpenAI platform offerings
+
+Open hardening:
+- live e2e should validate text, tools, and gateway smokes against a real Codex account
+- Codex-specific reasoning, prompt-cache, and session headers should remain namespaced extensions when they need caller control
 ```
 
 Caching, usage, pricing, and agentsdk conversation integration plan:

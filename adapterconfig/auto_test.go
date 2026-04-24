@@ -62,6 +62,50 @@ func TestAutoMuxClientDetectsLocalClaudeOAuth(t *testing.T) {
 	}
 }
 
+func TestAutoMuxClientDetectsCodexEnv(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("CODEX_ACCESS_TOKEN", "test-codex-token")
+
+	result, err := AutoMuxClient(AutoOptions{EnableEnv: true, UseModelDB: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !autoEnabled(result.Enabled, "codex_responses") {
+		t.Fatalf("expected codex_responses enabled: %+v", result.Enabled)
+	}
+	route, ok := autoRoute(result.Config, adapt.ApiOpenAIResponses)
+	if !ok {
+		t.Fatalf("expected Responses route: %+v", result.Config.Routes)
+	}
+	if route.Provider != "codex_responses" || route.ProviderAPI != adapt.ApiCodexResponses {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+	provider, ok := findProvider(result.Config, "codex_responses")
+	if !ok {
+		t.Fatalf("missing provider config: %+v", result.Config.Providers)
+	}
+	if provider.APIKeyEnv != "CODEX_ACCESS_TOKEN" || provider.ModelDBServiceID != "codex" {
+		t.Fatalf("unexpected provider config: %+v", provider)
+	}
+}
+
+func TestAutoMuxClientDetectsLocalCodexOAuth(t *testing.T) {
+	clearAutoEnv(t)
+	path := filepath.Join(t.TempDir(), "auth.json")
+	t.Setenv("CODEX_AUTH_PATH", path)
+	if err := os.WriteFile(path, []byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"test-token"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := AutoMuxClient(AutoOptions{EnableEnv: false, EnableLocalCodex: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !autoEnabled(result.Enabled, "codex_responses") {
+		t.Fatalf("expected codex_responses enabled: %+v", result.Enabled)
+	}
+}
+
 func TestAutoMuxClientIntentsCreatePublicRoutes(t *testing.T) {
 	clearAutoEnv(t)
 	t.Setenv("OPENAI_API_KEY", "test-openai-key")
@@ -102,6 +146,10 @@ func clearAutoEnv(t *testing.T) {
 		"CLAUDE_CODE_OAUTH_TOKEN",
 		"CLAUDE_CONFIG_DIR",
 		"CLAUDE_MODEL",
+		"CODEX_ACCESS_TOKEN",
+		"CODEX_AUTH_PATH",
+		"CODEX_CODE_OAUTH_TOKEN",
+		"CODEX_MODEL",
 		"MINIMAX_API_KEY",
 		"MINIMAX_KEY",
 		"MINIMAX_MODEL",
@@ -119,6 +167,7 @@ func clearAutoEnv(t *testing.T) {
 		t.Setenv(key, "")
 	}
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	t.Setenv("CODEX_AUTH_PATH", filepath.Join(t.TempDir(), "missing-auth.json"))
 }
 
 func autoEnabled(providers []AutoProvider, providerType string) bool {

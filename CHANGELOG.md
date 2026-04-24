@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-04-24
+
+### Added
+
+- Added `codex_responses` provider support for Codex/ChatGPT OAuth-backed Responses requests through API kind `codex.responses`.
+- Added Codex env/local credential auto-detection, Codex modeldb service identity, and shared live smoke matrix entries.
+
 ## [0.40.0] - 2026-04-24
 
 ### Added

@@ -7,7 +7,7 @@ Current implemented surface:
 - Core packages: `unified`, `adapt`, `pipeline`, `transport`, `router`, `gateway`.
 - Utility packages: `pricing` for modeldb-backed usage cost enrichment and `modelmeta` for modeldb-backed endpoint metadata mapping.
 - Endpoint codecs: OpenAI-compatible `/v1/chat/completions`, OpenAI-compatible `/v1/responses`, Anthropic-compatible `/v1/messages`.
-- Providers: Anthropic Messages, Claude Code-compatible Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
+- Providers: Anthropic Messages, Claude Code-compatible Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, Codex Responses, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
 - Live e2e smoke tests for text streaming, tool calls, tool-result continuation, prompt caching, and gateway routing.
 
 ## Quick Start
@@ -48,11 +48,13 @@ Live tests skip when credentials are missing. Supported credential env vars:
 - `OPENROUTER_API_KEY` or `OPENROUTER_KEY`
 - `MINIMAX_API_KEY` or `MINIMAX_KEY`
 - `CLAUDE_ACCESS_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, or local Claude Code OAuth credentials in `~/.claude/.credentials.json`; set `CLAUDE_CONFIG_DIR` to override the local Claude config directory.
+- `CODEX_ACCESS_TOKEN`, `CODEX_CODE_OAUTH_TOKEN`, or local Codex OAuth credentials in `~/.codex/auth.json`; set `CODEX_AUTH_PATH` to override the local auth file.
 
 Provider model override env vars:
 
 - `ANTHROPIC_MODEL`
 - `CLAUDE_MODEL`
+- `CODEX_MODEL`
 - `OPENAI_MODEL`
 - `OPENAI_RESPONSES_MODEL`
 - `OPENROUTER_MODEL`
@@ -109,6 +111,7 @@ Example provider endpoint types:
 - `claude_messages`
 - `openai_chat`
 - `openai_responses`
+- `codex_responses`
 - `openrouter_chat`
 - `openrouter_responses`
 - `openrouter_messages`
@@ -219,6 +222,8 @@ Canonical `unified.TextPart` values can carry `CacheControl` hints. Anthropic-fa
 The `modelmeta` package maps modeldb offering exposures into route capabilities and limits. The gateway uses it only for configured fixed-model routes; modeldb can narrow advertised capabilities and add token limits, but it never creates hidden providers, clients, or routes.
 
 The `pricing` package can enrich `unified.UsageEvent` values with `CostItems` using `modeldb` offering pricing for an explicit service/model pair. Pricing enrichment is an optional event processor and is not hardcoded into provider codecs. The gateway wires this processor only for configured routes with explicit `modeldb_service_id` and fixed model metadata.
+
+Codex is modeled as provider endpoint type `codex_responses` with API kind `codex.responses` and family `openai.responses`. It uses Codex/ChatGPT OAuth credentials and `https://chatgpt.com/backend-api/codex/responses`, not the normal OpenAI platform API URL. Its default modeldb service ID is `codex`.
 
 The `claude_messages` provider type is an Anthropic Messages-compatible endpoint variant for Claude Code-style access. It uses bearer/OAuth auth instead of `x-api-key`, adds Claude CLI compatibility headers and `beta=true`, reads local Claude OAuth credentials when no bearer token env var is configured, and applies Claude Code request preflight system blocks with cache control.
 

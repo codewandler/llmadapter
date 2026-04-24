@@ -79,6 +79,9 @@ func clearProviderStatusEnv(t *testing.T) {
 		"CLAUDE_ACCESS_TOKEN",
 		"CLAUDE_CODE_OAUTH_TOKEN",
 		"CLAUDE_CONFIG_DIR",
+		"CODEX_ACCESS_TOKEN",
+		"CODEX_CODE_OAUTH_TOKEN",
+		"CODEX_AUTH_PATH",
 		"MINIMAX_API_KEY",
 		"MINIMAX_KEY",
 		"OPENAI_API_KEY",
@@ -89,6 +92,7 @@ func clearProviderStatusEnv(t *testing.T) {
 		t.Setenv(key, "")
 	}
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	t.Setenv("CODEX_AUTH_PATH", filepath.Join(t.TempDir(), "missing-auth.json"))
 }
 
 func TestModelsCommandWithConfigAndQuery(t *testing.T) {

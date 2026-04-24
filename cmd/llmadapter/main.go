@@ -16,6 +16,7 @@ import (
 	"github.com/codewandler/llmadapter/gatewayserver"
 	"github.com/codewandler/llmadapter/muxclient"
 	"github.com/codewandler/llmadapter/providerregistry"
+	codex "github.com/codewandler/llmadapter/providers/openai/codex"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 	"github.com/codewandler/modeldb"
@@ -270,6 +271,7 @@ func newSmokeCommand() *cobra.Command {
 				result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
 					EnableEnv:         true,
 					EnableLocalClaude: true,
+					EnableLocalCodex:  true,
 					UseModelDB:        true,
 					SourceAPI:         adapt.ApiKind(sourceAPI),
 				})
@@ -458,6 +460,7 @@ func runProvidersAuto(w io.Writer, jsonOut bool) error {
 	result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
 		EnableEnv:         true,
 		EnableLocalClaude: true,
+		EnableLocalCodex:  true,
 		UseModelDB:        true,
 	})
 	if err != nil && len(result.Enabled) == 0 && len(result.Skipped) == 0 {
@@ -566,6 +569,12 @@ func credentialSource(provider adapterconfig.ProviderConfig) string {
 	if provider.Type == "claude_messages" {
 		return "local_claude_oauth_or_default_env"
 	}
+	if provider.Type == "codex_responses" {
+		if codex.LocalAvailable() {
+			return "local_codex_oauth:set"
+		}
+		return "local_codex_oauth:missing"
+	}
 	if len(descriptor.DefaultAPIKeyEnvs) != 0 {
 		return "default_env:missing"
 	}
@@ -579,6 +588,7 @@ func loadCLIConfig(path string, sourceAPI adapt.ApiKind) (adapterconfig.Config, 
 	result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
 		EnableEnv:         true,
 		EnableLocalClaude: true,
+		EnableLocalCodex:  true,
 		UseModelDB:        true,
 		SourceAPI:         sourceAPI,
 	})

@@ -181,6 +181,25 @@ func TestBuildProviderClaudeMessagesAuthSources(t *testing.T) {
 	}
 }
 
+func TestBuildProviderCodexAuthSources(t *testing.T) {
+	t.Setenv("CODEX_ACCESS_TOKEN", "token")
+	client, err := buildProvider(providerConfig{Name: "codex", Type: "codex_responses"})
+	if err != nil {
+		t.Fatalf("unexpected codex provider error: %v", err)
+	}
+	if client == nil {
+		t.Fatalf("expected client")
+	}
+
+	t.Setenv("CODEX_ACCESS_TOKEN", "")
+	t.Setenv("CODEX_CODE_OAUTH_TOKEN", "")
+	t.Setenv("CODEX_AUTH_PATH", filepath.Join(t.TempDir(), "missing-auth.json"))
+	_, err = buildProvider(providerConfig{Name: "codex", Type: "codex_responses"})
+	if err == nil {
+		t.Fatalf("expected missing local Codex credentials error")
+	}
+}
+
 func TestProviderEndpointMetadata(t *testing.T) {
 	tests := []struct {
 		providerType string
@@ -190,6 +209,7 @@ func TestProviderEndpointMetadata(t *testing.T) {
 	}{
 		{"claude_messages", adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, true},
 		{"openai_responses", adapt.ApiOpenAIResponses, adapt.FamilyOpenAIResponses, true},
+		{"codex_responses", adapt.ApiCodexResponses, adapt.FamilyOpenAIResponses, true},
 		{"openrouter_chat", adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, true},
 		{"openrouter_responses", adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, true},
 		{"openrouter_messages", adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, true},
@@ -254,6 +274,14 @@ func TestClaudeMessagesDefaultsModelDBServiceIDToAnthropic(t *testing.T) {
 	}
 	if !configUsesModelDB(cfg) {
 		t.Fatalf("expected Claude provider to enable modeldb pricing by default")
+	}
+}
+
+func TestCodexResponsesDefaultsModelDBServiceIDToCodex(t *testing.T) {
+	provider := providerConfig{Name: "codex", Type: "codex_responses"}
+	tags := providerEndpointTags(provider)
+	if tags[tagModelDBServiceID] != "codex" {
+		t.Fatalf("unexpected tags: %+v", tags)
 	}
 }
 

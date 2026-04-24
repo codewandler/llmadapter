@@ -19,6 +19,7 @@ import (
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
+	codex "github.com/codewandler/llmadapter/providers/openai/codex"
 	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
@@ -34,6 +35,7 @@ type gatewayProvider struct {
 	capabilities     router.CapabilitySet
 	apiKeyEnv        []string
 	localClaudeOAuth bool
+	localCodexOAuth  bool
 	modelEnv         string
 	model            string
 	maxOutputTokens  int
@@ -184,6 +186,22 @@ func gatewayProviders() []gatewayProvider {
 			},
 		},
 		{
+			name:            "codex_responses",
+			apiKind:         adapt.ApiCodexResponses,
+			family:          adapt.FamilyOpenAIResponses,
+			capabilities:    router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:       []string{codex.EnvAccessToken, codex.EnvOAuthToken},
+			localCodexOAuth: true,
+			modelEnv:        codex.EnvModel,
+			model:           codex.DefaultModel,
+			newClient: func(apiKey string) (unified.Client, error) {
+				if apiKey == "" {
+					return codex.NewClient()
+				}
+				return codex.NewClient(codex.WithAccessToken(apiKey))
+			},
+		},
+		{
 			name:         "openrouter_chat",
 			apiKind:      adapt.ApiOpenRouterChatCompletions,
 			family:       adapt.FamilyOpenAIChatCompletions,
@@ -261,7 +279,7 @@ func newGateway(t *testing.T, provider gatewayProvider) (http.Handler, string) {
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
 	}
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
-	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) {
+	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) && !(provider.localCodexOAuth && codex.LocalAvailable()) {
 		t.Skipf("set one of %s to run %s gateway e2e smoke tests", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
 	model := provider.model
