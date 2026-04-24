@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/router"
+	"github.com/codewandler/llmadapter/unified"
+	"github.com/codewandler/modeldb"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -14,8 +17,8 @@ func TestLoadConfig(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{
 		"addr":":9090",
 		"health_cooldown":"5s",
-		"providers":[{"name":"anthropic","type":"anthropic","api_key_env":"ANTHROPIC_API_KEY","model":"native","priority":7,"capabilities":{"vision":false}}],
-		"routes":[{"source_api":"openai.chat_completions","model":"public","provider":"anthropic","weight":11}]
+		"providers":[{"name":"anthropic","type":"anthropic","api_key_env":"ANTHROPIC_API_KEY","model":"native","modeldb_service_id":"anthropic","priority":7,"capabilities":{"vision":false}}],
+		"routes":[{"source_api":"openai.chat_completions","model":"public","provider":"anthropic","modeldb_wire_model_id":"native-pricing","weight":11}]
 	}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +37,9 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if cfg.HealthCooldown != "5s" || cfg.Providers[0].Capabilities == nil || cfg.Providers[0].Capabilities.Vision == nil || *cfg.Providers[0].Capabilities.Vision {
 		t.Fatalf("unexpected stabilization config: %+v", cfg)
+	}
+	if cfg.Providers[0].ModelDBServiceID != "anthropic" || cfg.Routes[0].ModelDBWireModelID != "native-pricing" {
+		t.Fatalf("unexpected modeldb metadata: %+v %+v", cfg.Providers[0], cfg.Routes[0])
 	}
 }
 
@@ -185,4 +191,176 @@ func TestApplyCapabilityOverrides(t *testing.T) {
 	if caps.Vision || caps.JSONSchema || !caps.Reasoning {
 		t.Fatalf("unexpected overridden capabilities: %+v", caps)
 	}
+}
+
+func TestConfigUsesPricingForConfiguredModelDBOffering(t *testing.T) {
+	cfg := config{
+		Providers: []providerConfig{
+			{Name: "openrouter", Type: "openrouter_chat"},
+			{Name: "openrouter", Type: "openrouter_responses", Model: "openai/gpt-4.1-mini", ModelDBServiceID: "openrouter"},
+		},
+		Routes: []routeConfig{{
+			Provider:    "openrouter",
+			ProviderAPI: adapt.ApiOpenRouterResponses,
+		}},
+	}
+	applyConfigDefaults(&cfg)
+	if !configUsesPricing(cfg) {
+		t.Fatalf("expected pricing to be enabled")
+	}
+}
+
+func TestEndpointWithPricingEnrichesUsageEvents(t *testing.T) {
+	catalog := modeldb.NewCatalog()
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "anthropic", WireModelID: "claude-test"}] = modeldb.Offering{
+		ServiceID:   "anthropic",
+		WireModelID: "claude-test",
+		Pricing:     &modeldb.Pricing{Input: 3, Output: 15},
+	}
+
+	endpoint := endpointWithPricing(router.ProviderEndpoint{
+		ProviderName: "anthropic",
+		Client: fakeClient{events: []unified.Event{
+			unified.NewUsageEvent(unified.TokenItems{
+				{Kind: unified.TokenKindInputNew, Count: 1000},
+				{Kind: unified.TokenKindOutput, Count: 2000},
+			}, nil),
+		}},
+		Tags: map[string]string{tagModelDBServiceID: "anthropic"},
+	}, routeConfig{NativeModel: "claude-test"}, catalog)
+
+	events, err := endpoint.Client.Request(context.Background(), unified.Request{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var usage unified.UsageEvent
+	for ev := range events {
+		if errEv, ok := ev.(unified.ErrorEvent); ok {
+			t.Fatalf("unexpected error event: %v", errEv.Err)
+		}
+		if ev, ok := ev.(unified.UsageEvent); ok {
+			usage = ev
+		}
+	}
+	if got, want := usage.Costs.ByKind(unified.CostKindInput), 1000*3.0/1_000_000; got != want {
+		t.Fatalf("input cost = %g, want %g", got, want)
+	}
+	if got, want := usage.Costs.ByKind(unified.CostKindOutput), 2000*15.0/1_000_000; got != want {
+		t.Fatalf("output cost = %g, want %g", got, want)
+	}
+}
+
+func TestEndpointWithModelDBMetadataEnrichesRouteCapabilities(t *testing.T) {
+	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "test"}
+	catalog := modeldb.NewCatalog()
+	catalog.Models[key] = modeldb.ModelRecord{
+		Key:    key,
+		Limits: modeldb.Limits{ContextWindow: 128000, MaxOutput: 4096},
+	}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "openrouter", WireModelID: "openai/gpt-test"}] = modeldb.Offering{
+		ServiceID:   "openrouter",
+		WireModelID: "openai/gpt-test",
+		ModelKey:    key,
+		Exposures: []modeldb.OfferingExposure{{
+			APIType: modeldb.APITypeOpenAIResponses,
+			ExposedCapabilities: &modeldb.Capabilities{
+				Streaming:        true,
+				ToolUse:          false,
+				StructuredOutput: true,
+				Vision:           true,
+			},
+		}},
+	}
+
+	endpoint := endpointWithModelDBMetadata(router.ProviderEndpoint{
+		ProviderName: "openrouter",
+		Family:       adapt.FamilyOpenAIResponses,
+		Capabilities: router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true},
+		Tags:         map[string]string{tagModelDBServiceID: "openrouter"},
+	}, routeConfig{ModelDBWireModelID: "openai/gpt-test"}, catalog)
+
+	if endpoint.Capabilities.Tools {
+		t.Fatalf("expected modeldb metadata to disable tools: %+v", endpoint.Capabilities)
+	}
+	if !endpoint.Capabilities.Streaming || !endpoint.Capabilities.Vision || !endpoint.Capabilities.JSONMode || !endpoint.Capabilities.JSONSchema {
+		t.Fatalf("expected supported capabilities to remain enabled: %+v", endpoint.Capabilities)
+	}
+	if endpoint.Capabilities.MaxInputTokens != 128000 || endpoint.Capabilities.MaxOutputTokens != 4096 {
+		t.Fatalf("unexpected limits: %+v", endpoint.Capabilities)
+	}
+}
+
+func TestInspectConfigResolvesRoutesWithoutProviderCredentials(t *testing.T) {
+	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "test"}
+	catalog := modeldb.NewCatalog()
+	catalog.Models[key] = modeldb.ModelRecord{
+		Key:    key,
+		Limits: modeldb.Limits{ContextWindow: 128000, MaxOutput: 4096},
+	}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "openrouter", WireModelID: "openai/gpt-test"}] = modeldb.Offering{
+		ServiceID:   "openrouter",
+		WireModelID: "openai/gpt-test",
+		ModelKey:    key,
+		Pricing:     &modeldb.Pricing{Input: 1, Output: 2},
+		Exposures: []modeldb.OfferingExposure{{
+			APIType: modeldb.APITypeOpenAIResponses,
+			ExposedCapabilities: &modeldb.Capabilities{
+				Streaming:        true,
+				ToolUse:          true,
+				StructuredOutput: true,
+			},
+		}},
+	}
+	cfg := config{
+		Addr: ":9090",
+		Providers: []providerConfig{{
+			Name:             "openrouter",
+			Type:             "openrouter_responses",
+			Model:            "openai/gpt-test",
+			ModelDBServiceID: "openrouter",
+		}},
+		Routes: []routeConfig{{
+			SourceAPI:   adapt.ApiOpenAIResponses,
+			Provider:    "openrouter",
+			ProviderAPI: adapt.ApiOpenRouterResponses,
+		}},
+	}
+	applyConfigDefaults(&cfg)
+
+	inspection, err := inspectConfigWithCatalog(cfg, catalog, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inspection.Providers) != 1 || inspection.Providers[0].Credential.InlineAPIKey {
+		t.Fatalf("unexpected provider inspection: %+v", inspection.Providers)
+	}
+	if len(inspection.Routes) != 1 {
+		t.Fatalf("routes = %+v", inspection.Routes)
+	}
+	route := inspection.Routes[0]
+	if route.TargetAPI != adapt.ApiOpenRouterResponses || route.TargetFamily != adapt.FamilyOpenAIResponses {
+		t.Fatalf("unexpected target metadata: %+v", route)
+	}
+	if !route.Capabilities.Streaming || !route.Capabilities.Tools || !route.Capabilities.JSONSchema {
+		t.Fatalf("unexpected capabilities: %+v", route.Capabilities)
+	}
+	if route.Capabilities.MaxInputTokens != 128000 || route.Capabilities.MaxOutputTokens != 4096 {
+		t.Fatalf("unexpected limits: %+v", route.Capabilities)
+	}
+	if !route.ModelDB.Enabled || !route.ModelDB.OfferingFound || !route.ModelDB.ExposureFound || !route.ModelDB.PricingAvailable {
+		t.Fatalf("unexpected modeldb inspection: %+v", route.ModelDB)
+	}
+}
+
+type fakeClient struct {
+	events []unified.Event
+}
+
+func (c fakeClient) Request(context.Context, unified.Request) (<-chan unified.Event, error) {
+	out := make(chan unified.Event, len(c.events))
+	for _, ev := range c.events {
+		out <- ev
+	}
+	close(out)
+	return out, nil
 }

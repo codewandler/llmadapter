@@ -53,6 +53,10 @@ Stabilization slice: gateway health cooldown is configurable, health deprioritiz
 Stabilization slice: OpenRouter raw extension preservation is centralized in unified helpers used by endpoint and provider codecs
 Stabilization slice: Anthropic Messages endpoint decoding preserves mixed user text/tool-result content by splitting it into canonical user and tool messages
 Structured usage slice: canonical usage now carries token and cost item breakdowns, with flat API counters derived only at endpoint wire boundaries
+Pricing slice: `pricing` package adds a modeldb-backed event processor that enriches UsageEvent cost items for an explicit service/model offering
+Gateway pricing slice: configured fixed-model routes can wrap provider clients with modeldb-backed usage cost enrichment via provider `modeldb_service_id` plus route `native_model` or `modeldb_wire_model_id`
+Model metadata slice: `modelmeta` maps modeldb offering exposures into route capability narrowing and model token limits for configured fixed-model gateway routes
+Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved providers, routes, capabilities, limits, modeldb metadata, and pricing availability without constructing provider clients
 ```
 
 Verified:
@@ -93,6 +97,8 @@ unified/
 adapt/
 pipeline/
 transport/
+pricing/
+modelmeta/
 providers/anthropic/messages/
 providers/openai/chatcompletions/
 providers/openrouter/chatcompletions/
@@ -119,8 +125,10 @@ ANTHROPIC_API_KEY provides default Anthropic credentials when no config file is 
 LLMADAPTER_UPSTREAM_MODEL sets the default native model override when no config file is used
 provider config supports api_key or api_key_env
 provider config supports base_url, model, priority, and capability overrides
-route config supports source_api, model, provider, provider_api, native_model, and weight
+provider config supports modeldb_service_id for pricing/catalog service identity
+route config supports source_api, model, provider, provider_api, native_model, modeldb_wire_model_id, and weight
 health_cooldown configures the in-memory provider endpoint/model failure deprioritization window
+llmadapter-gateway -inspect-config prints resolved config metadata as JSON and does not require provider API keys
 ```
 
 Anthropic path coverage:
@@ -170,6 +178,9 @@ OpenRouter Responses routes through the OpenAI Chat gateway smoke path via canon
 MiniMax Chat uses the OpenAI-compatible stream path and is registered in text and gateway smoke matrices
 MiniMax Messages uses the Anthropic-compatible stream path and is registered in text, tool, continuation, and gateway smoke matrices
 Anthropic, OpenAI Chat, and OpenRouter Responses provider decoders emit structured usage token categories where upstream details are available
+fixed-model gateway routes can enrich provider usage events with modeldb pricing when configured with explicit service/model metadata
+fixed-model gateway routes can narrow endpoint capabilities and attach token limits from modeldb OfferingExposure metadata
+gateway config inspection exposes the resolved metadata path for debugging route/API/modeldb configuration
 ```
 
 Live e2e defaults:
@@ -220,8 +231,8 @@ Provider support is currently strong for text + function-tool loops, OpenAI-fami
 OpenRouter extension passthrough is centralized raw JSON preservation; extension schemas and validation are intentionally deferred
 streaming provider errors after response start need a final policy; current behavior marks the route unhealthy and returns because the endpoint-shaped response has already started
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
-modeldb is not integrated yet; provider endpoint capabilities still come from hardcoded family defaults plus manual config overrides
-usage now carries structured token and cost item fields as the canonical accounting surface, but no modeldb-priced event processor exists yet
+modeldb is integrated only for fixed-route metadata/pricing enrichment; provider endpoint base capabilities still come from hardcoded family defaults plus manual config overrides
+usage now carries structured token and cost item fields as the canonical accounting surface; modeldb-backed pricing enrichment is wired for configured fixed-model gateway routes but not dynamic per-request models
 prompt caching is only decoded from provider usage counters; canonical request-side cache hints and provider-specific cache controls are not modeled yet
 stateful conversations are intentionally absent from llmadapter core; any conversation/session layer must wrap unified.Client instead of mutating gateway/router state
 Claude Code/CLI OAuth compatibility is not implemented; current Anthropic support only covers API-key style Messages access
@@ -241,8 +252,8 @@ Next planned phase:
 
 ```text
 Priority: the modeldb, Claude compatibility, caching, usage/pricing, conversation, and CLI tracks below are the highest-priority work items for the next implementation rounds.
-Model/catalog integration: add a modeldb-backed read-only metadata layer for provider endpoint capability, exposure, limit, and pricing lookup without letting modeldb create hidden routes or clients.
-Structured usage/cost accounting: canonical token and cost item types are in place; next add modeldb-priced event processing.
+Model/catalog integration: fixed-route modeldb pricing, capability, exposure, and limit lookup plus route inspection are in place; next add operator-configurable catalog sources/overlays.
+Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, and fixed-route gateway pricing wiring are in place; next add dynamic per-request pricing only after model resolution is explicit.
 Claude compatibility: add a Claude Code/CLI OAuth auth mode as an Anthropic Messages-compatible provider endpoint under provider name "claude".
 Conversation layer: add an optional package above unified.Client for stateful sessions, replay/native continuation, cache policy, and commit-safe history, keeping gateway/router stateless.
 CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
@@ -291,7 +302,7 @@ Initial commands:
    - expose /v1/chat/completions, /v1/responses, and /v1/messages
 2. models
    - list configured provider endpoints and native/public models
-   - once modeldb is integrated, show catalog service/offering/exposure metadata
+   - fixed-route modeldb service/offering/exposure metadata is visible through the gateway inspection path; fold this into the future unified CLI
 3. resolve
    - explain how a public model/API request maps to provider endpoint, API kind, family, native model, capabilities, and route weight/priority
 4. providers
@@ -332,7 +343,8 @@ Initial integration goals:
    - reasoning availability and modes -> Reasoning/ReasoningDeltas when the endpoint codec supports them
    - caching availability -> PromptCaching, not automatic request cache behavior
    - limits -> MaxInputTokens/MaxOutputTokens
-4. Use ServiceID + WireModelID + APIType to enrich configured provider endpoints and routes.
+   (implemented for fixed-model configured routes; modeldb narrows endpoint-family capabilities and does not enable unimplemented endpoint features)
+4. Use ServiceID + WireModelID + APIType to enrich configured provider endpoints and routes. (implemented for fixed-model gateway routes)
 5. Keep credentials and clients explicit in gateway config; the catalog may select metadata and native model IDs, but it must not secretly instantiate providers.
 6. Add modeldb preference/alias support only after the explicit metadata path works:
    - resolve public aliases like sonnet/haiku through ServiceView
@@ -408,7 +420,7 @@ Usage/cost foundation:
    - output
    - reasoning
    - future image/audio/video/request/web_search categories
-4. Add a cost calculator/event processor that looks up modeldb Offering.Pricing by service/provider endpoint and native model ID.
+4. Add a cost calculator/event processor that looks up modeldb Offering.Pricing by service/provider endpoint and native model ID. (implemented for explicit service/model offering refs and fixed-model gateway routes)
 5. Keep pricing absent-safe: if catalog pricing is missing, emit usage without costs.
 
 Prompt caching:

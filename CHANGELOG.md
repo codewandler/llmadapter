@@ -10,10 +10,16 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-04-24
+
 ### Added
 
 - Documented the next highest-priority planning track for `modeldb` catalog integration, Claude OAuth compatibility, structured usage/pricing, prompt caching, optional conversation/session support, and a repo-native CLI.
 - Replaced duplicated canonical usage counters with structured token and cost items; endpoint codecs now derive flat API-specific usage counters at the wire boundary.
+- Added a `pricing` package with a modeldb-backed event processor for enriching canonical usage events with cost items.
+- Gateway config can now wire modeldb-backed usage cost enrichment for fixed-model routes using provider `modeldb_service_id` and route `modeldb_wire_model_id`.
+- Added a `modelmeta` package and gateway wiring to narrow fixed-route capabilities and attach token limits from modeldb offering exposures.
+- Added `llmadapter-gateway -inspect-config` for credential-free JSON inspection of resolved providers, routes, capabilities, limits, modeldb metadata, and pricing availability.
 - Anthropic, OpenAI Chat, and OpenRouter Responses provider decoders now emit structured token categories where upstream usage details are available.
 
 ## [0.24.0] - 2026-04-24

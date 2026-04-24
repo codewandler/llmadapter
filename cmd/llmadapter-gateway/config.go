@@ -18,23 +18,25 @@ type config struct {
 }
 
 type providerConfig struct {
-	Name         string            `json:"name"`
-	Type         string            `json:"type"`
-	APIKey       string            `json:"api_key,omitempty"`
-	APIKeyEnv    string            `json:"api_key_env,omitempty"`
-	BaseURL      string            `json:"base_url,omitempty"`
-	Model        string            `json:"model,omitempty"`
-	Priority     int               `json:"priority,omitempty"`
-	Capabilities *capabilityConfig `json:"capabilities,omitempty"`
+	Name             string            `json:"name"`
+	Type             string            `json:"type"`
+	APIKey           string            `json:"api_key,omitempty"`
+	APIKeyEnv        string            `json:"api_key_env,omitempty"`
+	BaseURL          string            `json:"base_url,omitempty"`
+	Model            string            `json:"model,omitempty"`
+	ModelDBServiceID string            `json:"modeldb_service_id,omitempty"`
+	Priority         int               `json:"priority,omitempty"`
+	Capabilities     *capabilityConfig `json:"capabilities,omitempty"`
 }
 
 type routeConfig struct {
-	SourceAPI   adapt.ApiKind `json:"source_api"`
-	Model       string        `json:"model,omitempty"`
-	Provider    string        `json:"provider"`
-	ProviderAPI adapt.ApiKind `json:"provider_api,omitempty"`
-	NativeModel string        `json:"native_model,omitempty"`
-	Weight      int           `json:"weight,omitempty"`
+	SourceAPI          adapt.ApiKind `json:"source_api"`
+	Model              string        `json:"model,omitempty"`
+	Provider           string        `json:"provider"`
+	ProviderAPI        adapt.ApiKind `json:"provider_api,omitempty"`
+	NativeModel        string        `json:"native_model,omitempty"`
+	ModelDBWireModelID string        `json:"modeldb_wire_model_id,omitempty"`
+	Weight             int           `json:"weight,omitempty"`
 }
 
 type capabilityConfig struct {
@@ -114,7 +116,7 @@ func applyConfigDefaults(cfg *config) {
 			cfg.Routes[i].SourceAPI = adapt.ApiOpenAIChatCompletions
 		}
 		if cfg.Routes[i].NativeModel == "" {
-			if provider, ok := findProvider(*cfg, cfg.Routes[i].Provider); ok {
+			if provider, ok := findProviderForRoute(*cfg, cfg.Routes[i]); ok {
 				cfg.Routes[i].NativeModel = provider.Model
 			}
 		}
@@ -124,6 +126,15 @@ func applyConfigDefaults(cfg *config) {
 func findProvider(cfg config, name string) (providerConfig, bool) {
 	for _, provider := range cfg.Providers {
 		if provider.Name == name {
+			return provider, true
+		}
+	}
+	return providerConfig{}, false
+}
+
+func findProviderForRoute(cfg config, route routeConfig) (providerConfig, bool) {
+	for _, provider := range cfg.Providers {
+		if providerMatchesRoute(provider, route) {
 			return provider, true
 		}
 	}

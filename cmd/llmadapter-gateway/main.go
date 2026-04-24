@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,6 +15,9 @@ import (
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
 	responsesendpoint "github.com/codewandler/llmadapter/endpoints/openairesponses"
 	"github.com/codewandler/llmadapter/gateway"
+	"github.com/codewandler/llmadapter/modelmeta"
+	"github.com/codewandler/llmadapter/pipeline"
+	pricingpkg "github.com/codewandler/llmadapter/pricing"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
@@ -22,15 +27,33 @@ import (
 	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
+	"github.com/codewandler/modeldb"
 )
 
+const tagModelDBServiceID = "modeldb.service_id"
+
 func main() {
+	inspectConfigFlag := flag.Bool("inspect-config", false, "print resolved gateway config metadata as JSON and exit")
+	flag.Parse()
+
 	cfg, err := loadConfigFromEnv()
 	if err != nil {
 		log.Fatal(err)
 	}
 	if err := validateConfig(cfg); err != nil {
 		log.Fatal(err)
+	}
+	if *inspectConfigFlag {
+		inspection, err := inspectConfig(cfg)
+		if err != nil {
+			log.Fatal(err)
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(inspection); err != nil {
+			log.Fatal(err)
+		}
+		return
 	}
 	r, err := buildRouter(cfg)
 	if err != nil {
@@ -74,6 +97,10 @@ func buildRouter(cfg config) (router.Router, error) {
 		}
 		endpoints = append(endpoints, endpoint)
 	}
+	catalog, modelDBEnabled, err := modelDBCatalog(cfg)
+	if err != nil {
+		return nil, err
+	}
 	routes := make([]router.StaticRoute, 0, len(cfg.Routes))
 	for _, route := range cfg.Routes {
 		endpoint, ok, ambiguous := findProviderEndpoint(endpoints, route.Provider, route.ProviderAPI)
@@ -82,6 +109,10 @@ func buildRouter(cfg config) (router.Router, error) {
 		}
 		if !ok {
 			return nil, fmt.Errorf("route references unknown provider endpoint %q %q", route.Provider, route.ProviderAPI)
+		}
+		if modelDBEnabled {
+			endpoint = endpointWithModelDBMetadata(endpoint, route, catalog)
+			endpoint = endpointWithPricing(endpoint, route, catalog)
 		}
 		routes = append(routes, router.StaticRoute{
 			SourceAPI:   route.SourceAPI,
@@ -99,6 +130,15 @@ func buildProviderEndpoint(provider providerConfig) (router.ProviderEndpoint, er
 	if err != nil {
 		return router.ProviderEndpoint{}, err
 	}
+	endpoint, err := providerEndpointConfig(provider)
+	if err != nil {
+		return router.ProviderEndpoint{}, err
+	}
+	endpoint.Client = client
+	return endpoint, nil
+}
+
+func providerEndpointConfig(provider providerConfig) (router.ProviderEndpoint, error) {
 	apiKind, family, capabilities, err := providerEndpointMetadata(provider.Type)
 	if err != nil {
 		return router.ProviderEndpoint{}, err
@@ -108,10 +148,92 @@ func buildProviderEndpoint(provider providerConfig) (router.ProviderEndpoint, er
 		ProviderName: provider.Name,
 		APIKind:      apiKind,
 		Family:       family,
-		Client:       client,
 		Capabilities: capabilities,
 		Priority:     provider.Priority,
+		Tags:         providerEndpointTags(provider),
 	}, nil
+}
+
+func providerEndpointTags(provider providerConfig) map[string]string {
+	if provider.ModelDBServiceID == "" {
+		return nil
+	}
+	return map[string]string{tagModelDBServiceID: provider.ModelDBServiceID}
+}
+
+func modelDBCatalog(cfg config) (modeldb.Catalog, bool, error) {
+	if !configUsesModelDB(cfg) {
+		return modeldb.Catalog{}, false, nil
+	}
+	catalog, err := modeldb.LoadBuiltIn()
+	if err != nil {
+		return modeldb.Catalog{}, false, fmt.Errorf("load modeldb catalog: %w", err)
+	}
+	return catalog, true, nil
+}
+
+func configUsesModelDB(cfg config) bool {
+	for _, route := range cfg.Routes {
+		if pricingWireModel(route) == "" {
+			continue
+		}
+		for _, provider := range cfg.Providers {
+			if providerMatchesRoute(provider, route) && provider.ModelDBServiceID != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func configUsesPricing(cfg config) bool {
+	return configUsesModelDB(cfg)
+}
+
+func providerMatchesRoute(provider providerConfig, route routeConfig) bool {
+	if provider.Name != route.Provider {
+		return false
+	}
+	if route.ProviderAPI == "" {
+		return true
+	}
+	apiKind, _, _, err := providerEndpointMetadata(provider.Type)
+	return err == nil && apiKind == route.ProviderAPI
+}
+
+func endpointWithPricing(endpoint router.ProviderEndpoint, route routeConfig, catalog modeldb.Catalog) router.ProviderEndpoint {
+	serviceID := endpoint.Tags[tagModelDBServiceID]
+	wireModelID := pricingWireModel(route)
+	if serviceID == "" || wireModelID == "" || endpoint.Client == nil {
+		return endpoint
+	}
+	endpoint.Client = &eventProcessorClient{
+		inner: endpoint.Client,
+		processors: []pipeline.Processor[unified.Event]{
+			pricingpkg.NewProcessor(catalog, serviceID, wireModelID),
+		},
+	}
+	return endpoint
+}
+
+func endpointWithModelDBMetadata(endpoint router.ProviderEndpoint, route routeConfig, catalog modeldb.Catalog) router.ProviderEndpoint {
+	serviceID := endpoint.Tags[tagModelDBServiceID]
+	wireModelID := pricingWireModel(route)
+	if serviceID == "" || wireModelID == "" {
+		return endpoint
+	}
+	capabilities, ok := modelmeta.EnrichCapabilities(endpoint.Capabilities, catalog, serviceID, wireModelID, endpoint.Family)
+	if ok {
+		endpoint.Capabilities = capabilities
+	}
+	return endpoint
+}
+
+func pricingWireModel(route routeConfig) string {
+	if route.ModelDBWireModelID != "" {
+		return route.ModelDBWireModelID
+	}
+	return route.NativeModel
 }
 
 func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFamily, router.CapabilitySet, error) {

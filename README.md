@@ -5,6 +5,7 @@
 Current implemented surface:
 
 - Core packages: `unified`, `adapt`, `pipeline`, `transport`, `router`, `gateway`.
+- Utility packages: `pricing` for modeldb-backed usage cost enrichment and `modelmeta` for modeldb-backed endpoint metadata mapping.
 - Endpoint codecs: OpenAI-compatible `/v1/chat/completions`, OpenAI-compatible `/v1/responses`, Anthropic-compatible `/v1/messages`.
 - Providers: Anthropic Messages, OpenAI Chat Completions, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
 - Live e2e smoke tests for text streaming, tool calls, tool-result continuation, and gateway routing.
@@ -50,10 +51,12 @@ Configuration:
 
 - `LLMADAPTER_CONFIG` points to a JSON config file.
 - `LLMADAPTER_ADDR` sets the listen address when no config file is used.
+- `llmadapter-gateway -inspect-config` prints resolved provider/route metadata as JSON and exits before constructing provider clients or requiring API keys.
 - Routes select a provider endpoint with `provider` and optional `provider_api`.
 - Routes can set `weight`; providers can set `priority`. Compatible routes are ranked by weight first, then endpoint priority, with declaration order as the final tie-breaker.
 - `health_cooldown` is an optional Go duration string such as `30s`; recently failed provider endpoint/model pairs are deprioritized for that window.
 - Provider `capabilities` can override default endpoint metadata for a configured model, for example to disable `vision` or `json_schema` on a model that does not support it.
+- Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
 
 Example provider endpoint types:
@@ -78,6 +81,7 @@ Example config:
       "type": "openrouter_chat",
       "api_key_env": "OPENROUTER_API_KEY",
       "model": "openai/gpt-4.1-mini",
+      "modeldb_service_id": "openrouter",
       "priority": 10,
       "capabilities": {
         "streaming": true,
@@ -101,6 +105,7 @@ Example config:
       "provider": "openrouter",
       "provider_api": "openrouter.chat_completions",
       "native_model": "openai/gpt-4.1-mini",
+      "modeldb_wire_model_id": "openai/gpt-4.1-mini",
       "weight": 100
     },
     {
@@ -141,6 +146,10 @@ OpenRouter-specific request controls are carried through `unified.Request.Extens
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 
+The `modelmeta` package maps modeldb offering exposures into route capabilities and limits. The gateway uses it only for configured fixed-model routes; modeldb can narrow advertised capabilities and add token limits, but it never creates hidden providers, clients, or routes.
+
+The `pricing` package can enrich `unified.UsageEvent` values with `CostItems` using `modeldb` offering pricing for an explicit service/model pair. Pricing enrichment is an optional event processor and is not hardcoded into provider codecs. The gateway wires this processor only for configured routes with explicit `modeldb_service_id` and fixed model metadata.
+
 See `DESIGN.md` for the target architecture and `PLAN.md` for current status, known gaps, and next implementation phases.
 
 ## Known Limitations
@@ -148,5 +157,5 @@ See `DESIGN.md` for the target architecture and `PLAN.md` for current status, kn
 - Capability defaults are endpoint-family guesses. Use provider `capabilities` overrides for model-specific support before routing production traffic.
 - Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
 - OpenRouter extension passthrough preserves raw JSON controls but does not yet validate provider-specific extension schemas.
-- Structured usage has token/cost item fields, but modeldb-backed pricing enrichment is not implemented yet.
+- Modeldb-backed metadata and pricing only work for configured fixed-model routes; dynamic per-request model lookup and catalog overlays are still planned.
 - Provider and endpoint codecs cover smoke-tested text, tools, structured output, and basic image inputs; they are not full conformance implementations for every provider field.
