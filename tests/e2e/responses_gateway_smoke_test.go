@@ -111,6 +111,7 @@ func newResponsesGateway(t *testing.T) (http.Handler, string) {
 					APIKind:      adapt.ApiOpenRouterResponses,
 					Family:       adapt.FamilyOpenAIResponses,
 					Client:       client,
+					Capabilities: router.CapabilitySet{Streaming: true, Tools: true},
 				},
 			}),
 		},

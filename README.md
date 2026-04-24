@@ -74,4 +74,6 @@ API family = compatibility family.
 Provider endpoint = provider + API kind + family + client + capabilities.
 ```
 
+Routes skip provider endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input.
+
 See `DESIGN.md` for the target architecture and `PLAN.md` for current status, known gaps, and next implementation phases.

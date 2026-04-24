@@ -30,6 +30,7 @@ type gatewayProvider struct {
 	name            string
 	apiKind         adapt.ApiKind
 	family          adapt.ApiFamily
+	capabilities    router.CapabilitySet
 	apiKeyEnv       []string
 	modelEnv        string
 	model           string
@@ -108,12 +109,13 @@ func TestGatewaySmokeStreaming(t *testing.T) {
 func gatewayProviders() []gatewayProvider {
 	return []gatewayProvider{
 		{
-			name:      "anthropic",
-			apiKind:   adapt.ApiAnthropicMessages,
-			family:    adapt.FamilyAnthropicMessages,
-			apiKeyEnv: []string{"ANTHROPIC_API_KEY"},
-			modelEnv:  "ANTHROPIC_MODEL",
-			model:     "claude-haiku-4-5-20251001",
+			name:         "anthropic",
+			apiKind:      adapt.ApiAnthropicMessages,
+			family:       adapt.FamilyAnthropicMessages,
+			capabilities: router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:    []string{"ANTHROPIC_API_KEY"},
+			modelEnv:     "ANTHROPIC_MODEL",
+			model:        "claude-haiku-4-5-20251001",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return anthropic.NewClient(
 					anthropic.WithAPIKey(apiKey),
@@ -125,45 +127,49 @@ func gatewayProviders() []gatewayProvider {
 			},
 		},
 		{
-			name:      "openai_chat",
-			apiKind:   adapt.ApiOpenAIChatCompletions,
-			family:    adapt.FamilyOpenAIChatCompletions,
-			apiKeyEnv: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
-			modelEnv:  "OPENAI_MODEL",
-			model:     "gpt-4.1-mini",
+			name:         "openai_chat",
+			apiKind:      adapt.ApiOpenAIChatCompletions,
+			family:       adapt.FamilyOpenAIChatCompletions,
+			capabilities: router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:    []string{"OPENAI_API_KEY", "OPENAI_KEY"},
+			modelEnv:     "OPENAI_MODEL",
+			model:        "gpt-4.1-mini",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openai.NewClient(openai.WithAPIKey(apiKey))
 			},
 		},
 		{
-			name:      "openrouter_chat",
-			apiKind:   adapt.ApiOpenRouterChatCompletions,
-			family:    adapt.FamilyOpenAIChatCompletions,
-			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
-			modelEnv:  "OPENROUTER_MODEL",
-			model:     "openai/gpt-4.1-mini",
+			name:         "openrouter_chat",
+			apiKind:      adapt.ApiOpenRouterChatCompletions,
+			family:       adapt.FamilyOpenAIChatCompletions,
+			capabilities: router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:    []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:     "OPENROUTER_MODEL",
+			model:        "openai/gpt-4.1-mini",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openrouter.NewClient(openrouter.WithAPIKey(apiKey))
 			},
 		},
 		{
-			name:      "minimax_chat",
-			apiKind:   adapt.ApiMiniMaxChatCompletions,
-			family:    adapt.FamilyOpenAIChatCompletions,
-			apiKeyEnv: []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
-			modelEnv:  "MINIMAX_MODEL",
-			model:     "MiniMax-M2.7",
+			name:         "minimax_chat",
+			apiKind:      adapt.ApiMiniMaxChatCompletions,
+			family:       adapt.FamilyOpenAIChatCompletions,
+			capabilities: router.CapabilitySet{Streaming: true},
+			apiKeyEnv:    []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
+			modelEnv:     "MINIMAX_MODEL",
+			model:        "MiniMax-M2.7",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return minimax.NewClient(minimax.WithAPIKey(apiKey))
 			},
 		},
 		{
-			name:      "minimax_messages",
-			apiKind:   adapt.ApiMiniMaxAnthropicMessages,
-			family:    adapt.FamilyAnthropicMessages,
-			apiKeyEnv: []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
-			modelEnv:  "MINIMAX_MESSAGES_MODEL",
-			model:     "MiniMax-M2.7",
+			name:         "minimax_messages",
+			apiKind:      adapt.ApiMiniMaxAnthropicMessages,
+			family:       adapt.FamilyAnthropicMessages,
+			capabilities: router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:    []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
+			modelEnv:     "MINIMAX_MESSAGES_MODEL",
+			model:        "MiniMax-M2.7",
 			// MiniMax emits reasoning before final text on the Anthropic-compatible surface.
 			maxOutputTokens: 512,
 			newClient: func(apiKey string) (unified.Client, error) {
@@ -171,23 +177,25 @@ func gatewayProviders() []gatewayProvider {
 			},
 		},
 		{
-			name:      "openrouter_responses",
-			apiKind:   adapt.ApiOpenRouterResponses,
-			family:    adapt.FamilyOpenAIResponses,
-			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
-			modelEnv:  "OPENROUTER_RESPONSES_MODEL",
-			model:     "openai/gpt-4.1-mini",
+			name:         "openrouter_responses",
+			apiKind:      adapt.ApiOpenRouterResponses,
+			family:       adapt.FamilyOpenAIResponses,
+			capabilities: router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:    []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:     "OPENROUTER_RESPONSES_MODEL",
+			model:        "openai/gpt-4.1-mini",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey(apiKey))
 			},
 		},
 		{
-			name:      "openrouter_messages",
-			apiKind:   adapt.ApiOpenRouterAnthropicMessages,
-			family:    adapt.FamilyAnthropicMessages,
-			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
-			modelEnv:  "OPENROUTER_MESSAGES_MODEL",
-			model:     "anthropic/claude-sonnet-4",
+			name:         "openrouter_messages",
+			apiKind:      adapt.ApiOpenRouterAnthropicMessages,
+			family:       adapt.FamilyAnthropicMessages,
+			capabilities: router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:    []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:     "OPENROUTER_MESSAGES_MODEL",
+			model:        "anthropic/claude-sonnet-4",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openroutermessages.NewClient(openroutermessages.WithAPIKey(apiKey))
 			},
@@ -232,6 +240,7 @@ func newGateway(t *testing.T, provider gatewayProvider) (http.Handler, string) {
 					APIKind:      provider.apiKind,
 					Family:       provider.family,
 					Client:       client,
+					Capabilities: provider.capabilities,
 				},
 			}),
 		},

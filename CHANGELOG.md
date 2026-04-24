@@ -18,6 +18,7 @@ can be created to match these entries as the project starts publishing releases.
 - **OpenAI Responses endpoint** - Added a downstream `/v1/responses` gateway codec for text and function-tool requests.
 - **OpenAI Responses gateway route** - Wired `/v1/responses` into the gateway command and default route set.
 - **OpenAI Responses gateway smokes** - Added live gateway smoke coverage against OpenRouter Responses.
+- **Capability-aware routing** - Static routing now skips endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input.
 
 ## [0.10.1] - 2026-04-24
 

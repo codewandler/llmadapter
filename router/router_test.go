@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
@@ -51,5 +52,99 @@ func TestStaticRouter(t *testing.T) {
 		Unified:   unified.Request{Model: "missing"},
 	}); err == nil {
 		t.Fatalf("expected missing route error")
+	}
+}
+
+func TestStaticRouterSkipsCapabilityMismatch(t *testing.T) {
+	client := noopClient{}
+	r := NewStaticRouter(
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "minimax",
+				APIKind:      adapt.ApiMiniMaxChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+			},
+		},
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "openai",
+				APIKind:      adapt.ApiOpenAIChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true, Tools: true},
+			},
+		},
+	)
+	route, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Unified: unified.Request{
+			Model:  "model",
+			Stream: true,
+			Tools:  []unified.Tool{{Kind: unified.ToolKindFunction, Name: "lookup"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.ProviderName != "openai" {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+}
+
+func TestStaticRouterRejectsCapabilityMismatch(t *testing.T) {
+	client := noopClient{}
+	r := NewStaticRouter(StaticRoute{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Endpoint: ProviderEndpoint{
+			ProviderName: "minimax",
+			APIKind:      adapt.ApiMiniMaxChatCompletions,
+			Family:       adapt.FamilyOpenAIChatCompletions,
+			Client:       client,
+			Capabilities: CapabilitySet{Streaming: true},
+		},
+	})
+	_, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Unified: unified.Request{
+			Model: "model",
+			Tools: []unified.Tool{{Kind: unified.ToolKindFunction, Name: "lookup"}},
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected capability error")
+	}
+	if !strings.Contains(err.Error(), "tools required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestStaticRouterRejectsJSONModeMismatch(t *testing.T) {
+	client := noopClient{}
+	r := NewStaticRouter(StaticRoute{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Endpoint: ProviderEndpoint{
+			ProviderName: "text",
+			APIKind:      adapt.ApiOpenAIChatCompletions,
+			Family:       adapt.FamilyOpenAIChatCompletions,
+			Client:       client,
+			Capabilities: CapabilitySet{Streaming: true, Tools: true},
+		},
+	})
+	_, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Unified: unified.Request{
+			Model:          "model",
+			ResponseFormat: &unified.ResponseFormat{Kind: unified.ResponseFormatJSON},
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected capability error")
+	}
+	if !strings.Contains(err.Error(), "json mode required") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

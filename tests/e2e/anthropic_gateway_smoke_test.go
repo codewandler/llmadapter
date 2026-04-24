@@ -164,6 +164,7 @@ func newAnthropicMessagesGateway(t *testing.T, provider gatewayProvider) (http.H
 					APIKind:      provider.apiKind,
 					Family:       provider.family,
 					Client:       client,
+					Capabilities: provider.capabilities,
 				},
 			}),
 		},
