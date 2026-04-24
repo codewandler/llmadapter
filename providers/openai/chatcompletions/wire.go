@@ -40,6 +40,7 @@ type functionToolWire struct {
 }
 
 type toolCallWire struct {
+	Index    int                  `json:"index,omitempty"`
 	ID       string               `json:"id,omitempty"`
 	Type     string               `json:"type,omitempty"`
 	Function toolCallFunctionWire `json:"function"`

@@ -38,6 +38,31 @@ func TestEncodeRequest(t *testing.T) {
 	}
 }
 
+func TestEncodeToolResults(t *testing.T) {
+	wire, err := encodeRequest(unified.Request{
+		Model: "gpt-test",
+		Messages: []unified.Message{{
+			Role: unified.RoleTool,
+			ToolResults: []unified.ToolResult{
+				{ToolCallID: "call_1", Name: "lookup", Content: []unified.ContentPart{unified.TextPart{Text: "one"}}},
+				{ToolCallID: "call_2", Name: "lookup", Content: []unified.ContentPart{unified.TextPart{Text: "two"}}},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.Messages) != 2 {
+		t.Fatalf("messages = %+v", wire.Messages)
+	}
+	if wire.Messages[0].Role != "tool" || wire.Messages[0].ToolCallID != "call_1" || wire.Messages[0].Content != "one" {
+		t.Fatalf("unexpected first tool result: %+v", wire.Messages[0])
+	}
+	if wire.Messages[1].ToolCallID != "call_2" || wire.Messages[1].Content != "two" {
+		t.Fatalf("unexpected second tool result: %+v", wire.Messages[1])
+	}
+}
+
 func TestClientStreamWithFakeTransport(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"}}]}`),
@@ -68,5 +93,47 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 	}
 	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" || resp.Usage.TotalTokens != 3 {
 		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
+func TestClientStreamToolCallWithFakeTransport(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"}}]}`),
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":""}}]}}]}`),
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"q\""}}]}}]}`),
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\"x\"}"}}]}}]}`),
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 8
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "gpt-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "use tool"}},
+		}},
+		Tools:  []unified.Tool{{Kind: unified.ToolKindFunction, Name: "lookup"}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.FinishReason != unified.FinishReasonToolCall {
+		t.Fatalf("finish reason = %q", resp.FinishReason)
+	}
+	if len(resp.ToolCalls) != 1 {
+		t.Fatalf("tool calls = %+v", resp.ToolCalls)
+	}
+	if resp.ToolCalls[0].ID != "call_1" || resp.ToolCalls[0].Name != "lookup" || string(resp.ToolCalls[0].Arguments) != `{"q":"x"}` {
+		t.Fatalf("unexpected tool call: %+v", resp.ToolCalls[0])
 	}
 }

@@ -3,6 +3,7 @@ package chatcompletions
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/codewandler/llmadapter/transport"
@@ -23,21 +24,28 @@ func encodeRequest(req unified.Request) (requestWire, error) {
 		out.Messages = append(out.Messages, messageWire{Role: "system", Content: contentText(inst.Content), Name: inst.Name})
 	}
 	for _, msg := range req.Messages {
+		if msg.Role == unified.RoleTool && len(msg.ToolResults) > 0 {
+			for _, result := range msg.ToolResults {
+				out.Messages = append(out.Messages, messageWire{
+					Role:       "tool",
+					ToolCallID: result.ToolCallID,
+					Name:       result.Name,
+					Content:    contentText(result.Content),
+				})
+			}
+			continue
+		}
 		wire := messageWire{Role: string(msg.Role), Content: contentText(msg.Content), Name: msg.Name}
 		for _, call := range msg.ToolCalls {
 			wire.ToolCalls = append(wire.ToolCalls, toolCallWire{
-				ID:   call.ID,
-				Type: "function",
+				Index: call.Index,
+				ID:    call.ID,
+				Type:  "function",
 				Function: toolCallFunctionWire{
 					Name:      call.Name,
 					Arguments: string(call.Arguments),
 				},
 			})
-		}
-		if msg.Role == unified.RoleTool && len(msg.ToolResults) > 0 {
-			wire.Role = "tool"
-			wire.ToolCallID = msg.ToolResults[0].ToolCallID
-			wire.Content = contentText(msg.ToolResults[0].Content)
 		}
 		out.Messages = append(out.Messages, wire)
 	}
@@ -83,9 +91,13 @@ func contentText(parts []unified.ContentPart) string {
 }
 
 type streamDecoder struct {
-	id      string
-	model   string
-	started bool
+	id           string
+	model        string
+	started      bool
+	toolIDs      map[int]string
+	toolNames    map[int]string
+	toolArgs     map[int]*strings.Builder
+	startedTools map[int]bool
 }
 
 func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
@@ -120,16 +132,39 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 			out = append(out, unified.TextDeltaEvent{Index: 0, Text: choice.Delta.Content})
 		}
 		for _, call := range choice.Delta.ToolCalls {
+			toolIndex := call.Index
+			if call.ID != "" {
+				d.ensureToolMaps()
+				d.toolIDs[toolIndex] = call.ID
+			}
 			if call.Function.Name != "" {
-				out = append(out, unified.ToolCallStartEvent{Index: choice.Index, ID: call.ID, Name: call.Function.Name})
+				d.ensureToolMaps()
+				d.toolNames[toolIndex] = call.Function.Name
+			}
+			if !d.startedTools[toolIndex] && (call.ID != "" || call.Function.Name != "") {
+				d.ensureToolMaps()
+				d.startedTools[toolIndex] = true
+				out = append(out, unified.ContentBlockStartEvent{Index: toolIndex, Kind: unified.ContentKindToolCall, ID: d.toolIDs[toolIndex], Name: d.toolNames[toolIndex]})
+				out = append(out, unified.ToolCallStartEvent{Index: toolIndex, ID: d.toolIDs[toolIndex], Name: d.toolNames[toolIndex]})
 			}
 			if call.Function.Arguments != "" {
-				out = append(out, unified.ToolCallArgsDeltaEvent{Index: choice.Index, ID: call.ID, Delta: call.Function.Arguments})
+				d.ensureToolMaps()
+				if d.toolArgs[toolIndex] == nil {
+					d.toolArgs[toolIndex] = &strings.Builder{}
+				}
+				d.toolArgs[toolIndex].WriteString(call.Function.Arguments)
+				out = append(out, unified.ToolCallArgsDeltaEvent{Index: toolIndex, ID: d.toolIDs[toolIndex], Delta: call.Function.Arguments})
 			}
 		}
 		if choice.FinishReason != "" {
+			toolDone := d.finishToolCalls()
+			out = append(out, toolDone...)
 			out = append(out, unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText})
-			out = append(out, unified.CompletedEvent{FinishReason: mapFinishReason(choice.FinishReason), MessageID: d.id})
+			finishReason := mapFinishReason(choice.FinishReason)
+			if len(toolDone) > 0 && finishReason == unified.FinishReasonStop {
+				finishReason = unified.FinishReasonToolCall
+			}
+			out = append(out, unified.CompletedEvent{FinishReason: finishReason, MessageID: d.id})
 			out = append(out, unified.MessageDoneEvent{ID: d.id})
 		}
 	}
@@ -141,6 +176,46 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 		})
 	}
 	return out, nil
+}
+
+func (d *streamDecoder) ensureToolMaps() {
+	if d.toolIDs == nil {
+		d.toolIDs = make(map[int]string)
+	}
+	if d.toolNames == nil {
+		d.toolNames = make(map[int]string)
+	}
+	if d.toolArgs == nil {
+		d.toolArgs = make(map[int]*strings.Builder)
+	}
+	if d.startedTools == nil {
+		d.startedTools = make(map[int]bool)
+	}
+}
+
+func (d *streamDecoder) finishToolCalls() []unified.Event {
+	if len(d.startedTools) == 0 {
+		return nil
+	}
+	indexes := make([]int, 0, len(d.startedTools))
+	for index := range d.startedTools {
+		indexes = append(indexes, index)
+	}
+	sort.Ints(indexes)
+	out := make([]unified.Event, 0, len(indexes)*2)
+	for _, index := range indexes {
+		args := json.RawMessage(nil)
+		if d.toolArgs[index] != nil && d.toolArgs[index].Len() > 0 {
+			args = json.RawMessage(d.toolArgs[index].String())
+		}
+		out = append(out, unified.ToolCallDoneEvent{Index: index, ID: d.toolIDs[index], Name: d.toolNames[index], Args: args})
+		out = append(out, unified.ContentBlockDoneEvent{Index: index, Kind: unified.ContentKindToolCall})
+		delete(d.startedTools, index)
+		delete(d.toolIDs, index)
+		delete(d.toolNames, index)
+		delete(d.toolArgs, index)
+	}
+	return out
 }
 
 func mapFinishReason(reason string) unified.FinishReason {
