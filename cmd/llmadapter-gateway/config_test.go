@@ -96,6 +96,10 @@ func TestBuildProviderMiniMaxRequiresKey(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected missing key error")
 	}
+	_, err = buildProvider(providerConfig{Name: "minimax", Type: "minimax_messages"})
+	if err == nil {
+		t.Fatalf("expected missing key error")
+	}
 }
 
 func TestProviderEndpointMetadata(t *testing.T) {
@@ -109,6 +113,7 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		{"openrouter_responses", adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, true},
 		{"openrouter_messages", adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, true},
 		{"minimax_chat", adapt.ApiMiniMaxChatCompletions, adapt.FamilyOpenAIChatCompletions, false},
+		{"minimax_messages", adapt.ApiMiniMaxAnthropicMessages, adapt.FamilyAnthropicMessages, true},
 	}
 	for _, tt := range tests {
 		apiKind, family, capabilities, err := providerEndpointMetadata(tt.providerType)

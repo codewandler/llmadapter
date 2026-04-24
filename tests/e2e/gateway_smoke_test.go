@@ -17,6 +17,7 @@ import (
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
+	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
@@ -26,13 +27,14 @@ import (
 )
 
 type gatewayProvider struct {
-	name      string
-	apiKind   adapt.ApiKind
-	family    adapt.ApiFamily
-	apiKeyEnv []string
-	modelEnv  string
-	model     string
-	newClient func(apiKey string) (unified.Client, error)
+	name            string
+	apiKind         adapt.ApiKind
+	family          adapt.ApiFamily
+	apiKeyEnv       []string
+	modelEnv        string
+	model           string
+	maxOutputTokens int
+	newClient       func(apiKey string) (unified.Client, error)
 }
 
 func TestGatewaySmokeNonStreaming(t *testing.T) {
@@ -42,7 +44,7 @@ func TestGatewaySmokeNonStreaming(t *testing.T) {
 			body := `{
 				"model":` + jsonQuote(model) + `,
 				"messages":[{"role":"user","content":"Reply with exactly: llmadapter gateway smoke ok"}],
-				"max_tokens":64
+				"max_tokens":` + jsonInt(provider.maxTokens(64)) + `
 			}`
 
 			w := httptest.NewRecorder()
@@ -79,7 +81,7 @@ func TestGatewaySmokeStreaming(t *testing.T) {
 			body := `{
 				"model":` + jsonQuote(model) + `,
 				"messages":[{"role":"user","content":"Reply with exactly: llmadapter gateway stream ok"}],
-				"max_tokens":64,
+				"max_tokens":` + jsonInt(provider.maxTokens(64)) + `,
 				"stream":true
 			}`
 
@@ -156,6 +158,19 @@ func gatewayProviders() []gatewayProvider {
 			},
 		},
 		{
+			name:      "minimax_messages",
+			apiKind:   adapt.ApiMiniMaxAnthropicMessages,
+			family:    adapt.FamilyAnthropicMessages,
+			apiKeyEnv: []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
+			modelEnv:  "MINIMAX_MESSAGES_MODEL",
+			model:     "MiniMax-M2.7",
+			// MiniMax emits reasoning before final text on the Anthropic-compatible surface.
+			maxOutputTokens: 512,
+			newClient: func(apiKey string) (unified.Client, error) {
+				return minimaxmessages.NewClient(minimaxmessages.WithAPIKey(apiKey))
+			},
+		},
+		{
 			name:      "openrouter_responses",
 			apiKind:   adapt.ApiOpenRouterResponses,
 			family:    adapt.FamilyOpenAIResponses,
@@ -178,6 +193,13 @@ func gatewayProviders() []gatewayProvider {
 			},
 		},
 	}
+}
+
+func (p gatewayProvider) maxTokens(defaultValue int) int {
+	if p.maxOutputTokens > 0 {
+		return p.maxOutputTokens
+	}
+	return defaultValue
 }
 
 func newGateway(t *testing.T, provider gatewayProvider) (http.Handler, string) {
@@ -260,6 +282,11 @@ func collectOpenAIStreamText(body []byte) (string, bool, error) {
 }
 
 func jsonQuote(value string) string {
+	b, _ := json.Marshal(value)
+	return string(b)
+}
+
+func jsonInt(value int) string {
 	b, _ := json.Marshal(value)
 	return string(b)
 }

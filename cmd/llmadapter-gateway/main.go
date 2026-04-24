@@ -13,6 +13,7 @@ import (
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
+	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
@@ -106,6 +107,8 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 		return adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true}, nil
 	case "minimax_chat":
 		return adapt.ApiMiniMaxChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true}, nil
+	case "minimax_messages":
+		return adapt.ApiMiniMaxAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true}, nil
 	default:
 		return "", "", router.CapabilitySet{}, fmt.Errorf("unsupported provider type %q", providerType)
 	}
@@ -232,6 +235,22 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 			opts = append(opts, minimax.WithBaseURL(provider.BaseURL))
 		}
 		return minimax.NewClient(opts...)
+	case "minimax_messages":
+		apiKey := provider.APIKey
+		if apiKey == "" && provider.APIKeyEnv != "" {
+			apiKey = os.Getenv(provider.APIKeyEnv)
+		}
+		if apiKey == "" {
+			apiKey = firstEnv("MINIMAX_API_KEY", "MINIMAX_KEY")
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
+		}
+		opts := []minimaxmessages.Option{minimaxmessages.WithAPIKey(apiKey)}
+		if provider.BaseURL != "" {
+			opts = append(opts, minimaxmessages.WithBaseURL(provider.BaseURL))
+		}
+		return minimaxmessages.NewClient(opts...)
 	default:
 		return nil, fmt.Errorf("unsupported provider type %q", provider.Type)
 	}

@@ -10,6 +10,7 @@ import (
 
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
+	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
@@ -18,12 +19,13 @@ import (
 )
 
 type smokeProvider struct {
-	name      string
-	apiKeyEnv []string
-	modelEnv  string
-	model     string
-	tools     bool
-	newClient func(apiKey string) (unified.Client, error)
+	name            string
+	apiKeyEnv       []string
+	modelEnv        string
+	model           string
+	tools           bool
+	maxOutputTokens int
+	newClient       func(apiKey string) (unified.Client, error)
 }
 
 func TestSmokeTextStream(t *testing.T) {
@@ -37,7 +39,7 @@ func TestSmokeTextStream(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()
 
-			maxTokens := 64
+			maxTokens := provider.maxTokens(64)
 			events, err := client.Request(ctx, unified.Request{
 				Model:           model,
 				MaxOutputTokens: &maxTokens,
@@ -91,7 +93,7 @@ func TestSmokeToolUse(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()
 
-			maxTokens := 128
+			maxTokens := provider.maxTokens(128)
 			events, err := client.Request(ctx, unified.Request{
 				Model:           model,
 				MaxOutputTokens: &maxTokens,
@@ -152,7 +154,7 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 
-			maxTokens := 128
+			maxTokens := provider.maxTokens(128)
 			userMessage := unified.Message{
 				Role: unified.RoleUser,
 				Content: []unified.ContentPart{
@@ -270,6 +272,18 @@ func smokeProviders() []smokeProvider {
 			},
 		},
 		{
+			name:      "minimax_messages",
+			apiKeyEnv: []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
+			modelEnv:  "MINIMAX_MESSAGES_MODEL",
+			model:     "MiniMax-M2.7",
+			tools:     true,
+			// MiniMax emits reasoning before final text on the Anthropic-compatible surface.
+			maxOutputTokens: 512,
+			newClient: func(apiKey string) (unified.Client, error) {
+				return minimaxmessages.NewClient(minimaxmessages.WithAPIKey(apiKey))
+			},
+		},
+		{
 			name:      "openrouter_responses",
 			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
 			modelEnv:  "OPENROUTER_RESPONSES_MODEL",
@@ -290,6 +304,13 @@ func smokeProviders() []smokeProvider {
 			},
 		},
 	}
+}
+
+func (p smokeProvider) maxTokens(defaultValue int) int {
+	if p.maxOutputTokens > 0 {
+		return p.maxOutputTokens
+	}
+	return defaultValue
 }
 
 func newSmokeClient(t *testing.T, provider smokeProvider) (unified.Client, string) {

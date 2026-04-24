@@ -13,12 +13,14 @@ can be created to match these entries as the project starts publishing releases.
 ### Added
 
 - **MiniMax Chat Completions provider** - Added a MiniMax OpenAI-compatible Chat Completions provider wrapper with default `https://api.minimax.io` routing.
+- **MiniMax Anthropic-compatible Messages provider** - Added a MiniMax Messages provider wrapper with default `https://api.minimax.io/anthropic` routing.
 - **MiniMax gateway registration** - Added `minimax_chat` as a gateway provider endpoint type in the OpenAI Chat Completions family.
-- **MiniMax smoke coverage** - Added shared text and gateway e2e smoke entries gated by `MINIMAX_API_KEY` or `MINIMAX_KEY`.
+- **MiniMax Messages gateway registration** - Added `minimax_messages` as a gateway provider endpoint type in the Anthropic Messages family.
+- **MiniMax smoke coverage** - Added shared text, tool, continuation, and gateway e2e smoke entries gated by `MINIMAX_API_KEY` or `MINIMAX_KEY`.
 
 ### Changed
 
-- **MiniMax plan status** - Updated provider planning to keep MiniMax tools and Anthropic-compatible Messages as explicit follow-up slices.
+- **MiniMax plan status** - Updated provider planning to keep downstream endpoint codecs and broader MiniMax conformance as explicit follow-up slices.
 
 ## [0.8.0] - 2026-04-24
 
