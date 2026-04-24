@@ -20,6 +20,7 @@ can be created to match these entries as the project starts publishing releases.
 - **OpenAI Responses gateway smokes** - Added live gateway smoke coverage against OpenRouter Responses.
 - **Capability-aware routing** - Static routing now skips endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input.
 - **Best-effort mapping warnings** - Anthropic-family provider request mapping now emits canonical warnings when unsupported fields are dropped in best-effort mode.
+- **OpenAI-family mapping warnings** - OpenAI Chat, OpenRouter Chat, and OpenRouter Responses provider mappings now emit canonical warnings when non-text content or unsupported tool kinds are dropped.
 
 ## [0.10.1] - 2026-04-24
 

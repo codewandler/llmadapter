@@ -12,7 +12,7 @@ import (
 
 func TestEncodeRequest(t *testing.T) {
 	maxTokens := 32
-	wire, err := encodeRequest(unified.Request{
+	wire, _, err := encodeRequest(unified.Request{
 		Model:           "gpt-test",
 		MaxOutputTokens: &maxTokens,
 		Instructions: []unified.Instruction{{
@@ -40,7 +40,7 @@ func TestEncodeRequest(t *testing.T) {
 }
 
 func TestEncodeToolResults(t *testing.T) {
-	wire, err := encodeRequest(unified.Request{
+	wire, _, err := encodeRequest(unified.Request{
 		Model: "gpt-test",
 		Messages: []unified.Message{{
 			Role: unified.RoleTool,
@@ -61,6 +61,29 @@ func TestEncodeToolResults(t *testing.T) {
 	}
 	if wire.Messages[1].ToolCallID != "call_2" || wire.Messages[1].Content != "two" {
 		t.Fatalf("unexpected second tool result: %+v", wire.Messages[1])
+	}
+}
+
+func TestEncodeRequestWarnings(t *testing.T) {
+	wire, warnings, err := encodeRequest(unified.Request{
+		Model: "gpt-test",
+		Messages: []unified.Message{{
+			Role: unified.RoleUser,
+			Content: []unified.ContentPart{
+				unified.TextPart{Text: "hello"},
+				unified.ReasoningPart{Text: "think"},
+			},
+		}},
+		Tools: []unified.Tool{{Kind: "custom", Name: "ignored"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.Messages) != 1 || wire.Messages[0].Content != "hello" || len(wire.Tools) != 0 {
+		t.Fatalf("unexpected wire request: %+v", wire)
+	}
+	if len(warnings) != 2 {
+		t.Fatalf("warnings = %+v", warnings)
 	}
 }
 
@@ -96,6 +119,35 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 	}
 	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" || resp.Usage.TotalTokens != 3 {
 		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
+func TestClientEmitsEncodeWarnings(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), unified.Request{
+		Model: "gpt-test",
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.ReasoningPart{Text: "think"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Warnings) != 1 || resp.Warnings[0].Code != "unsupported_field_dropped" {
+		t.Fatalf("warnings = %+v", resp.Warnings)
 	}
 }
 

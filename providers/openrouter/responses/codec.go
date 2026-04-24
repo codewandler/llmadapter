@@ -2,13 +2,29 @@ package responses
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 )
 
-func encodeRequest(req unified.Request) requestWire {
+type mappingWarning struct {
+	code    string
+	field   string
+	message string
+}
+
+func (w mappingWarning) event(source string) unified.WarningEvent {
+	meta := map[string]any(nil)
+	if w.field != "" {
+		meta = map[string]any{"field": w.field}
+	}
+	return unified.WarningEvent{Code: w.code, Message: w.message, Source: source, Meta: meta}
+}
+
+func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
+	var warnings []mappingWarning
 	out := requestWire{
 		Model:           req.Model,
 		MaxOutputTokens: req.MaxOutputTokens,
@@ -18,15 +34,16 @@ func encodeRequest(req unified.Request) requestWire {
 		Stream:          req.Stream,
 		User:            req.User,
 	}
-	out.Instructions = contentText(instructionParts(req.Instructions))
-	for _, msg := range req.Messages {
+	out.Instructions = contentText(instructionParts(req.Instructions), "instructions.content", &warnings)
+	for i, msg := range req.Messages {
 		item := inputItemWire{Type: "message", Role: string(msg.Role), ID: msg.ID}
 		if msg.Role == unified.RoleAssistant {
 			item.Status = "completed"
 		}
-		for _, part := range msg.Content {
+		for j, part := range msg.Content {
 			text, ok := part.(unified.TextPart)
 			if !ok {
+				addWarning(&warnings, "messages."+strconv.Itoa(i)+".content."+strconv.Itoa(j), "non-text content part was dropped")
 				continue
 			}
 			partType := "input_text"
@@ -47,17 +64,18 @@ func encodeRequest(req unified.Request) requestWire {
 				Arguments: string(call.Arguments),
 			})
 		}
-		for _, result := range msg.ToolResults {
+		for j, result := range msg.ToolResults {
 			out.Input = append(out.Input, inputItemWire{
 				Type:   "function_call_output",
 				ID:     "output_" + result.ToolCallID,
 				CallID: result.ToolCallID,
-				Output: contentText(result.Content),
+				Output: contentText(result.Content, "messages."+strconv.Itoa(i)+".tool_results."+strconv.Itoa(j)+".content", &warnings),
 			})
 		}
 	}
-	for _, tool := range req.Tools {
+	for i, tool := range req.Tools {
 		if tool.Kind != "" && tool.Kind != unified.ToolKindFunction {
+			addWarning(&warnings, "tools."+strconv.Itoa(i)+".kind", "unsupported tool kind was dropped")
 			continue
 		}
 		out.Tools = append(out.Tools, toolWire{
@@ -70,7 +88,7 @@ func encodeRequest(req unified.Request) requestWire {
 	if req.ToolChoice != nil {
 		out.ToolChoice = encodeToolChoice(*req.ToolChoice)
 	}
-	return out
+	return out, warnings
 }
 
 func encodeToolChoice(choice unified.ToolChoice) any {
@@ -96,14 +114,23 @@ func instructionParts(instructions []unified.Instruction) []unified.ContentPart 
 	return out
 }
 
-func contentText(parts []unified.ContentPart) string {
+func contentText(parts []unified.ContentPart, field string, warnings *[]mappingWarning) string {
 	var out []string
-	for _, part := range parts {
+	for i, part := range parts {
 		if text, ok := part.(unified.TextPart); ok {
 			out = append(out, text.Text)
+			continue
 		}
+		addWarning(warnings, field+"."+strconv.Itoa(i), "non-text content part was dropped")
 	}
 	return strings.Join(out, "\n")
+}
+
+func addWarning(warnings *[]mappingWarning, field, message string) {
+	if warnings == nil {
+		return
+	}
+	*warnings = append(*warnings, mappingWarning{code: "unsupported_field_dropped", field: field, message: message})
 }
 
 type streamDecoder struct {

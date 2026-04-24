@@ -58,7 +58,7 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 
 func TestEncodeRequest(t *testing.T) {
 	maxTokens := 8
-	wire := encodeRequest(unified.Request{
+	wire, _ := encodeRequest(unified.Request{
 		Model:           "openai/test",
 		MaxOutputTokens: &maxTokens,
 		Instructions: []unified.Instruction{{
@@ -78,7 +78,7 @@ func TestEncodeRequest(t *testing.T) {
 }
 
 func TestEncodeRequestTools(t *testing.T) {
-	wire := encodeRequest(unified.Request{
+	wire, _ := encodeRequest(unified.Request{
 		Model: "openai/test",
 		Messages: []unified.Message{
 			{
@@ -120,6 +120,56 @@ func TestEncodeRequestTools(t *testing.T) {
 	choice, ok := wire.ToolChoice.(map[string]string)
 	if !ok || choice["type"] != "function" || choice["name"] != "lookup" {
 		t.Fatalf("tool choice = %#v", wire.ToolChoice)
+	}
+}
+
+func TestEncodeRequestWarnings(t *testing.T) {
+	wire, warnings := encodeRequest(unified.Request{
+		Model: "openai/test",
+		Messages: []unified.Message{{
+			Role: unified.RoleUser,
+			Content: []unified.ContentPart{
+				unified.TextPart{Text: "hello"},
+				unified.ReasoningPart{Text: "think"},
+			},
+		}},
+		Tools: []unified.Tool{{Kind: "custom", Name: "ignored"}},
+	})
+	if len(wire.Input) != 1 || len(wire.Input[0].Content) != 1 || len(wire.Tools) != 0 {
+		t.Fatalf("unexpected wire request: %+v", wire)
+	}
+	if len(warnings) != 2 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
+func TestClientEmitsEncodeWarnings(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"openai/test","status":"in_progress"}}`),
+		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"openai/test","status":"completed"}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), unified.Request{
+		Model: "openai/test",
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.ReasoningPart{Text: "think"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Warnings) != 1 || resp.Warnings[0].Code != "unsupported_field_dropped" {
+		t.Fatalf("warnings = %+v", resp.Warnings)
 	}
 }
 

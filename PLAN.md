@@ -38,6 +38,7 @@ Endpoint slice: downstream Anthropic-compatible /v1/messages gateway codec and l
 Endpoint slice: downstream OpenAI-compatible /v1/responses gateway codec and live OpenRouter Responses gateway smokes
 Routing hardening slice: static router now checks request capabilities before selecting a provider endpoint
 Mapping warnings slice: Anthropic-family provider best-effort request mapping emits canonical warning events for dropped unsupported fields
+Mapping warnings slice: OpenAI Chat, OpenRouter Chat, and OpenRouter Responses provider mappings emit canonical warning events for dropped non-text content and unsupported tool kinds
 ```
 
 Verified:
@@ -179,7 +180,7 @@ default MiniMax Messages smoke-test model: MiniMax-M2.7
 Known follow-up gaps:
 
 ```text
-Anthropic-family best_effort request mapping emits WarningEvents for unsupported dropped fields; other codecs still need the same treatment
+Anthropic-family, OpenAI Chat-family, and OpenRouter Responses provider mappings emit WarningEvents for common unsupported dropped fields; endpoint codecs and more specialized fields still need broader warning coverage
 Anthropic request mapping covers the phase-3 vertical slice, not the full Messages API
 non-streaming Anthropic response bodies are not yet modeled separately from stream events
 SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
@@ -206,7 +207,7 @@ Implementation assessment:
 Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, fake transport unit tests, and live outside-in e2e tests are all working.
 Main intentional shortcuts are static first-match routing, hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
-Important remaining test gaps: invalid credentials/models, weighted fallback routing, parallel tool calls, malformed tool args, full JSON/schema mode behavior, broader warning/lossiness coverage outside Anthropic-family mappings, broader reasoning/citations conformance, multimodal input, and provider-specific extension passthrough.
+Important remaining test gaps: invalid credentials/models, weighted fallback routing, parallel tool calls, malformed tool args, full JSON/schema mode behavior, endpoint-codec warning/lossiness coverage, broader reasoning/citations conformance, multimodal input, and provider-specific extension passthrough.
 ```
 
 Next planned phase:

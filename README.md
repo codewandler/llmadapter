@@ -76,6 +76,6 @@ Provider endpoint = provider + API kind + family + client + capabilities.
 
 Routes skip provider endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input.
 
-Best-effort provider mappings may emit canonical warning events when unsupported fields are dropped; collected responses expose these under `Response.Warnings`.
+Best-effort provider mappings emit canonical warning events for common unsupported dropped fields; collected responses expose these under `Response.Warnings`.
 
 See `DESIGN.md` for the target architecture and `PLAN.md` for current status, known gaps, and next implementation phases.

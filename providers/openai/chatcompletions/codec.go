@@ -4,13 +4,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 )
 
-func encodeRequest(req unified.Request) (requestWire, error) {
+type mappingWarning struct {
+	code    string
+	field   string
+	message string
+}
+
+func (w mappingWarning) event(source string) unified.WarningEvent {
+	meta := map[string]any(nil)
+	if w.field != "" {
+		meta = map[string]any{"field": w.field}
+	}
+	return unified.WarningEvent{Code: w.code, Message: w.message, Source: source, Meta: meta}
+}
+
+func encodeRequest(req unified.Request) (requestWire, []mappingWarning, error) {
+	var warnings []mappingWarning
 	out := requestWire{
 		Model:       req.Model,
 		MaxTokens:   req.MaxOutputTokens,
@@ -20,22 +36,22 @@ func encodeRequest(req unified.Request) (requestWire, error) {
 		Stream:      req.Stream,
 		User:        req.User,
 	}
-	for _, inst := range req.Instructions {
-		out.Messages = append(out.Messages, messageWire{Role: "system", Content: contentText(inst.Content), Name: inst.Name})
+	for i, inst := range req.Instructions {
+		out.Messages = append(out.Messages, messageWire{Role: "system", Content: contentText(inst.Content, "instructions."+strconv.Itoa(i)+".content", &warnings), Name: inst.Name})
 	}
-	for _, msg := range req.Messages {
+	for i, msg := range req.Messages {
 		if msg.Role == unified.RoleTool && len(msg.ToolResults) > 0 {
-			for _, result := range msg.ToolResults {
+			for j, result := range msg.ToolResults {
 				out.Messages = append(out.Messages, messageWire{
 					Role:       "tool",
 					ToolCallID: result.ToolCallID,
 					Name:       result.Name,
-					Content:    contentText(result.Content),
+					Content:    contentText(result.Content, "messages."+strconv.Itoa(i)+".tool_results."+strconv.Itoa(j)+".content", &warnings),
 				})
 			}
 			continue
 		}
-		wire := messageWire{Role: string(msg.Role), Content: contentText(msg.Content), Name: msg.Name}
+		wire := messageWire{Role: string(msg.Role), Content: contentText(msg.Content, "messages."+strconv.Itoa(i)+".content", &warnings), Name: msg.Name}
 		for _, call := range msg.ToolCalls {
 			wire.ToolCalls = append(wire.ToolCalls, toolCallWire{
 				Index: call.Index,
@@ -49,8 +65,9 @@ func encodeRequest(req unified.Request) (requestWire, error) {
 		}
 		out.Messages = append(out.Messages, wire)
 	}
-	for _, tool := range req.Tools {
+	for i, tool := range req.Tools {
 		if tool.Kind != "" && tool.Kind != unified.ToolKindFunction {
+			addWarning(&warnings, "tools."+strconv.Itoa(i)+".kind", "unsupported tool kind was dropped")
 			continue
 		}
 		out.Tools = append(out.Tools, toolWire{Type: "function", Function: functionToolWire{
@@ -62,7 +79,7 @@ func encodeRequest(req unified.Request) (requestWire, error) {
 	if req.ToolChoice != nil {
 		out.ToolChoice = encodeToolChoice(*req.ToolChoice)
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
 func encodeToolChoice(choice unified.ToolChoice) any {
@@ -80,14 +97,23 @@ func encodeToolChoice(choice unified.ToolChoice) any {
 	}
 }
 
-func contentText(parts []unified.ContentPart) string {
+func contentText(parts []unified.ContentPart, field string, warnings *[]mappingWarning) string {
 	var out []string
-	for _, part := range parts {
+	for i, part := range parts {
 		if text, ok := part.(unified.TextPart); ok {
 			out = append(out, text.Text)
+			continue
 		}
+		addWarning(warnings, field+"."+strconv.Itoa(i), "non-text content part was dropped")
 	}
 	return strings.Join(out, "\n")
+}
+
+func addWarning(warnings *[]mappingWarning, field, message string) {
+	if warnings == nil {
+		return
+	}
+	*warnings = append(*warnings, mappingWarning{code: "unsupported_field_dropped", field: field, message: message})
 }
 
 type streamDecoder struct {

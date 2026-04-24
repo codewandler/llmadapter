@@ -37,7 +37,7 @@ func NewClient(opts ...Option) (unified.Client, error) {
 }
 
 func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unified.Event, error) {
-	wire, err := encodeRequest(req)
+	wire, warnings, err := encodeRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -61,13 +61,20 @@ func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unifi
 		return nil, err
 	}
 	out := make(chan unified.Event)
-	go c.readStream(ctx, stream, out)
+	go c.readStream(ctx, warnings, stream, out)
 	return out, nil
 }
 
-func (c *Client) readStream(ctx context.Context, stream transport.ByteStream, out chan<- unified.Event) {
+func (c *Client) readStream(ctx context.Context, warnings []mappingWarning, stream transport.ByteStream, out chan<- unified.Event) {
 	defer close(out)
 	defer stream.Close()
+	for _, warning := range warnings {
+		select {
+		case <-ctx.Done():
+			return
+		case out <- warning.event("openai.chat_completions"):
+		}
+	}
 	decoder := streamDecoder{}
 	for {
 		raw, err := stream.Recv(ctx)
