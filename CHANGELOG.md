@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added `adapterconfig` for public llmadapter JSON config loading/defaulting/validation and config-driven mux client construction.
+- `adapterconfig.NewMuxClient` now builds provider endpoints, resolves modeldb aliases, applies modeldb capability metadata, and wraps pricing processors.
+- `llmadapter smoke -mode mux` now accepts `-config` for config-driven in-process routing.
+
 ## [0.31.0] - 2026-04-24
 
 ### Added

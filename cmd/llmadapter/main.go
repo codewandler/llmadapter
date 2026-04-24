@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/adapterconfig"
 	"github.com/codewandler/llmadapter/muxclient"
 	"github.com/codewandler/llmadapter/providerregistry"
 	"github.com/codewandler/llmadapter/router"
@@ -62,6 +63,7 @@ func runProviders(args []string) error {
 func runSmoke(args []string) error {
 	fs := flag.NewFlagSet("smoke", flag.ContinueOnError)
 	mode := fs.String("mode", "direct", "smoke mode: direct or mux")
+	configPath := fs.String("config", "", "llmadapter JSON config path for mux mode")
 	sourceAPI := fs.String("source-api", string(adapt.ApiOpenAIResponses), "source API for mux mode")
 	providerType := fs.String("type", "openai_responses", "provider endpoint type")
 	model := fs.String("model", "", "model to request")
@@ -75,6 +77,24 @@ func runSmoke(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	requestModel := *model
+	if requestModel == "" && *configPath != "" {
+		requestModel = defaultModelFromConfig(*configPath, adapt.ApiKind(*sourceAPI))
+	}
+	if *mode == "mux" && *configPath != "" {
+		if requestModel == "" {
+			return fmt.Errorf("model is required when config has no route model")
+		}
+		cfg, err := adapterconfig.Load(*configPath)
+		if err != nil {
+			return err
+		}
+		client, err := adapterconfig.NewMuxClient(cfg, adapterconfig.WithSourceAPI(adapt.ApiKind(*sourceAPI)))
+		if err != nil {
+			return err
+		}
+		return runSmokeRequest(client, requestModel, *prompt, *timeout, *maxTokens)
+	}
 	descriptor, ok := providerregistry.Lookup(*providerType)
 	if !ok {
 		return fmt.Errorf("unknown provider type %q", *providerType)
@@ -86,7 +106,6 @@ func runSmoke(args []string) error {
 	if key == "" {
 		key = firstEnv(descriptor.DefaultAPIKeyEnvs...)
 	}
-	requestModel := *model
 	if requestModel == "" && descriptor.DefaultModelEnv != "" {
 		requestModel = os.Getenv(descriptor.DefaultModelEnv)
 	}
@@ -123,14 +142,18 @@ func runSmoke(args []string) error {
 		return fmt.Errorf("unknown smoke mode %q", *mode)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	return runSmokeRequest(client, requestModel, *prompt, *timeout, *maxTokens)
+}
+
+func runSmokeRequest(client unified.Client, model, prompt string, timeout time.Duration, maxTokens int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	events, err := client.Request(ctx, unified.Request{
-		Model:           requestModel,
-		MaxOutputTokens: maxTokens,
+		Model:           model,
+		MaxOutputTokens: &maxTokens,
 		Messages: []unified.Message{{
 			Role:    unified.RoleUser,
-			Content: []unified.ContentPart{unified.TextPart{Text: *prompt}},
+			Content: []unified.ContentPart{unified.TextPart{Text: prompt}},
 		}},
 		Stream: true,
 	})
@@ -147,6 +170,24 @@ func runSmoke(args []string) error {
 	}
 	fmt.Println(text)
 	return nil
+}
+
+func defaultModelFromConfig(path string, sourceAPI adapt.ApiKind) string {
+	cfg, err := adapterconfig.Load(path)
+	if err != nil {
+		return ""
+	}
+	for _, route := range cfg.Routes {
+		if route.SourceAPI == sourceAPI && route.Model != "" {
+			return route.Model
+		}
+	}
+	for _, route := range cfg.Routes {
+		if route.Model != "" {
+			return route.Model
+		}
+	}
+	return ""
 }
 
 func firstEnv(keys ...string) string {
