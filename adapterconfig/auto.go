@@ -127,10 +127,15 @@ func autoProviderConfig(descriptor providerregistry.Descriptor, apiKeyEnv string
 func autoRoutes(cfg Config, opts AutoOptions) []RouteConfig {
 	if len(opts.Intents) > 0 {
 		var out []RouteConfig
+		dynamic := map[adapt.ApiKind]bool{}
 		for _, intent := range opts.Intents {
 			route, ok := routeForIntent(cfg, intent)
 			if ok {
 				out = append(out, route)
+				if opts.DynamicModels && !dynamic[route.SourceAPI] {
+					out = append(out, dynamicRoute(route))
+					dynamic[route.SourceAPI] = true
+				}
 			}
 		}
 		return out

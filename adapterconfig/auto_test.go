@@ -154,6 +154,36 @@ func TestAutoMuxClientCanAddDynamicRoutes(t *testing.T) {
 	}
 }
 
+func TestAutoMuxClientCanAddDynamicRoutesWithIntents(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("OPENAI_API_KEY", "test-openai-key")
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:     true,
+		DynamicModels: true,
+		Intents:       []AutoIntent{{Name: "miniagent-default", SourceAPI: adapt.ApiOpenAIResponses}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundIntent bool
+	var foundDynamic bool
+	for _, route := range result.Config.Routes {
+		if route.SourceAPI != adapt.ApiOpenAIResponses || route.Provider != "openai_responses" {
+			continue
+		}
+		if route.Model == "miniagent-default" && !route.DynamicModels {
+			foundIntent = true
+		}
+		if route.DynamicModels && route.Model == "" && route.NativeModel == "" {
+			foundDynamic = true
+		}
+	}
+	if !foundIntent || !foundDynamic {
+		t.Fatalf("expected intent and dynamic routes, foundIntent=%v foundDynamic=%v routes=%+v", foundIntent, foundDynamic, result.Config.Routes)
+	}
+}
+
 func TestAutoMuxClientErrorsWithoutDetectedProviders(t *testing.T) {
 	clearAutoEnv(t)
 

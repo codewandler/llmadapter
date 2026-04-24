@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-04-24
+
+### Fixed
+
+- Auto mux configuration now keeps dynamic model passthrough routes when explicit intent routes are configured.
+
 ## [0.43.0] - 2026-04-24
 
 ### Added
