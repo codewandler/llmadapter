@@ -1,24 +1,236 @@
 # llmadapter Implementation Plan
 
-Concrete execution steps for phases 1–3 from DESIGN.md §33.
+Refined execution plan for `DESIGN.md` phases 1-3.
 
-Each step produces compilable, tested code. Steps within a phase are ordered by dependency. No step should require forward references to unwritten code.
+Primary goal: reach a working programmatic client for Anthropic Messages with a stable core IR, stream pipeline, and transport foundation. The first implementation pass should optimize for a thin, testable vertical slice, not for maximum provider coverage.
+
+---
+
+## Current Status
+
+Status date: 2026-04-24.
+
+Phases 1-3 are implemented as a first working vertical slice.
+
+Completed:
+
+```text
+Phase 1: unified, adapt, and pipeline core packages
+Phase 2: transport package with SSE, NDJSON, HTTP, fake, retry, and rate-limit wrappers
+Phase 3: Anthropic Messages programmatic client path
+```
+
+Verified:
+
+```text
+env GOCACHE=/tmp/go-cache go test ./...
+env GOCACHE=/tmp/go-cache go build ./...
+env GOCACHE=/tmp/go-cache go vet ./...
+```
+
+Implemented package surface:
+
+```text
+unified/
+adapt/
+pipeline/
+transport/
+providers/anthropic/messages/
+```
+
+Anthropic path coverage:
+
+```text
+unified.Request -> Anthropic MessageRequest
+HTTP byte-stream request construction
+raw SSE event block parsing
+Anthropic wire event decoding
+Anthropic wire event -> unified.Event mapping
+text streaming
+tool-use streaming with argument deltas
+usage and finish-reason mapping
+unified.Collect(...)
+fake transport integration tests
+```
+
+Known follow-up gaps:
+
+```text
+best_effort request mapping skips unsupported fields but does not yet emit WarningEvents or adapt warnings
+Anthropic request mapping covers the phase-3 vertical slice, not the full Messages API
+non-streaming Anthropic response bodies are not yet modeled separately from stream events
+SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
+Raw/unmapped event preservation is minimal and should be expanded before gateway work
+```
+
+Next planned phase:
+
+```text
+Phase 4: one HTTP compatibility endpoint, likely /v1/chat/completions -> unified -> Anthropic Messages
+```
+
+---
+
+## Target outcome
+
+At the end of phases 1-3, this must work:
+
+```text
+unified.Request
+  -> Anthropic Messages request codec
+  -> HTTP byte-stream transport
+  -> SSE frame decoding
+  -> Anthropic wire events
+  -> unified.Event stream
+  -> unified.Collect(...)
+```
+
+The public surface at that point is intentionally small:
+
+```text
+unified.Request
+unified.Event
+unified.Client
+providers/anthropic/messages.NewClient(...)
+```
+
+Out of scope for these phases:
+
+```text
+HTTP gateway endpoints
+router / model registry / fallback routing
+multi-provider support
+OpenAI Responses / Chat compatibility handlers
+coreprovider shared package
+gateway package
+router package
+websocket transport
+provider-to-provider relays
+JSON-schema emulation across providers
+```
+
+---
+
+## Working rules
+
+Every step must:
+
+```text
+compile without forward references
+include focused unit tests
+leave the repo in a buildable state
+prefer stdlib only
+```
+
+Implementation order matters more than package purity in the first pass. If a shared abstraction is only used by Anthropic in phases 1-3, keep it local unless the abstraction is already clearly stable.
+
+---
+
+## Locked decisions for phases 1-3
+
+These decisions remove ambiguity from the original plan and should be treated as fixed unless implementation proves them wrong.
+
+### 1. Public error signaling
+
+Inside the pipeline, use `pipeline.Item[T]` to propagate errors.
+
+At the public `unified.Client` boundary, convert pipeline errors into a final `unified.ErrorEvent` and close the channel.
+
+### 2. SSE transport contract
+
+`transport.ByteStream` remains byte-oriented.
+
+For `FrameFormatSSE`, `transport.HTTPByteStreamTransport` returns one complete raw SSE event block per `Recv`, not just the `data:` payload. This avoids losing the upstream `event:` field, which Anthropic requires to dispatch event types correctly.
+
+`transport/sse.go` therefore owns both:
+
+```text
+splitting a response stream into SSE event blocks
+parsing one raw SSE block into transport.SSEFrame
+```
+
+### 3. Retry and rate limiting live in `transport`
+
+Phase 2 includes:
+
+```text
+RetryMode
+RetryTransport
+RateLimiter interface
+RateLimitedTransport wrapper
+```
+
+Anthropic phase 3 only needs `WithTransport(...)`. Exposing dedicated rate-limit/retry options can wait until phase 4+.
+
+### 4. No `coreprovider` package yet
+
+`DESIGN.md` describes a future shared provider config package. Do not introduce it in phases 1-3.
+
+For the first implementation, Anthropic owns its local:
+
+```text
+Config
+Option
+HeaderFunc
+default base URL / version
+processor wiring
+```
+
+If the pattern survives phase 4, extract it later.
+
+### 5. First-pass lossiness policy
+
+For Anthropic in phase 3:
+
+```text
+strict mode: return UnsupportedFieldError
+best_effort mode: append warnings and skip unsupported fields
+```
+
+Do not emulate unsupported semantics yet. In particular:
+
+```text
+ResponseFormat JSON schema: warn/error only
+Seed: warn/error only
+provider-specific reasoning controls: extension or warn/error only
+```
+
+### 6. Vertical-slice priority
+
+Phase 3 should be implemented in this order:
+
+```text
+text-only streaming
+usage + completion mapping
+tool-use streaming
+public constructor
+integration coverage
+```
+
+Do not start with the full feature matrix.
 
 ---
 
 ## Phase 1: Core IR and stream pipeline
 
-Foundation types and pipeline mechanics. No providers, no transport, no HTTP.
+Goal: define the canonical types and processor pipeline needed by a single provider path. No transport, no HTTP gateway, no router.
 
-### Step 1.1: `unified` package — content and blob types
+### Step 1.1: `unified` content, messages, tools, response config
 
-Create `unified/content.go`.
+Create:
+
+```text
+unified/content.go
+unified/message.go
+unified/tool.go
+unified/response_format.go
+```
 
 Types:
 
 ```text
-ContentKind           (string enum)
-ContentPart           (interface with unexported contentKind())
+ContentKind
+ContentPart
 TextPart
 ImagePart
 AudioPart
@@ -26,81 +238,58 @@ VideoPart
 FilePart
 ReasoningPart
 RefusalPart
-BlobSourceKind        (string enum)
+BlobSourceKind
 BlobSource
+
+Role
+Message
+InstructionKind
+Instruction
+
+ToolKind
+Tool
+ToolChoiceMode
+ToolChoice
+ToolCall
+ToolResult
+
+ResponseFormatKind
+ResponseFormat
+ReasoningEffort
+ReasoningConfig
+SafetyConfig
 ```
 
 Tests:
 
 ```text
-each part returns correct ContentKind
+content parts report the correct kind
+public zero values marshal sensibly where relevant
 ```
 
-File: `unified/content.go`, `unified/content_test.go`
-
-### Step 1.2: `unified` package — messages and instructions
-
-Create `unified/message.go`.
-
-Types:
+Notes:
 
 ```text
-Role                  (string enum: user, assistant, system, tool)
-Message               (Role, ID, Name, Content, ToolCalls, ToolResults, Meta)
-InstructionKind       (string enum: system, developer, policy)
-Instruction           (Kind, Content, Name, Meta)
+keep `ContentPart` and `Event` sealed with unexported marker methods
+use pointers for optional scalar request fields later
+do not add provider-specific fields here
 ```
 
-File: `unified/message.go`
-
-### Step 1.3: `unified` package — tools
-
-Create `unified/tool.go`.
-
-Types:
-
-```text
-ToolKind              (string enum)
-Tool                  (Kind, Name, Description, InputSchema, Config)
-ToolChoiceMode        (string enum)
-ToolChoice            (Mode, Name)
-ToolCall              (ID, Name, Arguments, Index)
-ToolResult            (ToolCallID, Name, Content, IsError)
-```
-
-File: `unified/tool.go`
-
-### Step 1.4: `unified` package — response format, reasoning, safety
-
-Create `unified/response_format.go`.
-
-Types:
-
-```text
-ResponseFormatKind    (string enum)
-ResponseFormat        (Kind, Schema, Name, Strict)
-ReasoningEffort       (string enum)
-ReasoningConfig       (Effort, MaxTokens, Expose, Extensions)
-SafetyConfig          (Policies, Extensions)
-```
-
-File: `unified/response_format.go`
-
-### Step 1.5: `unified` package — extensions
+### Step 1.2: `unified.Extensions`
 
 Create `unified/extensions.go`.
 
-Types:
+API:
 
 ```text
-Extensions            (struct with unexported map[string]json.RawMessage)
-Extensions.Set(key, value) error
-Extensions.Has(key) bool
-Extensions.Keys() []string
-GetExtension[T](e, key) (T, bool, error)
+type Extensions struct
+(*Extensions).Set(key string, value any) error
+(Extensions).Has(key string) bool
+(Extensions).Keys() []string
+GetExtension[T](Extensions, key string) (T, bool, error)
 ```
 
-Extension key constants:
+Extension keys to add now:
 
 ```text
 ExtOpenAIPreviousResponseID
@@ -114,248 +303,237 @@ ExtOllamaOptions
 Tests:
 
 ```text
-Set and GetExtension roundtrip for string, int, struct
-GetExtension on missing key returns (zero, false, nil)
-GetExtension with type mismatch returns error
-Has returns true/false correctly
+roundtrip for scalar and struct values
+missing key returns (zero, false, nil)
+type mismatch returns error
 Keys returns sorted keys
-Set with nil value marshals null
+nil value marshals as JSON null
 ```
 
-File: `unified/extensions.go`, `unified/extensions_test.go`
+### Step 1.3: `unified.Request`, `APIError`, `Client`
 
-### Step 1.6: `unified` package — request
+Create:
 
-Create `unified/request.go`.
+```text
+unified/request.go
+unified/errors.go
+unified/client.go
+```
 
 Types:
 
 ```text
-Request               (Model, Messages, Instructions, MaxOutputTokens, Temperature,
-                       TopP, TopK, Stop, Seed, ResponseFormat, Tools, ToolChoice,
-                       Reasoning, Safety, Stream, User, Extensions)
-```
-
-File: `unified/request.go`
-
-### Step 1.7: `unified` package — events
-
-Create `unified/event.go`.
-
-Types:
-
-```text
-Event                 (interface with unexported isEvent())
-MessageStartEvent     (ID, Model, Role, Time)
-MessageDoneEvent      (ID)
-ContentBlockStartEvent (Index, Kind, ID, Name)
-ContentBlockDoneEvent  (Index, Kind)
-TextDeltaEvent        (Index, Text)
-ReasoningDeltaEvent   (Index, Text)
-RefusalDeltaEvent     (Index, Text)
-ToolCallStartEvent    (Index, ID, Name)
-ToolCallArgsDeltaEvent (Index, ID, Delta)
-ToolCallDoneEvent     (Index, ID, Name, Args)
-CitationEvent         (Index, Citation)
-Citation              (Type, Text, URL, Title, StartOffset, EndOffset, DocumentID, Meta)
-UsageEvent            (InputTokens, OutputTokens, ReasoningTokens, CacheReadTokens,
-                       CacheWriteTokens, TotalTokens, ProviderRaw)
-FinishReason          (string enum)
-CompletedEvent        (FinishReason, MessageID)
-WarningEvent          (Code, Message, Source, Meta)
-RawEvent              (APIKind, Type, JSON, Value)
-ErrorEvent            (Err, Recoverable)
+Request
+APIError
+Client
 ```
 
 Tests:
 
 ```text
-every event type satisfies Event interface
+APIError satisfies error
+APIError.Error() is stable and useful
+errors.As works through wrapping
 ```
 
-File: `unified/event.go`, `unified/event_test.go`
+### Step 1.4: `unified.Event` model
 
-### Step 1.8: `unified` package — usage, response, collect
+Create `unified/event.go`.
 
-Create `unified/usage.go` and `unified/response.go`.
-
-Types:
+Event set:
 
 ```text
-Response              (ID, Model, Content, ToolCalls, FinishReason, Usage, Warnings, Raw)
+MessageStartEvent
+MessageDoneEvent
+ContentBlockStartEvent
+ContentBlockDoneEvent
+TextDeltaEvent
+ReasoningDeltaEvent
+RefusalDeltaEvent
+ToolCallStartEvent
+ToolCallArgsDeltaEvent
+ToolCallDoneEvent
+CitationEvent
+UsageEvent
+CompletedEvent
+WarningEvent
+RawEvent
+ErrorEvent
+```
+
+Support types:
+
+```text
+Citation
+FinishReason
+```
+
+Tests:
+
+```text
+every event type satisfies the Event interface
+```
+
+Notes:
+
+```text
+keep `RawEvent` minimal: API kind, type, JSON bytes, optional decoded value
+do not add endpoint-specific chunk types
+```
+
+### Step 1.5: `unified.Response` and `Collect`
+
+Create:
+
+```text
+unified/usage.go
+unified/response.go
+```
+
+API:
+
+```text
+Response
 Collect(ctx, <-chan Event) (Response, error)
 ```
 
 Tests:
 
 ```text
-Collect empty stream returns zero Response
-Collect text-only stream assembles Content with single TextPart
-Collect with tool calls populates ToolCalls
-Collect with UsageEvent populates Usage
-Collect with CompletedEvent populates FinishReason
-Collect with ErrorEvent returns error
-Collect with WarningEvents populates Warnings
-Collect with RawEvents populates Raw
-Collect with cancelled context returns context error
-Collect multi-block stream (text + tool call) assembles correctly
+empty stream returns zero response
+text-only stream assembles a single text block
+tool-call stream assembles tool calls
+usage is captured from UsageEvent
+CompletedEvent sets finish reason
+WarningEvents accumulate
+RawEvents accumulate
+ErrorEvent returns error
+cancelled context returns ctx.Err()
+mixed text + tool-call stream assembles correctly
 ```
 
-File: `unified/response.go`, `unified/response_test.go`
+### Step 1.6: `adapt` request envelope and codec interfaces
 
-### Step 1.9: `unified` package — errors
+Create:
 
-Create `unified/errors.go`.
+```text
+adapt/types.go
+adapt/request.go
+adapt/codec.go
+```
 
 Types:
 
 ```text
-APIError              (StatusCode, Type, Code, Message, Param, RetryAfter, ProviderRaw)
-APIError.Error() string
+ApiKind
+ApiFamily
+MappingMode
+Warning
+UnsupportedFieldError
+HTTPRequestInfo
+Request
+
+EventDecoder[In, Out]
+EventEncoder[In, Out]
+ProviderCodec[Req, Evt]
+RequestProcessor
+ProviderRequestProcessor[Req]
+NativeClient[Req, Evt]
 ```
 
 Tests:
 
 ```text
-APIError satisfies error interface
-APIError.Error() formats correctly
-errors.As extracts *APIError from wrapped error
+UnsupportedFieldError satisfies error
 ```
 
-File: `unified/errors.go`, `unified/errors_test.go`
-
-### Step 1.10: `unified` package — client interface
-
-Create `unified/client.go`.
-
-Types:
+Notes:
 
 ```text
-Client                (interface: Request(ctx, Request) (<-chan Event, error))
+define `NativeClient` here because phase 3 needs it
+do not add endpoint codec interfaces yet; those are phase 4 concerns
 ```
 
-File: `unified/client.go`
+### Step 1.7: generic pipeline primitives
 
-### Step 1.11: `adapt` package — types and request envelope
-
-Create `adapt/types.go` and `adapt/request.go`.
-
-Types:
+Create:
 
 ```text
-ApiKind               (string enum with all known API kinds)
-ApiFamily             (string enum with all known families)
-MappingMode           (string enum: strict, best_effort)
-Warning               (Code, Field, Message)
-UnsupportedFieldError (APIKind, Field, Reason)
-HTTPRequestInfo       (Method, Path, Query, Headers, Remote)
-Request               (SourceAPI, HTTP, RawBody, Raw, Unified, MappingMode, Warnings, Extensions)
+pipeline/processor.go
+pipeline/chain.go
+pipeline/transform.go
+```
+
+API:
+
+```text
+Processor[E]
+Chain[E]
+NewChain[E](...)
+Item[T]
+Transform[In, Out](...)
+```
+
+Behavior:
+
+```text
+Chain.Push runs left-to-right
+Chain.Close cascades close-generated events through downstream processors
+Transform drains input, forwards decoder output, flushes decoder on close
+Transform emits Item.Err on decoder error or ctx cancellation
 ```
 
 Tests:
 
 ```text
-UnsupportedFieldError satisfies error interface
+empty chain passthrough
+filtering processor
+expanding processor
+two processors compose
+Close cascade works
+Push error stops chain
+Close error propagates
+
+Transform forwards all decoded values
+decoder.Close runs when input closes
+Push errors become Item.Err
+Close errors become Item.Err
+ctx cancellation stops transform
+slow consumer does not lose values
 ```
 
-File: `adapt/types.go`, `adapt/request.go`, `adapt/request_test.go`
+### Step 1.8: built-in unified event processors
 
-### Step 1.12: `adapt` package — codec interfaces
-
-Create `adapt/codec.go`.
-
-Types:
+Create:
 
 ```text
-EventDecoder[In, Out] (interface: Push, Close)
-EventEncoder[In, Out] (interface: Push, Close)
-ProviderCodec[Req, Evt] (interface: ApiKind, EncodeRequest, NewEventDecoder)
-RequestProcessor      (interface: ProcessRequest)
-ProviderRequestProcessor[Req] (interface: ProcessProviderRequest)
+pipeline/coalesce.go
+pipeline/filter.go
+pipeline/inject.go
 ```
-
-File: `adapt/codec.go`
-
-### Step 1.13: `pipeline` package — processor, chain, transform
-
-Create `pipeline/processor.go`, `pipeline/chain.go`, `pipeline/transform.go`.
-
-Types:
-
-```text
-Processor[E]          (interface: Push, Close)
-Chain[E]              (struct wrapping []Processor[E])
-NewChain[E](...Processor[E]) *Chain[E]
-Chain.Push(ctx, E) ([]E, error)
-Chain.Close(ctx) ([]E, error)
-
-Item[T]               (Value, Err)
-Transform[In, Out](ctx, <-chan In, EventDecoder[In, Out]) <-chan Item[Out]
-```
-
-`Chain.Close` must cascade: close-produced events from processor N are pushed through processors N+1..end.
-
-Tests for `Chain`:
-
-```text
-empty chain passes through
-single passthrough processor
-single filtering processor (drops some events)
-single expanding processor (one in, many out)
-two processors compose correctly
-Close cascades through chain
-error from Push stops chain
-error from Close propagates
-```
-
-Tests for `Transform`:
-
-```text
-transforms all events from input channel
-decoder.Close is called when input closes
-errors from Push are emitted as Item.Err
-errors from Close are emitted as Item.Err
-context cancellation stops transform and emits ctx.Err
-backpressure: slow consumer does not lose events
-input channel closing produces final flushed events
-```
-
-File: `pipeline/processor.go`, `pipeline/chain.go`, `pipeline/chain_test.go`, `pipeline/transform.go`, `pipeline/transform_test.go`
-
-### Step 1.14: `pipeline` package — built-in processors
-
-Create `pipeline/coalesce.go`, `pipeline/filter.go`, `pipeline/inject.go`.
 
 Processors:
 
 ```text
-TextCoalescer         (MaxBytes, Push, Close, flush)
-ReasoningFilter       (Expose, Push, Close)
-CompletionInjector    (Push, Close)
+TextCoalescer
+ReasoningFilter
+CompletionInjector
 ```
 
 Tests:
 
 ```text
-TextCoalescer: buffers below threshold, emits nothing
-TextCoalescer: emits when threshold reached
-TextCoalescer: flushes before non-text event
-TextCoalescer: flush on Close
-TextCoalescer: non-text events pass through immediately
-TextCoalescer: empty Close returns nil
-ReasoningFilter: drops reasoning when Expose=false
-ReasoningFilter: passes reasoning when Expose=true
-ReasoningFilter: passes non-reasoning events always
-CompletionInjector: passes CompletedEvent and does not inject on Close
-CompletionInjector: injects CompletedEvent on Close if none seen
-CompletionInjector: passes all non-completed events through
+TextCoalescer buffers and flushes by threshold
+TextCoalescer flushes before non-text events
+TextCoalescer flushes on Close
+ReasoningFilter drops reasoning when disabled
+CompletionInjector injects one completion if none was seen
+CompletionInjector does not double-inject
 ```
-
-File: `pipeline/coalesce.go`, `pipeline/coalesce_test.go`, `pipeline/filter.go`, `pipeline/filter_test.go`, `pipeline/inject.go`, `pipeline/inject_test.go`
 
 ### Phase 1 checkpoint
 
-After step 1.14, verify:
+Verify:
 
 ```text
 go build ./unified/... ./adapt/... ./pipeline/...
@@ -363,237 +541,248 @@ go test ./unified/... ./adapt/... ./pipeline/...
 go vet ./...
 ```
 
-All packages compile, all tests pass, zero external dependencies beyond stdlib.
+Done criteria:
+
+```text
+canonical request/event model is stable enough to support one provider
+pipeline errors are representable without leaking implementation details
+no package requires transport or provider code to compile
+```
 
 ---
 
 ## Phase 2: Transport foundation
 
-Byte-frame transport abstraction, HTTP implementation, SSE/NDJSON parsers, fake transport for tests.
+Goal: provide a reusable transport layer for streaming provider clients, with SSE support aligned to Anthropic's event model.
 
-### Step 2.1: `transport` package — core types
+### Step 2.1: transport core types
 
 Create `transport/transport.go`.
 
 Types:
 
 ```text
-Request               (Method, URL, Header, Body, Extensions)
-ByteStreamTransport   (interface: Open(ctx, *Request) (ByteStream, error))
-ByteStream            (interface: Recv(ctx) ([]byte, error), Close() error)
-FrameDecoder[Evt]     (interface: PushFrame(ctx, []byte) ([]Evt, error), Close(ctx) ([]Evt, error))
+Request
+ByteStreamTransport
+ByteStream
+FrameFormat
+FrameDecoder[Evt]
+RateLimiter
 ```
 
-File: `transport/transport.go`
+Notes:
 
-### Step 2.2: `transport` package — SSE frame parser
+```text
+`Request.Body` should be `io.Reader`
+`Request.Extensions` can be `map[string]any`
+`RateLimiter` should be a tiny interface: `Wait(context.Context) error`
+```
+
+### Step 2.2: SSE framing and parsing
 
 Create `transport/sse.go`.
 
-An SSE parser reads from an `io.Reader` and produces SSE events as byte frames.
-
-Types:
+Types / functions:
 
 ```text
-SSEFrame              (Event, Data, ID, Retry)
-SSEReader             (struct wrapping bufio.Scanner)
-NewSSEReader(r io.Reader) *SSEReader
-SSEReader.Next() (SSEFrame, error)   // returns io.EOF at end
+SSEFrame
+SSEReader
+NewSSEReader(io.Reader) *SSEReader
+(*SSEReader).Next() ([]byte, error)         // raw SSE event block
+ParseSSEFrame([]byte) (SSEFrame, error)     // parse one block
 ```
 
-Behavior:
+Required behavior:
 
 ```text
-parses multi-line data fields (joined with \n)
-handles event: field
-handles id: field
-handles retry: field
-ignores comment lines (starting with :)
-handles \r\n, \n, \r line endings
-handles empty data lines
-returns io.EOF on reader exhaustion
+split on blank-line event boundaries
+support `event:`, `data:`, `id:`, `retry:`
+join multi-line data with `\n`
+ignore comment lines
+accept `\n`, `\r\n`, and `\r`
+handle malformed `field` lines as empty-value fields
+return io.EOF cleanly at stream end
 ```
 
 Tests:
 
 ```text
-single data-only event
-multi-line data event
-event with event: type
-event with id:
-event with retry:
-comment-only lines skipped
-multiple events separated by blank lines
+single event
+multiple events
+multi-line data
+event type present
+id and retry fields
+comment lines skipped
+mixed line endings
 empty data field
-mixed line endings (\r\n and \n)
-stream ends cleanly with io.EOF
-malformed lines (no colon) treated as field with empty value
-consecutive blank lines (empty dispatch)
+malformed field line
+consecutive blank lines
+EOF behavior
 ```
 
-File: `transport/sse.go`, `transport/sse_test.go`
-
-### Step 2.3: `transport` package — NDJSON frame parser
+### Step 2.3: NDJSON framing
 
 Create `transport/ndjson.go`.
 
 Types:
 
 ```text
-NDJSONReader          (struct wrapping bufio.Scanner)
-NewNDJSONReader(r io.Reader) *NDJSONReader
-NDJSONReader.Next() ([]byte, error)  // returns io.EOF at end
+NDJSONReader
+NewNDJSONReader(io.Reader) *NDJSONReader
+(*NDJSONReader).Next() ([]byte, error)
 ```
 
 Behavior:
 
 ```text
-reads one JSON object per line
-skips empty lines
-returns raw bytes (not parsed)
-returns io.EOF on reader exhaustion
-handles lines up to a configurable max size (default 1MB)
+return one non-empty line at a time
+skip empty lines
+support configurable max line size, default 1MB
+return io.EOF at end
 ```
 
 Tests:
 
 ```text
-single line object
-multiple line objects
+single line
+multiple lines
 empty lines skipped
-large line within limit
-line exceeding limit returns error
-stream ends with io.EOF
-lines with trailing whitespace
+trailing whitespace
+large line under limit
+line over limit errors
+EOF behavior
 ```
 
-File: `transport/ndjson.go`, `transport/ndjson_test.go`
-
-### Step 2.4: `transport` package — HTTP byte stream transport
+### Step 2.4: HTTP byte-stream transport
 
 Create `transport/http.go`.
 
 Types:
 
 ```text
-FrameFormat           (string enum: SSE, NDJSON, Raw)
-
-HTTPTransportConfig   (Client *http.Client, FrameFormat)
-HTTPByteStreamTransport (struct)
-NewHTTPByteStreamTransport(cfg HTTPTransportConfig) *HTTPByteStreamTransport
-
-httpByteStream        (unexported struct implementing ByteStream)
+HTTPTransportConfig
+HTTPByteStreamTransport
+NewHTTPByteStreamTransport(...)
 ```
 
 Behavior:
 
 ```text
-Open sends HTTP request using http.Client
-Open checks response status; non-2xx returns *unified.APIError with status, body preview
-For SSE format: wraps response body in SSEReader, Recv returns each SSE data frame
-For NDJSON format: wraps response body in NDJSONReader, Recv returns each line
-For Raw format: first Recv returns full body, second returns io.EOF
-Close closes response body
-Context cancellation during Recv returns ctx.Err()
+Open sends an HTTP request through http.Client
+non-2xx returns *unified.APIError with status and body preview
+SSE mode returns one raw SSE event block per Recv
+NDJSON mode returns one line per Recv
+Raw mode returns full body once, then io.EOF
+Close closes the underlying response body
+Recv respects ctx cancellation
 ```
 
-Tests (using httptest.Server):
+Tests using `httptest.Server`:
 
 ```text
-SSE: streams multiple frames
-SSE: returns io.EOF after last frame
-NDJSON: streams multiple frames
-Raw: returns full body as single frame then EOF
-non-2xx status returns APIError with correct StatusCode
-Close closes underlying body
-context cancellation during stream returns error
-request has correct method, URL, headers, body
+SSE stream yields multiple raw event blocks
+NDJSON stream yields multiple lines
+Raw mode returns one full body
+non-2xx maps to APIError
+request method, URL, headers, and body are correct
+Close closes the body
+ctx cancellation interrupts Recv
 ```
 
-File: `transport/http.go`, `transport/http_test.go`
-
-### Step 2.5: `transport` package — fake byte stream transport
+### Step 2.5: fake transport for unit and integration tests
 
 Create `transport/fake.go`.
 
 Types:
 
 ```text
-FakeByteStreamTransport (struct)
-  Frames      [][]byte
-  Err         error         // error to return after all frames (or instead of frames)
-  ErrAtFrame  int           // return Err at this frame index (-1 = after all frames)
-  OpenErr     error         // error to return from Open
-  Seen        []*Request    // captured requests
-
-fakeByteStream (unexported)
+FakeByteStreamTransport
+fakeByteStream
 ```
 
 Behavior:
 
 ```text
-Open appends request to Seen, returns fakeByteStream or OpenErr
-Recv returns frames in order
-Recv returns Err at configured frame index
-Recv returns io.EOF after all frames if no Err configured
-Close is a no-op
+capture seen requests
+allow Open error
+allow frame-by-frame error injection
+return io.EOF when frames are exhausted
 ```
 
 Tests:
 
 ```text
-returns frames in order then EOF
-returns error at configured frame
-OpenErr returned from Open
-captures requests in Seen
-empty frames returns EOF immediately
+frames returned in order
+error at configured frame
+Open error returned
+seen requests captured
+empty stream returns EOF
 ```
 
-File: `transport/fake.go`, `transport/fake_test.go`
+### Step 2.6: rate-limit wrapper
 
-### Step 2.6: `transport` package — retry wrapper
+Create `transport/ratelimit.go`.
+
+Types:
+
+```text
+RateLimitedTransport
+NewRateLimitedTransport(inner ByteStreamTransport, limiter RateLimiter) *RateLimitedTransport
+```
+
+Behavior:
+
+```text
+call limiter.Wait(ctx) before inner.Open
+do nothing when limiter is nil
+propagate limiter errors directly
+```
+
+Tests:
+
+```text
+Wait called before Open
+limiter error stops Open
+nil limiter delegates directly
+```
+
+### Step 2.7: retry wrapper
 
 Create `transport/retry.go`.
 
 Types:
 
 ```text
-RetryMode             (string enum: never, before_stream)
-
-RetryConfig           (Mode, MaxRetries, InitialBackoff, MaxBackoff, RetryableStatus func(int) bool)
-RetryTransport        (struct wrapping ByteStreamTransport)
+RetryMode
+RetryConfig
+RetryTransport
 NewRetryTransport(inner ByteStreamTransport, cfg RetryConfig) *RetryTransport
 ```
 
 Behavior:
 
 ```text
-Mode=never: delegates directly, no retry
-Mode=before_stream: on Open error or retryable status, retries with backoff
-retries up to MaxRetries times
-uses exponential backoff with jitter
-does not retry after first successful Recv (stream has started)
-respects context cancellation during backoff
-default RetryableStatus: 429, 500, 502, 503, 504
+Mode=never delegates directly
+Mode=before_stream retries Open failures and retryable pre-stream API errors
+default retryable statuses: 429, 500, 502, 503, 504
+never retry after the first successful Recv
+respect ctx cancellation during backoff
 ```
 
-Tests (using FakeByteStreamTransport sequences):
+Tests:
 
 ```text
-never mode: no retry on error
-before_stream: retries on OpenErr, succeeds on second attempt
-before_stream: retries on retryable status error
-before_stream: gives up after MaxRetries
-before_stream: does not retry non-retryable status
-context cancellation during backoff returns ctx.Err()
-successful open with no errors: no retry logic invoked
+never mode performs no retries
+Open error retries and later succeeds
+retryable APIError retries
+non-retryable APIError does not retry
+MaxRetries is enforced
+ctx cancellation during backoff returns ctx.Err()
 ```
-
-File: `transport/retry.go`, `transport/retry_test.go`
 
 ### Phase 2 checkpoint
 
-After step 2.6, verify:
+Verify:
 
 ```text
 go build ./transport/...
@@ -601,418 +790,405 @@ go test ./transport/...
 go vet ./...
 ```
 
-No external dependencies beyond stdlib. The `transport` package imports `unified` only for `APIError`.
+Done criteria:
+
+```text
+Anthropic native client can be built entirely on transport abstractions
+SSE event type information is preserved end-to-end
+retry and rate-limit behavior are testable without provider code
+```
 
 ---
 
-## Phase 3: One complete provider path — Anthropic Messages
+## Phase 3: One complete provider path - Anthropic Messages
 
-End-to-end: `unified.Request` → Anthropic wire request → HTTP transport → SSE byte stream → Anthropic wire events → `unified.Event` stream.
+Goal: ship one real provider path from `unified.Request` to `unified.Event`.
 
-This phase produces a working `unified.Client` for Anthropic.
-
-### Step 3.1: `providers/anthropic/messages` — wire types
-
-Create wire types mirroring the Anthropic Messages API.
-
-Request types:
+Implementation order inside phase 3 is strict:
 
 ```text
-MessageRequest        (Model, MaxTokens, Messages, System, Temperature, TopP, TopK,
-                       StopSequences, Stream, Tools, ToolChoice, Metadata)
-InputMessage          (Role, Content)
-ContentBlock          (Type + type-specific fields: text, image, tool_use, tool_result)
-ToolDefinition        (Name, Description, InputSchema)
-ToolChoiceWire        (Type, Name)
+3A text-only request/response path
+3B usage + completion + tool-use support
+3C public constructor and end-to-end tests
 ```
 
-Response/event types:
+### Step 3.1: Anthropic wire types
+
+Create:
 
 ```text
-Event                 (interface with unexported marker)
-MessageStartEvent     (Type, Message: MessageResponse)
-MessageResponse       (ID, Type, Role, Content, Model, StopReason, StopSequence, Usage)
-ContentBlockStartEvent (Type, Index, ContentBlock)
-ContentBlockDeltaEvent (Type, Index, Delta)
-Delta                 (Type, Text, PartialJSON)
-ContentBlockStopEvent  (Type, Index)
-MessageDeltaEvent     (Type, Delta: MessageDeltaBody, Usage)
-MessageDeltaBody      (StopReason, StopSequence)
-MessageStopEvent      (Type)
-PingEvent             (Type)
-ErrorEventWire        (Type, Error: APIErrorBody)
-APIErrorBody          (Type, Message)
-UsageWire             (InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens)
+providers/anthropic/messages/wire.go
+providers/anthropic/messages/wire_test.go
 ```
 
-All types must marshal/unmarshal correctly to/from JSON matching the Anthropic API spec.
+Request-side types:
+
+```text
+MessageRequest
+InputMessage
+ContentBlock
+ToolDefinition
+ToolChoiceWire
+Metadata
+```
+
+Response/event-side types:
+
+```text
+Event
+MessageStartEvent
+MessageResponse
+ContentBlockStartEvent
+ContentBlockDeltaEvent
+ContentBlockStopEvent
+MessageDeltaEvent
+MessageDeltaBody
+MessageStopEvent
+PingEvent
+ErrorEventWire
+APIErrorBody
+UsageWire
+```
 
 Tests:
 
 ```text
-MessageRequest JSON roundtrip: basic text
-MessageRequest JSON roundtrip: with tools
-MessageRequest JSON roundtrip: with system
-MessageRequest JSON roundtrip: with images
-MessageResponse JSON roundtrip
-each event type JSON roundtrip
-omitempty fields omitted when zero
+request JSON roundtrip: text
+request JSON roundtrip: system instructions
+request JSON roundtrip: tools
+request JSON roundtrip: images
+response/event JSON roundtrip
+omitempty behavior
 ```
 
-File: `providers/anthropic/messages/wire.go`, `providers/anthropic/messages/wire_test.go`
+### Step 3.2: Anthropic request codec (`unified` -> wire)
 
-### Step 3.2: `providers/anthropic/messages` — SSE event parser
-
-Create a `FrameDecoder` that turns SSE data frames into Anthropic wire events.
-
-Types:
+Create:
 
 ```text
-SSEFrameDecoder       (struct implementing transport.FrameDecoder[Event])
+providers/anthropic/messages/codec.go
+providers/anthropic/messages/codec_test.go
+testdata/anthropic/request_*.json
+```
+
+Codec responsibilities:
+
+```text
+implement adapt.ProviderCodec[MessageRequest, Event]
+encode unified.Request into MessageRequest
+create a new wire-event decoder later via NewEventDecoder()
+```
+
+Mapping rules for first pass:
+
+```text
+Model -> Model
+MaxOutputTokens -> MaxTokens (required)
+Messages -> Messages
+Instructions -> System
+Temperature / TopP / TopK / Stop -> direct mappings
+Tools -> Tools (function tools only)
+ToolChoice -> ToolChoice
+Stream -> Stream
+```
+
+Lossiness rules:
+
+```text
+strict: error on missing MaxOutputTokens, unsupported tool kinds, Seed, ResponseFormat, unsupported content
+best_effort: append warnings and drop unsupported fields
+```
+
+Implementation order:
+
+```text
+first: text-only user/assistant messages
+then: system instructions
+then: tools + tool results
+then: image blocks
+```
+
+Tests:
+
+```text
+basic text request fixture
+multi-turn fixture
+system instruction fixture
+tool definition fixture
+tool result fixture
+image fixture
+missing MaxOutputTokens errors
+strict vs best_effort behavior
+```
+
+### Step 3.3: Anthropic SSE frame decoder (raw SSE block -> wire event)
+
+Create:
+
+```text
+providers/anthropic/messages/sse.go
+providers/anthropic/messages/sse_test.go
+```
+
+API:
+
+```text
+SSEFrameDecoder implementing transport.FrameDecoder[Event]
 ```
 
 Behavior:
 
 ```text
-parses SSE event type + JSON data
-dispatches to correct event struct based on event type
-handles: message_start, content_block_start, content_block_delta,
-         content_block_stop, message_delta, message_stop, ping, error
-unknown event types: returns raw/warning or error per policy
+ParseSSEFrame on each raw block
+dispatch using SSEFrame.Event
+decode JSON from SSEFrame.Data
+support message_start, content_block_start, content_block_delta,
+content_block_stop, message_delta, message_stop, ping, error
 ```
 
-Input: raw SSE frame bytes (the `data:` payload), with the SSE event type available.
+Policy:
 
-Note: The `transport.SSEReader` produces `SSEFrame` values with both `Event` and `Data` fields. The frame decoder receives the `SSEFrame` and uses the `Event` field to determine the type.
-
-Refine `FrameDecoder` signature if needed: the decoder may need the full `SSEFrame` rather than bare `[]byte`. If so, make `SSEFrameDecoder` implement `adapt.EventDecoder[transport.SSEFrame, Event]` instead of `transport.FrameDecoder[Event]`.
+```text
+unknown SSE event type -> error in phase 3
+empty ping payload is allowed
+malformed JSON returns error
+```
 
 Tests:
 
 ```text
-message_start frame parses correctly
-content_block_start (text) frame parses correctly
-content_block_start (tool_use) frame parses correctly
-content_block_delta (text_delta) frame parses correctly
-content_block_delta (input_json_delta) frame parses correctly
-content_block_stop frame parses correctly
-message_delta frame parses correctly
-message_stop frame parses correctly
-ping frame parses to PingEvent
-error frame parses to ErrorEventWire
-unknown event type handling
-malformed JSON returns error
+each supported event type parses correctly
+tool_use and input_json_delta cases parse correctly
+unknown event type errors
+bad JSON errors
 ```
 
-File: `providers/anthropic/messages/sse.go`, `providers/anthropic/messages/sse_test.go`
+### Step 3.4: Anthropic event decoder (wire event -> `unified.Event`)
 
-### Step 3.3: `providers/anthropic/messages` — request codec (unified → wire)
-
-Create the request encoder.
-
-Types:
+Create:
 
 ```text
-Codec                 (struct implementing adapt.ProviderCodec[MessageRequest, Event])
-Codec.ApiKind() → ApiAnthropicMessages
-Codec.EncodeRequest(ctx, adapt.Request) → (MessageRequest, error)
+providers/anthropic/messages/decoder.go
+providers/anthropic/messages/decoder_test.go
+testdata/anthropic/events_*.ndjson
 ```
 
-Mapping rules:
+API:
 
 ```text
-unified.Request.Model → MessageRequest.Model
-unified.Request.Messages → MessageRequest.Messages
-  role mapping: user→user, assistant→assistant, tool→user (with tool_result content)
-  content parts: TextPart→text block, ImagePart→image block, etc.
-  ToolResults → tool_result content blocks
-  ToolCalls → assistant message with tool_use content blocks
-unified.Request.Instructions → MessageRequest.System
-unified.Request.MaxOutputTokens → MessageRequest.MaxTokens (required by Anthropic)
-unified.Request.Temperature → MessageRequest.Temperature
-unified.Request.TopP → MessageRequest.TopP
-unified.Request.TopK → MessageRequest.TopK
-unified.Request.Stop → MessageRequest.StopSequences
-unified.Request.Tools → MessageRequest.Tools (function tools only)
-unified.Request.ToolChoice → MessageRequest.ToolChoice
-unified.Request.Stream → MessageRequest.Stream
-unified.Request.ResponseFormat (json_schema) → tool-based structured output pattern or warning
-unified.Request.Reasoning → extension or warning
+EventDecoder implementing adapt.EventDecoder[Event, unified.Event]
 ```
 
-Lossiness:
+State to track:
 
 ```text
-strict mode: error on ResponseFormat.JSONSchema, Seed, unsupported tool kinds
-best-effort mode: warn and skip unsupported fields
+open content blocks by index
+tool-call IDs and names
+buffered tool-call argument fragments
+message metadata needed for final completion mapping
 ```
 
-Tests (golden fixture style):
+Required mappings:
 
 ```text
-basic text message → wire JSON
-multi-turn conversation → wire JSON
-system instructions → wire system field
-tools with function definitions → wire JSON
-tool results → wire JSON with tool_result blocks
-image content → wire JSON with image block
-MaxOutputTokens missing → error (Anthropic requires it)
-unsupported fields in strict mode → UnsupportedFieldError
-unsupported fields in best-effort mode → warnings
-Stream=true → wire stream=true
+message_start -> MessageStartEvent
+content_block_start(text) -> ContentBlockStartEvent
+content_block_delta(text_delta) -> TextDeltaEvent
+content_block_stop(text) -> ContentBlockDoneEvent
+message_delta -> CompletedEvent and optional UsageEvent
+message_stop -> MessageDoneEvent
+ping -> dropped
+error -> unified.ErrorEvent wrapping unified.APIError
 ```
 
-Fixture files:
+Additional mappings for 3B:
 
 ```text
-testdata/anthropic/request_basic.unified.json
-testdata/anthropic/request_basic.wire.json
-testdata/anthropic/request_tools.unified.json
-testdata/anthropic/request_tools.wire.json
-testdata/anthropic/request_tool_results.unified.json
-testdata/anthropic/request_tool_results.wire.json
-testdata/anthropic/request_image.unified.json
-testdata/anthropic/request_image.wire.json
-testdata/anthropic/request_system.unified.json
-testdata/anthropic/request_system.wire.json
-```
-
-File: `providers/anthropic/messages/codec.go`, `providers/anthropic/messages/codec_test.go`, `testdata/anthropic/...`
-
-### Step 3.4: `providers/anthropic/messages` — event decoder (wire → unified)
-
-Create the stateful event decoder.
-
-Types:
-
-```text
-EventDecoder          (struct implementing adapt.EventDecoder[Event, unified.Event])
-  internal state: toolBuffers, toolNames, toolIDs maps
-```
-
-Mapping rules:
-
-```text
-MessageStartEvent → unified.MessageStartEvent (ID, Model, Role=assistant)
-ContentBlockStartEvent (type=text) → unified.ContentBlockStartEvent (Kind=text)
-ContentBlockStartEvent (type=tool_use) → unified.ContentBlockStartEvent (Kind=tool_call)
-                                       + unified.ToolCallStartEvent
-                                       + register tool ID/name in state
-ContentBlockDeltaEvent (text_delta) → unified.TextDeltaEvent
-ContentBlockDeltaEvent (input_json_delta) → unified.ToolCallArgsDeltaEvent + buffer args
-ContentBlockDeltaEvent (thinking) → unified.ReasoningDeltaEvent
-ContentBlockStopEvent (text block) → unified.ContentBlockDoneEvent
-ContentBlockStopEvent (tool block) → unified.ToolCallDoneEvent (with buffered args)
-                                    + unified.ContentBlockDoneEvent
-MessageDeltaEvent → unified.CompletedEvent (map stop_reason → FinishReason)
-                   + unified.UsageEvent (if usage present)
-MessageStopEvent → unified.MessageDoneEvent
-PingEvent → nil (drop)
-ErrorEventWire → unified.ErrorEvent (wrap as APIError)
-```
-
-Stop reason mapping:
-
-```text
-end_turn → FinishReasonStop
-max_tokens → FinishReasonLength
-tool_use → FinishReasonToolCall
-stop_sequence → FinishReasonStop
+tool_use block start -> ContentBlockStartEvent + ToolCallStartEvent
+input_json_delta -> ToolCallArgsDeltaEvent
+tool block stop -> ToolCallDoneEvent + ContentBlockDoneEvent
+thinking deltas -> ReasoningDeltaEvent
+stop_reason mapping:
+  end_turn -> stop
+  max_tokens -> length
+  tool_use -> tool_call
+  stop_sequence -> stop
 ```
 
 Close behavior:
 
 ```text
-error if toolBuffers not empty (incomplete stream)
+error if a tool-call buffer is incomplete
+otherwise flush nothing
 ```
 
-Tests (golden fixture style, NDJSON event sequences):
+Tests:
 
 ```text
-plain text stream → unified events
-multi-block text → unified events
-tool use stream → unified events (start, arg deltas, done)
-parallel tool calls → unified events
-text + tool use mixed → unified events
-reasoning/thinking deltas → unified ReasoningDeltaEvent
-usage at message_delta → unified UsageEvent
-stop reasons map correctly
-ping events dropped
-error event → unified ErrorEvent
-incomplete tool buffer at Close → error
-unknown content block delta type → handled per policy
+plain text stream fixture
+multi-block text fixture
+tool-use fixture
+parallel tool-call fixture
+reasoning fixture
+usage mapping
+stop-reason mapping
+ping dropped
+error event mapped
+incomplete tool buffer errors on Close
 ```
 
-Fixture files:
+### Step 3.5: Anthropic native client
+
+Create:
 
 ```text
-testdata/anthropic/events_text.input.ndjson
-testdata/anthropic/events_text.unified.ndjson
-testdata/anthropic/events_tool_use.input.ndjson
-testdata/anthropic/events_tool_use.unified.ndjson
-testdata/anthropic/events_multi_tool.input.ndjson
-testdata/anthropic/events_multi_tool.unified.ndjson
-testdata/anthropic/events_error.input.ndjson
-testdata/anthropic/events_error.unified.ndjson
+providers/anthropic/messages/client.go
+providers/anthropic/messages/client_test.go
 ```
 
-File: `providers/anthropic/messages/decoder.go`, `providers/anthropic/messages/decoder_test.go`, `testdata/anthropic/...`
-
-### Step 3.5: `providers/anthropic/messages` — native client
-
-Create the provider-level native client that owns HTTP transport.
-
-Types:
+API:
 
 ```text
-NativeClient          (struct implementing adapt.NativeClient[MessageRequest, Event])
-  transport: transport.ByteStreamTransport
-  baseURL:   string
-  headers:   http.Header
-  headerFns: []HeaderFunc
+NativeClient implementing adapt.NativeClient[MessageRequest, Event]
 ```
 
-Behavior:
+Responsibilities:
 
 ```text
-marshals MessageRequest to JSON body
-builds transport.Request: POST {baseURL}/v1/messages
-sets Content-Type: application/json
-sets x-api-key header
-sets anthropic-version header
-applies static headers and HeaderFuncs
-calls transport.Open
-spawns goroutine: reads ByteStream frames → SSEFrameDecoder → Event channel
-on error: sends error to channel, closes
-on stream end: closes channel
+marshal MessageRequest to JSON
+construct POST {baseURL}/v1/messages
+set content-type, x-api-key, anthropic-version
+apply static headers and HeaderFuncs
+open the transport
+read raw SSE blocks from ByteStream
+decode blocks via SSEFrameDecoder
+emit wire events on a channel
+close stream resources on exit
 ```
 
-Tests (using FakeByteStreamTransport):
+Tests using `transport.FakeByteStreamTransport`:
 
 ```text
-correct URL constructed
-correct method (POST)
-correct headers (x-api-key, anthropic-version, content-type)
-request body is valid MessageRequest JSON
-HeaderFuncs applied
-SSE frames decoded into correct Event sequence
-transport error propagated
-context cancellation stops stream
+correct URL and method
+required headers set
+custom headers and HeaderFuncs applied
+request body is valid JSON
+decoded wire events emitted in order
+transport errors propagate
+ctx cancellation stops the stream loop
 ```
 
-File: `providers/anthropic/messages/client.go`, `providers/anthropic/messages/client_test.go`
+### Step 3.6: adapted Anthropic client (`unified.Client`)
 
-### Step 3.6: `providers/anthropic/messages` — adapted client (unified.Client)
-
-Assemble the full adapted client.
-
-Types:
+Create:
 
 ```text
-AdaptedClient         (struct implementing unified.Client)
-  native:   NativeClient
-  codec:    Codec
-  reqProcs: []adapt.RequestProcessor
-  provReqProcs: []adapt.ProviderRequestProcessor[MessageRequest]
-  provEvtProcs: []pipeline.Processor[Event]
-  unifiedEvtProcs: []pipeline.Processor[unified.Event]
+providers/anthropic/messages/adapted.go
+providers/anthropic/messages/adapted_test.go
 ```
 
-Behavior:
+Responsibilities:
 
 ```text
-wraps unified.Request in adapt.Request
-runs request processors
-encodes via codec
-runs provider request processors
-calls native client
-runs provider event processors
-decodes via event decoder
-runs unified event processors
-emits unified.Event to output channel
-converts Item.Err to ErrorEvent at boundary
+wrap unified.Request in adapt.Request
+run request processors
+encode with codec
+run provider request processors
+call NativeClient
+run provider-event processor chain
+decode to unified.Event
+run unified-event processor chain
+convert internal errors to a final unified.ErrorEvent
 ```
 
-File: `providers/anthropic/messages/adapted.go`
-
-### Step 3.7: `providers/anthropic/messages` — public constructor
-
-Create the user-facing constructor with functional options.
-
-Types:
+Tests:
 
 ```text
-Option                (interface with unexported applyAnthropic)
-Config                (core config + Version, Betas, provider-specific processors)
+request processors can mutate adapt.Request
+provider request processors can mutate MessageRequest
+provider event processors compose before decoding
+unified event processors compose after decoding
+internal errors are surfaced as ErrorEvent
+```
 
-WithAPIKey(string) Option
-WithBaseURL(string) Option
-WithVersion(string) Option
-WithBeta(string) Option
-WithHeader(key, value string) Option
-WithHeaderFunc(HeaderFunc) Option
-WithTransport(ByteStreamTransport) Option
-WithUnifiedEventProcessor(Processor[unified.Event]) Option
-WithRequestProcessor(RequestProcessor) Option
+### Step 3.7: Anthropic public constructor
 
+Create:
+
+```text
+providers/anthropic/messages/options.go
+providers/anthropic/messages/options_test.go
+```
+
+Local provider API only:
+
+```text
+type HeaderFunc func(context.Context, *http.Request) error
+type Option interface { applyAnthropic(*Config) error }
+type Config struct { ... }
+```
+
+Options to implement now:
+
+```text
+WithAPIKey(string)
+WithBaseURL(string)
+WithVersion(string)
+WithBeta(string)
+WithHeader(key, value string)
+WithHeaderFunc(HeaderFunc)
+WithTransport(transport.ByteStreamTransport)
+WithRequestProcessor(adapt.RequestProcessor)
+WithUnifiedEventProcessor(pipeline.Processor[unified.Event])
+WithProviderRequestProcessor(adapt.ProviderRequestProcessor[MessageRequest])
+WithProviderEventProcessor(pipeline.Processor[Event])
+```
+
+Constructor:
+
+```text
 NewClient(opts ...Option) (unified.Client, error)
 ```
 
 Behavior:
 
 ```text
-validates required config (API key)
-sets defaults (baseURL, version)
-assembles NativeClient, Codec, AdaptedClient
-returns unified.Client
+require API key
+apply default base URL and Anthropic version
+default transport to HTTPByteStreamTransport in SSE mode
+wire all processors into the adapted client
 ```
 
 Tests:
 
 ```text
-NewClient with API key succeeds
-NewClient without API key returns error
-WithBaseURL overrides default
-WithVersion sets anthropic-version header
-WithBeta appends anthropic-beta header
-WithHeader adds custom header
-WithTransport replaces default transport
-custom processors are wired into pipeline
+API key required
+base URL override works
+version override works
+beta header appended
+custom transport replaces default
+processors are wired into the right stage
 ```
 
-File: `providers/anthropic/messages/options.go`, `providers/anthropic/messages/options_test.go`
+### Step 3.8: end-to-end integration coverage
 
-### Step 3.8: Integration test — full Anthropic path
+Create `providers/anthropic/messages/integration_test.go`.
 
-End-to-end test using `FakeByteStreamTransport`.
+Coverage:
 
 ```text
-construct client with fake transport
-send unified.Request with text message
-fake transport returns SSE frames for a text response
-verify unified.Event stream: MessageStart, ContentBlockStart, TextDelta(s),
-  ContentBlockDone, CompletedEvent, UsageEvent, MessageDone
-verify Collect produces correct Response
-
-construct client with fake transport
-send unified.Request with tools
-fake transport returns SSE frames for a tool_use response
-verify unified.Event stream includes ToolCallStart, ToolCallArgsDelta(s), ToolCallDone
-verify Collect produces correct Response with ToolCalls
-
-error case: fake transport returns error frames
-verify ErrorEvent in stream
-verify Collect returns error
-
-processor integration: TextCoalescer coalesces deltas
-processor integration: CompletionInjector synthesizes CompletedEvent
+text response stream -> unified events -> Collect response
+tool-use stream -> unified tool-call events -> Collect response
+provider error stream -> ErrorEvent -> Collect returns error
+TextCoalescer integration
+CompletionInjector integration
 ```
 
-File: `providers/anthropic/messages/integration_test.go`
+Use `transport.FakeByteStreamTransport` with raw SSE blocks as inputs.
 
 ### Phase 3 checkpoint
 
-After step 3.8, verify:
+Verify:
 
 ```text
 go build ./...
@@ -1020,63 +1196,130 @@ go test ./...
 go vet ./...
 ```
 
-A programmatic caller can now do:
+Done criteria:
 
-```go
-client, err := anthropic.NewClient(
-    anthropic.WithAPIKey("sk-..."),
-)
-
-events, err := client.Request(ctx, unified.Request{
-    Model:           "claude-sonnet-4-20250514",
-    MaxOutputTokens: intPtr(1024),
-    Messages: []unified.Message{
-        {Role: unified.RoleUser, Content: []unified.ContentPart{
-            unified.TextPart{Text: "Hello"},
-        }},
-    },
-    Stream: true,
-})
-
-resp, err := unified.Collect(ctx, events)
+```text
+a caller can construct an Anthropic client and stream unified events
+text-only and tool-use responses are covered
+the phase 3 path does not depend on gateway or router code
+all failures surface as normal Go errors or unified.ErrorEvent
 ```
 
 ---
 
-## Dependency graph
+## Immediate implementation order
+
+This is the recommended coding order across the first three phases.
+
+### Milestone A: core compile spine
+
+Build in this order:
+
+```text
+1.1 unified core types
+1.2 extensions
+1.3 request + APIError + client
+1.4 events
+1.5 response + Collect
+1.6 adapt types
+1.7 pipeline primitives
+1.8 built-in processors
+```
+
+Exit condition:
+
+```text
+`go test ./unified/... ./adapt/... ./pipeline/...` passes
+```
+
+### Milestone B: transport spine
+
+Build in this order:
+
+```text
+2.1 transport types
+2.2 SSE framing/parsing
+2.3 NDJSON
+2.4 HTTP transport
+2.5 fake transport
+2.6 rate-limit wrapper
+2.7 retry wrapper
+```
+
+Exit condition:
+
+```text
+raw SSE event blocks can be read and parsed without provider code
+```
+
+### Milestone C: Anthropic text-only path
+
+Build in this order:
+
+```text
+3.1 wire types
+3.2 request codec for text/system only
+3.3 SSE frame decoder
+3.4 event decoder for text + usage + completion only
+3.5 native client
+3.6 adapted client
+3.7 NewClient
+3.8 integration test for text streaming
+```
+
+Exit condition:
+
+```text
+simple text prompt roundtrip works end to end
+```
+
+### Milestone D: Anthropic tool-use completion
+
+Extend:
+
+```text
+3.2 tool definitions + tool results
+3.4 tool-use event mapping + argument buffering + reasoning deltas
+3.8 tool-use integration coverage
+```
+
+Exit condition:
+
+```text
+tool calls survive the roundtrip into unified.Response
+```
+
+---
+
+## Dependency summary
 
 ```text
 Phase 1
-  1.1 content
-  1.2 message         ← 1.1
-  1.3 tool            ← 1.1
-  1.4 response_format
-  1.5 extensions
-  1.6 request         ← 1.1, 1.2, 1.3, 1.4, 1.5
-  1.7 event           ← 1.1, 1.3
-  1.8 response        ← 1.1, 1.3, 1.7
-  1.9 errors
-  1.10 client         ← 1.6, 1.7
-  1.11 adapt types    ← 1.5, 1.6
-  1.12 adapt codec    ← 1.7, 1.11
-  1.13 pipeline       ← 1.12
-  1.14 processors     ← 1.7, 1.13
+  1.1 core unified types
+  1.2 extensions                <- 1.1
+  1.3 request/error/client      <- 1.1, 1.2
+  1.4 events                    <- 1.1
+  1.5 response/collect          <- 1.1, 1.4
+  1.6 adapt types/interfaces    <- 1.3, 1.4
+  1.7 pipeline primitives       <- 1.6
+  1.8 built-in processors       <- 1.4, 1.7
 
 Phase 2
   2.1 transport types
-  2.2 SSE parser
-  2.3 NDJSON parser
-  2.4 HTTP transport  ← 2.1, 2.2, 2.3, 1.9
-  2.5 fake transport  ← 2.1
-  2.6 retry           ← 2.1, 2.5
+  2.2 SSE framing/parsing       <- 2.1
+  2.3 NDJSON                    <- 2.1
+  2.4 HTTP transport            <- 2.1, 2.2, 2.3, 1.3
+  2.5 fake transport            <- 2.1
+  2.6 rate-limit wrapper        <- 2.1
+  2.7 retry wrapper             <- 2.1, 1.3
 
 Phase 3
-  3.1 wire types
-  3.2 SSE decoder     ← 3.1, 2.2
-  3.3 request codec   ← 3.1, 1.11, 1.12
-  3.4 event decoder   ← 3.1, 1.7, 1.12
-  3.5 native client   ← 3.1, 3.2, 2.1
-  3.6 adapted client  ← 3.3, 3.4, 3.5, 1.10, 1.13
-  3.7 constructor     ← 3.6
-  3.8 integration     ← 3.7, 2.5, 1.8, 1.14
+  3.1 Anthropic wire types
+  3.2 request codec             <- 3.1, 1.3, 1.6
+  3.3 SSE frame decoder         <- 3.1, 2.2
+  3.4 event decoder             <- 3.1, 1.4, 1.6
+  3.5 native client             <- 3.1, 3.3, 2.4
+  3.6 adapted client            <- 3.2, 3.4, 3.5, 1.7, 1.8
+  3.7 constructor               <- 3.5, 3.6
+  3.8 integration               <- 3.7, 2.5, 1.5
 ```
