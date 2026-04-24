@@ -40,6 +40,7 @@ func newRootCommand(out, errOut io.Writer) *cobra.Command {
 	cmd.AddCommand(newProvidersCommand())
 	cmd.AddCommand(newRoutesCommand())
 	cmd.AddCommand(newModelsCommand())
+	cmd.AddCommand(newResolveCommand())
 	cmd.AddCommand(newSmokeCommand())
 	return cmd
 }
@@ -131,6 +132,36 @@ func newModelsCommand() *cobra.Command {
 	cmd.Flags().StringVar(&sourceAPI, "source-api", "", "filter by source API")
 	cmd.Flags().StringVarP(&query, "query", "q", "", "filter models by substring")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print models as JSON")
+	return cmd
+}
+
+func newResolveCommand() *cobra.Command {
+	var configPath string
+	var sourceAPI string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "resolve <model>",
+		Short: "Explain how a model routes to a provider endpoint",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadCLIConfig(configPath, adapt.ApiKind(sourceAPI))
+			if err != nil {
+				return err
+			}
+			resolution, err := resolveModel(cfg, args[0], adapt.ApiKind(sourceAPI))
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return writeJSON(cmd.OutOrStdout(), resolution)
+			}
+			printResolution(cmd.OutOrStdout(), resolution)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "llmadapter JSON config path; defaults to auto-detected env/local credentials")
+	cmd.Flags().StringVar(&sourceAPI, "source-api", string(adapt.ApiOpenAIResponses), "source API to resolve")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "print resolution as JSON")
 	return cmd
 }
 
@@ -268,6 +299,22 @@ type modelInfo struct {
 	ProviderAPI adapt.ApiKind `json:"provider_api,omitempty"`
 }
 
+type resolutionInfo struct {
+	Input          string               `json:"input"`
+	MatchedAs      string               `json:"matched_as"`
+	SourceAPI      adapt.ApiKind        `json:"source_api"`
+	PublicModel    string               `json:"public_model,omitempty"`
+	NativeModel    string               `json:"native_model,omitempty"`
+	Provider       string               `json:"provider"`
+	ProviderType   string               `json:"provider_type"`
+	ProviderAPI    adapt.ApiKind        `json:"provider_api"`
+	Family         adapt.ApiFamily      `json:"family"`
+	Weight         int                  `json:"weight,omitempty"`
+	Priority       int                  `json:"priority,omitempty"`
+	ModelDBService string               `json:"modeldb_service_id,omitempty"`
+	Capabilities   router.CapabilitySet `json:"capabilities"`
+}
+
 func loadCLIConfig(path string, sourceAPI adapt.ApiKind) (adapterconfig.Config, error) {
 	if path != "" {
 		return adapterconfig.Load(path)
@@ -328,6 +375,109 @@ func modelInfos(cfg adapterconfig.Config, sourceAPI adapt.ApiKind, query string)
 		out = append(out, info)
 	}
 	return out
+}
+
+func resolveModel(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKind) (resolutionInfo, error) {
+	for _, route := range cfg.Routes {
+		if sourceAPI != "" && route.SourceAPI != sourceAPI {
+			continue
+		}
+		matchedAs := ""
+		switch {
+		case route.Model == model:
+			matchedAs = "public_model"
+		case route.NativeModel == model:
+			matchedAs = "native_model"
+		default:
+			continue
+		}
+		provider, endpoint, err := routeEndpoint(cfg, route)
+		if err != nil {
+			return resolutionInfo{}, err
+		}
+		nativeModel := route.NativeModel
+		if nativeModel == "" {
+			nativeModel = provider.Model
+		}
+		providerAPI := route.ProviderAPI
+		if providerAPI == "" {
+			providerAPI = endpoint.APIKind
+		}
+		return resolutionInfo{
+			Input:          model,
+			MatchedAs:      matchedAs,
+			SourceAPI:      route.SourceAPI,
+			PublicModel:    route.Model,
+			NativeModel:    nativeModel,
+			Provider:       route.Provider,
+			ProviderType:   provider.Type,
+			ProviderAPI:    providerAPI,
+			Family:         endpoint.Family,
+			Weight:         route.Weight,
+			Priority:       provider.Priority,
+			ModelDBService: endpoint.Tags[adapterconfig.TagModelDBServiceID],
+			Capabilities:   endpoint.Capabilities,
+		}, nil
+	}
+	if sourceAPI != "" {
+		return resolutionInfo{}, fmt.Errorf("no route found for model %q and source_api %s", model, sourceAPI)
+	}
+	return resolutionInfo{}, fmt.Errorf("no route found for model %q", model)
+}
+
+func routeEndpoint(cfg adapterconfig.Config, route adapterconfig.RouteConfig) (adapterconfig.ProviderConfig, router.ProviderEndpoint, error) {
+	var provider adapterconfig.ProviderConfig
+	var endpoint router.ProviderEndpoint
+	matches := 0
+	for _, candidate := range cfg.Providers {
+		if candidate.Name != route.Provider {
+			continue
+		}
+		candidateEndpoint, err := adapterconfig.ProviderEndpointConfig(candidate)
+		if err != nil {
+			return adapterconfig.ProviderConfig{}, router.ProviderEndpoint{}, err
+		}
+		if route.ProviderAPI != "" && candidateEndpoint.APIKind != route.ProviderAPI {
+			continue
+		}
+		provider = candidate
+		endpoint = candidateEndpoint
+		matches++
+	}
+	switch matches {
+	case 0:
+		return adapterconfig.ProviderConfig{}, router.ProviderEndpoint{}, fmt.Errorf("route references unknown provider endpoint %q %q", route.Provider, route.ProviderAPI)
+	case 1:
+		return provider, endpoint, nil
+	default:
+		return adapterconfig.ProviderConfig{}, router.ProviderEndpoint{}, fmt.Errorf("route references provider %q without provider_api but multiple endpoints match", route.Provider)
+	}
+}
+
+func printResolution(w io.Writer, resolution resolutionInfo) {
+	fmt.Fprintf(w, "Input:        %s\n", resolution.Input)
+	fmt.Fprintf(w, "Matched as:   %s\n", resolution.MatchedAs)
+	fmt.Fprintf(w, "Source API:   %s\n", resolution.SourceAPI)
+	fmt.Fprintf(w, "Public model: %s\n", resolution.PublicModel)
+	fmt.Fprintf(w, "Native model: %s\n", resolution.NativeModel)
+	fmt.Fprintf(w, "Provider:     %s\n", resolution.Provider)
+	fmt.Fprintf(w, "Provider type: %s\n", resolution.ProviderType)
+	fmt.Fprintf(w, "Provider API: %s\n", resolution.ProviderAPI)
+	fmt.Fprintf(w, "Family:       %s\n", resolution.Family)
+	fmt.Fprintf(w, "Weight:       %d\n", resolution.Weight)
+	fmt.Fprintf(w, "Priority:     %d\n", resolution.Priority)
+	if resolution.ModelDBService != "" {
+		fmt.Fprintf(w, "ModelDB svc:  %s\n", resolution.ModelDBService)
+	}
+	fmt.Fprintf(w, "Capabilities: streaming=%t tools=%t vision=%t audio_input=%t json_mode=%t json_schema=%t reasoning=%t\n",
+		resolution.Capabilities.Streaming,
+		resolution.Capabilities.Tools,
+		resolution.Capabilities.Vision,
+		resolution.Capabilities.AudioInput,
+		resolution.Capabilities.JSONMode,
+		resolution.Capabilities.JSONSchema,
+		resolution.Capabilities.Reasoning,
+	)
 }
 
 func runSmokeRequest(ctx context.Context, w io.Writer, client unified.Client, model, prompt string, timeout time.Duration, maxTokens int) error {

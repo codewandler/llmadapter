@@ -50,6 +50,38 @@ func TestModelsCommandWithConfigAndQuery(t *testing.T) {
 	}
 }
 
+func TestResolveCommandWithConfig(t *testing.T) {
+	path := writeTestConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"resolve", "public-fast", "--config", path})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{"Matched as:   public_model", "Provider API: openai.responses", "Native model: gpt-test", "Capabilities:"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestResolveCommandJSONWithConfig(t *testing.T) {
+	path := writeTestConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"resolve", "gpt-test", "--config", path, "--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{`"matched_as": "native_model"`, `"provider_type": "openai_responses"`, `"family": "openai.responses"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func writeTestConfig(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "llmadapter.json")

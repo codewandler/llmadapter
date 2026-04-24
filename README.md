@@ -32,6 +32,7 @@ List provider endpoint types and run a minimal direct smoke through the CLI:
 go run ./cmd/llmadapter providers
 go run ./cmd/llmadapter routes
 go run ./cmd/llmadapter models
+go run ./cmd/llmadapter resolve gpt-4.1-mini
 go run ./cmd/llmadapter smoke -type openai_responses
 go run ./cmd/llmadapter smoke -mode mux -type openai_responses
 go run ./cmd/llmadapter smoke -mode mux -config ./llmadapter.json -model public-fast
@@ -67,6 +68,7 @@ Initial commands:
 - `llmadapter providers` lists registered provider endpoint types, API kinds, families, model env vars, and default smoke models.
 - `llmadapter routes` lists configured or auto-detected source API to provider endpoint routes; pass `--config` to inspect a JSON config instead of auto-detected credentials.
 - `llmadapter models` lists public/native model mappings from configured or auto-detected routes; pass `--query` to filter.
+- `llmadapter resolve <model>` explains which source API route, provider endpoint, API family, native model, modeldb service, and capabilities will be used.
 - `llmadapter smoke` runs a minimal direct text request through a configured provider endpoint type; `-mode mux` runs the same request through the stateless mux client route path, `-config` builds that route path from a llmadapter JSON config, and `-mode auto` builds a mux client from detected environment/local Claude credentials.
 
 Gateway serving is still owned by `cmd/llmadapter-gateway` while the CLI surface is being built out.

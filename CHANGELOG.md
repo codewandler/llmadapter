@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-04-24
+
+### Added
+
+- Added `llmadapter resolve <model>` to explain configured or auto-detected route selection, provider endpoint metadata, native model mapping, modeldb service identity, and capabilities.
+
 ## [0.34.0] - 2026-04-24
 
 ### Added
