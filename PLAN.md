@@ -22,6 +22,7 @@ Phase 4 first slice: /v1/chat/completions endpoint codec and minimal gateway han
 Phase 4 gateway e2e slice: runnable Anthropic-backed gateway command and live gateway smoke tests
 Phase 6 first slice: static router with endpoint/model matching and native model rewrite
 Gateway config slice: optional JSON config for providers and static routes
+Provider support slice: OpenAI Chat Completions upstream provider
 ```
 
 Verified:
@@ -32,6 +33,7 @@ env GOCACHE=/tmp/go-cache go build ./...
 env GOCACHE=/tmp/go-cache go vet ./...
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestSmokeTextStream -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke' -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream/openai_chat' -count=1 -v
 ```
 
 Implemented package surface:
@@ -42,6 +44,7 @@ adapt/
 pipeline/
 transport/
 providers/anthropic/messages/
+providers/openai/chatcompletions/
 tests/e2e/
 endpoints/openaichatcompletions/
 gateway/
@@ -97,6 +100,9 @@ TEST_INTEGRATION=1 enables live e2e tests
 ANTHROPIC_API_KEY provides Anthropic credentials
 ANTHROPIC_MODEL overrides the default Anthropic smoke-test model
 default Anthropic smoke-test model: claude-haiku-4-5-20251001
+OPENAI_API_KEY or OPENAI_KEY provides OpenAI credentials
+OPENAI_MODEL overrides the default OpenAI smoke-test model
+default OpenAI smoke-test model: gpt-4.1-mini
 ```
 
 Known follow-up gaps:
@@ -109,6 +115,7 @@ SSE parser intentionally skips empty dispatches; revisit if an endpoint needs ex
 Raw/unmapped event preservation is minimal and should be expanded before gateway work
 router is static and does not yet include capability checks or fallback routing
 gateway config is intentionally minimal and does not yet support multiple provider implementations
+OpenAI provider is stream-first and currently covers the smoke-test text path
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
 streaming provider errors after response start need a final policy
 runnable gateway uses one Anthropic route and can optionally override upstream model via env

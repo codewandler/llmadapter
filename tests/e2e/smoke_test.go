@@ -8,12 +8,13 @@ import (
 	"time"
 
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	"github.com/codewandler/llmadapter/unified"
 )
 
 type smokeProvider struct {
 	name      string
-	apiKeyEnv string
+	apiKeyEnv []string
 	modelEnv  string
 	model     string
 	newClient func(apiKey string) (unified.Client, error)
@@ -27,20 +28,29 @@ func TestSmokeTextStream(t *testing.T) {
 	providers := []smokeProvider{
 		{
 			name:      "anthropic",
-			apiKeyEnv: "ANTHROPIC_API_KEY",
+			apiKeyEnv: []string{"ANTHROPIC_API_KEY"},
 			modelEnv:  "ANTHROPIC_MODEL",
 			model:     "claude-haiku-4-5-20251001",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return anthropic.NewClient(anthropic.WithAPIKey(apiKey))
 			},
 		},
+		{
+			name:      "openai_chat",
+			apiKeyEnv: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
+			modelEnv:  "OPENAI_MODEL",
+			model:     "gpt-4.1-mini",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openai.NewClient(openai.WithAPIKey(apiKey))
+			},
+		},
 	}
 
 	for _, provider := range providers {
 		t.Run(provider.name, func(t *testing.T) {
-			apiKey := os.Getenv(provider.apiKeyEnv)
+			apiKey := firstSetEnv(provider.apiKeyEnv...)
 			if apiKey == "" {
-				t.Skipf("set %s to run %s e2e smoke test", provider.apiKeyEnv, provider.name)
+				t.Skipf("set one of %s to run %s e2e smoke test", strings.Join(provider.apiKeyEnv, ","), provider.name)
 			}
 
 			model := provider.model
@@ -94,6 +104,15 @@ func TestSmokeTextStream(t *testing.T) {
 			}
 		})
 	}
+}
+
+func firstSetEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := os.Getenv(key); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func responseText(resp unified.Response) string {

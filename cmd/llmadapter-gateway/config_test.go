@@ -38,3 +38,12 @@ func TestValidateConfig(t *testing.T) {
 		t.Fatalf("expected unknown provider error")
 	}
 }
+
+func TestBuildProviderOpenAIRequiresKey(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("OPENAI_KEY", "")
+	_, err := buildProvider(providerConfig{Name: "openai", Type: "openai_chat"})
+	if err == nil {
+		t.Fatalf("expected missing key error")
+	}
+}

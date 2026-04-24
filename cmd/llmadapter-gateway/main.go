@@ -12,6 +12,7 @@ import (
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -88,9 +89,34 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 			opts = append(opts, anthropic.WithBaseURL(provider.BaseURL))
 		}
 		return anthropic.NewClient(opts...)
+	case "openai_chat":
+		apiKey := provider.APIKey
+		if apiKey == "" && provider.APIKeyEnv != "" {
+			apiKey = os.Getenv(provider.APIKeyEnv)
+		}
+		if apiKey == "" {
+			apiKey = firstEnv("OPENAI_API_KEY", "OPENAI_KEY")
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
+		}
+		opts := []openai.Option{openai.WithAPIKey(apiKey)}
+		if provider.BaseURL != "" {
+			opts = append(opts, openai.WithBaseURL(provider.BaseURL))
+		}
+		return openai.NewClient(opts...)
 	default:
 		return nil, fmt.Errorf("unsupported provider type %q", provider.Type)
 	}
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := os.Getenv(key); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func getenv(key, fallback string) string {
