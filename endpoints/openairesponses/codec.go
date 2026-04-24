@@ -168,10 +168,7 @@ func decodeInputItem(item InputItem, field string) ([]unified.Message, []adapt.W
 			Content: content,
 		}}, warnings
 	case "function_call":
-		args := json.RawMessage(item.Arguments)
-		if len(args) == 0 {
-			args = json.RawMessage(`{}`)
-		}
+		args, warnings := decodeToolCallArguments(item.Arguments, field+".arguments")
 		return []unified.Message{{
 			Role: unified.RoleAssistant,
 			ToolCalls: []unified.ToolCall{{
@@ -179,7 +176,7 @@ func decodeInputItem(item InputItem, field string) ([]unified.Message, []adapt.W
 				Name:      item.Name,
 				Arguments: args,
 			}},
-		}}, nil
+		}}, warnings
 	case "function_call_output":
 		return []unified.Message{{
 			Role: unified.RoleTool,
@@ -191,6 +188,17 @@ func decodeInputItem(item InputItem, field string) ([]unified.Message, []adapt.W
 	default:
 		return nil, []adapt.Warning{decodeWarning(field+".type", fmt.Sprintf("unsupported input item type %q was dropped", item.Type))}
 	}
+}
+
+func decodeToolCallArguments(value, field string) (json.RawMessage, []adapt.Warning) {
+	if value == "" {
+		return json.RawMessage(`{}`), nil
+	}
+	raw := json.RawMessage(value)
+	if json.Valid(raw) {
+		return raw, nil
+	}
+	return json.RawMessage(`{}`), []adapt.Warning{decodeWarning(field, "invalid tool call arguments were replaced with an empty object")}
 }
 
 func decodeContent(parts []ContentPart, field string) ([]unified.ContentPart, []adapt.Warning) {

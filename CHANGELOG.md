@@ -15,6 +15,7 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - **Provider image input passthrough** - OpenAI Chat-compatible providers and OpenRouter Responses now encode canonical image inputs upstream, and gateway metadata advertises vision capability for image-capable endpoint families.
+- **Tool argument decode hardening** - OpenAI Chat and OpenAI Responses endpoint codecs now replace malformed tool-call argument JSON with `{}` and retain decode warnings instead of carrying invalid JSON forward.
 
 ## [0.20.0] - 2026-04-24
 

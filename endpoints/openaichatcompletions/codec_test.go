@@ -87,6 +87,22 @@ func TestDecodeHTTPImageContent(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPInvalidToolCallArgumentsWarning(t *testing.T) {
+	body := `{
+		"model":"test-model",
+		"messages":[{"role":"assistant","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{"}}]}]
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(req.Unified.Messages[0].ToolCalls[0].Arguments) != `{}` {
+		t.Fatalf("arguments = %s", req.Unified.Messages[0].ToolCalls[0].Arguments)
+	}
+	assertWarning(t, req.Warnings, "messages.0.tool_calls.0.function.arguments")
+}
+
 func TestDecodeHTTPResponseFormat(t *testing.T) {
 	body := `{
 		"model":"test-model",

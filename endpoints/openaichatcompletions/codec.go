@@ -184,10 +184,12 @@ func decodeMessage(msg Message, field string) (unified.Message, []unified.Instru
 	case "user", "assistant":
 		out := unified.Message{Role: unified.Role(msg.Role), Name: msg.Name, Content: content}
 		for i, call := range msg.ToolCalls {
+			args, argWarnings := decodeToolCallArguments(call.Function.Arguments, field+".tool_calls."+strconv.Itoa(i)+".function.arguments")
+			warnings = append(warnings, argWarnings...)
 			out.ToolCalls = append(out.ToolCalls, unified.ToolCall{
 				ID:        call.ID,
 				Name:      call.Function.Name,
-				Arguments: json.RawMessage(call.Function.Arguments),
+				Arguments: args,
 				Index:     i,
 			})
 		}
@@ -204,6 +206,17 @@ func decodeMessage(msg Message, field string) (unified.Message, []unified.Instru
 	default:
 		return unified.Message{}, nil, nil, statusError(http.StatusBadRequest, "unsupported_role", fmt.Sprintf("unsupported role %q", msg.Role))
 	}
+}
+
+func decodeToolCallArguments(value, field string) (json.RawMessage, []adapt.Warning) {
+	if value == "" {
+		return json.RawMessage(`{}`), nil
+	}
+	raw := json.RawMessage(value)
+	if json.Valid(raw) {
+		return raw, nil
+	}
+	return json.RawMessage(`{}`), []adapt.Warning{decodeWarning(field, "invalid tool call arguments were replaced with an empty object")}
 }
 
 func decodeContent(raw json.RawMessage, field string) ([]unified.ContentPart, []adapt.Warning, error) {

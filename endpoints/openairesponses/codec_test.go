@@ -102,6 +102,22 @@ func TestDecodeHTTPImageContent(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPInvalidToolCallArgumentsWarning(t *testing.T) {
+	body := `{
+		"model":"gpt-test",
+		"input":[{"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{"}]
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(req.Unified.Messages[0].ToolCalls[0].Arguments) != `{}` {
+		t.Fatalf("arguments = %s", req.Unified.Messages[0].ToolCalls[0].Arguments)
+	}
+	assertWarning(t, req.Warnings, "input.0.arguments")
+}
+
 func TestDecodeHTTPResponseFormat(t *testing.T) {
 	body := `{
 		"model":"gpt-test",

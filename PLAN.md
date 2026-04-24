@@ -47,6 +47,7 @@ OpenAI Chat structured-output slice: OpenAI Chat-compatible endpoint decode and 
 OpenAI Responses structured-output slice: OpenAI Responses endpoint decode and OpenRouter Responses provider encode preserve text.format JSON mode and JSON schema requests
 Endpoint image decode slice: OpenAI Chat, OpenAI Responses, and Anthropic Messages endpoint codecs preserve supported image inputs as canonical ImagePart values
 Provider image passthrough slice: OpenAI Chat-compatible providers, OpenRouter Responses, and Anthropic-compatible providers encode supported canonical image inputs upstream; gateway metadata advertises vision on those endpoint families
+Tool argument hardening slice: OpenAI Chat and OpenAI Responses endpoint codecs replace malformed tool-call argument JSON with an empty object and retain decode warnings
 ```
 
 Verified:
@@ -216,7 +217,7 @@ Implementation assessment:
 Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, deterministic weighted routing, pre-response gateway fallback, fake transport unit tests, and live outside-in e2e tests are all working.
 Main intentional shortcuts are hardcoded provider construction in the gateway command, stream-first provider paths, and minimal warning/raw-event preservation.
 Current live tests are good smoke coverage, not full conformance coverage.
-Important remaining test gaps: invalid credentials/models, active health scoring, parallel tool calls, malformed tool args, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
+Important remaining test gaps: invalid credentials/models, active health scoring, parallel tool calls, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
 ```
 
 Next planned phase:

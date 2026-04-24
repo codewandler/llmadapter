@@ -83,6 +83,8 @@ OpenAI Chat, OpenAI Responses, and Anthropic Messages endpoint codecs decode sup
 
 Best-effort endpoint codecs retain decode/lossiness warnings on `adapt.Request`, and provider mappings emit canonical warning events for common unsupported dropped fields. Collected responses expose provider-side warnings under `Response.Warnings`.
 
+Malformed tool-call argument JSON from OpenAI Chat and OpenAI Responses inputs is replaced with `{}` and recorded as a decode warning.
+
 OpenRouter-specific request controls are carried through `unified.Request.Extensions` using namespaced keys such as `openrouter.provider`, `openrouter.plugins`, `openrouter.debug`, `openrouter.trace`, and `openrouter.session_id`. The OpenRouter Chat, Responses, and Messages providers encode those extensions back into upstream request bodies.
 
 See `DESIGN.md` for the target architecture and `PLAN.md` for current status, known gaps, and next implementation phases.
