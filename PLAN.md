@@ -19,6 +19,7 @@ Phase 1: unified, adapt, and pipeline core packages
 Phase 2: transport package with SSE, NDJSON, HTTP, fake, retry, and rate-limit wrappers
 Phase 3: Anthropic Messages programmatic client path
 Phase 4 first slice: /v1/chat/completions endpoint codec and minimal gateway handler
+Phase 4 gateway e2e slice: runnable Anthropic-backed gateway command and live gateway smoke tests
 ```
 
 Verified:
@@ -28,6 +29,7 @@ env GOCACHE=/tmp/go-cache go test ./...
 env GOCACHE=/tmp/go-cache go build ./...
 env GOCACHE=/tmp/go-cache go vet ./...
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestSmokeTextStream -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke' -v
 ```
 
 Implemented package surface:
@@ -41,6 +43,7 @@ providers/anthropic/messages/
 tests/e2e/
 endpoints/openaichatcompletions/
 gateway/
+cmd/llmadapter-gateway/
 ```
 
 Anthropic path coverage:
@@ -67,6 +70,8 @@ unified.Event -> OpenAI Chat Completions non-streaming JSON response
 unified.Event -> OpenAI Chat Completions SSE chunks
 minimal gateway handler with configured unified.Client
 endpoint-shaped errors before response start
+runnable Anthropic-backed /v1/chat/completions gateway command
+live gateway smoke tests for streaming and non-streaming requests
 ```
 
 Live e2e defaults:
@@ -89,6 +94,7 @@ Raw/unmapped event preservation is minimal and should be expanded before gateway
 Phase 4 does not yet include router/model registry integration
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
 streaming provider errors after response start need a final policy
+runnable gateway currently uses Anthropic directly and can optionally override upstream model via env
 ```
 
 Next planned phase:
