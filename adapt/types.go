@@ -5,18 +5,22 @@ import "fmt"
 type ApiKind string
 
 const (
-	ApiOpenAIResponses       ApiKind = "openai.responses"
-	ApiOpenAIChatCompletions ApiKind = "openai.chat_completions"
-	ApiAnthropicMessages     ApiKind = "anthropic.messages"
-	ApiGeminiGenerateContent ApiKind = "gemini.generate_content"
-	ApiOllamaChat            ApiKind = "ollama.chat"
-	ApiOllamaGenerate        ApiKind = "ollama.generate"
-	ApiOpenRouterChat        ApiKind = "openrouter.chat_completions"
-	ApiOpenRouterResponses   ApiKind = "openrouter.responses"
-	ApiOpenRouterMessages    ApiKind = "openrouter.anthropic_messages"
-	ApiBedrockConverse       ApiKind = "bedrock.converse"
-	ApiMistralChat           ApiKind = "mistral.chat"
-	ApiCohereChatV2          ApiKind = "cohere.chat_v2"
+	ApiOpenAIResponses             ApiKind = "openai.responses"
+	ApiOpenAIChatCompletions       ApiKind = "openai.chat_completions"
+	ApiAnthropicMessages           ApiKind = "anthropic.messages"
+	ApiGeminiGenerateContent       ApiKind = "gemini.generate_content"
+	ApiOllamaChat                  ApiKind = "ollama.chat"
+	ApiOllamaGenerate              ApiKind = "ollama.generate"
+	ApiOpenRouterChatCompletions   ApiKind = "openrouter.chat_completions"
+	ApiOpenRouterResponses         ApiKind = "openrouter.responses"
+	ApiOpenRouterAnthropicMessages ApiKind = "openrouter.anthropic_messages"
+	ApiBedrockConverse             ApiKind = "bedrock.converse"
+	ApiMistralChat                 ApiKind = "mistral.chat"
+	ApiCohereChatV2                ApiKind = "cohere.chat_v2"
+
+	// Backward-compatible aliases for the shorter names used in the original design draft.
+	ApiOpenRouterChat     = ApiOpenRouterChatCompletions
+	ApiOpenRouterMessages = ApiOpenRouterAnthropicMessages
 )
 
 type ApiFamily string

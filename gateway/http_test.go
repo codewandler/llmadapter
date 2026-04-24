@@ -26,7 +26,12 @@ func TestHandlerWritesEndpointErrorBeforeResponseStarts(t *testing.T) {
 	}}
 	handler := Handler{Endpoint: chat.Codec{}, Router: router.NewStaticRouter(router.StaticRoute{
 		SourceAPI: adapt.ApiOpenAIChatCompletions,
-		Client:    client,
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: "test",
+			APIKind:      adapt.ApiOpenAIChatCompletions,
+			Family:       adapt.FamilyOpenAIChatCompletions,
+			Client:       client,
+		},
 	})}
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
@@ -68,7 +73,12 @@ func TestHandlerChatCompletions(t *testing.T) {
 	handler := Handler{Endpoint: chat.Codec{}, Router: router.NewStaticRouter(router.StaticRoute{
 		SourceAPI:   adapt.ApiOpenAIChatCompletions,
 		NativeModel: "native-model",
-		Client:      client,
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: "test",
+			APIKind:      adapt.ApiOpenAIChatCompletions,
+			Family:       adapt.FamilyOpenAIChatCompletions,
+			Client:       client,
+		},
 	})}
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{

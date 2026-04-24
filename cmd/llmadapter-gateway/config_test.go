@@ -39,6 +39,30 @@ func TestValidateConfig(t *testing.T) {
 	}
 }
 
+func TestValidateConfigRequiresProviderAPIForAmbiguousProvider(t *testing.T) {
+	err := validateConfig(config{
+		Providers: []providerConfig{
+			{Name: "openrouter", Type: "openrouter_chat"},
+			{Name: "openrouter", Type: "anthropic"},
+		},
+		Routes: []routeConfig{{Provider: "openrouter"}},
+	})
+	if err == nil {
+		t.Fatalf("expected ambiguous provider endpoint error")
+	}
+
+	err = validateConfig(config{
+		Providers: []providerConfig{
+			{Name: "openrouter", Type: "openrouter_chat"},
+			{Name: "openrouter", Type: "anthropic"},
+		},
+		Routes: []routeConfig{{Provider: "openrouter", ProviderAPI: adapt.ApiOpenRouterChatCompletions}},
+	})
+	if err != nil {
+		t.Fatalf("unexpected provider endpoint validation error: %v", err)
+	}
+}
+
 func TestBuildProviderOpenAIRequiresKey(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("OPENAI_KEY", "")
@@ -54,5 +78,18 @@ func TestBuildProviderOpenRouterRequiresKey(t *testing.T) {
 	_, err := buildProvider(providerConfig{Name: "openrouter", Type: "openrouter_chat"})
 	if err == nil {
 		t.Fatalf("expected missing key error")
+	}
+}
+
+func TestProviderEndpointMetadata(t *testing.T) {
+	apiKind, family, capabilities, err := providerEndpointMetadata("openrouter_chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if apiKind != adapt.ApiOpenRouterChatCompletions || family != adapt.FamilyOpenAIChatCompletions {
+		t.Fatalf("unexpected endpoint metadata: %q %q", apiKind, family)
+	}
+	if !capabilities.Streaming || !capabilities.Tools {
+		t.Fatalf("unexpected capabilities: %+v", capabilities)
 	}
 }

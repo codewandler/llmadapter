@@ -122,12 +122,12 @@ const (
     ApiGeminiGenerateContent ApiKind = "gemini.generate_content"
     ApiOllamaChat            ApiKind = "ollama.chat"
     ApiOllamaGenerate        ApiKind = "ollama.generate"
-    ApiOpenRouterChat        ApiKind = "openrouter.chat_completions"
-    ApiOpenRouterResponses   ApiKind = "openrouter.responses"
-    ApiOpenRouterMessages    ApiKind = "openrouter.anthropic_messages"
-    ApiBedrockConverse       ApiKind = "bedrock.converse"
-    ApiMistralChat           ApiKind = "mistral.chat"
-    ApiCohereChatV2          ApiKind = "cohere.chat_v2"
+    ApiOpenRouterChatCompletions   ApiKind = "openrouter.chat_completions"
+    ApiOpenRouterResponses         ApiKind = "openrouter.responses"
+    ApiOpenRouterAnthropicMessages ApiKind = "openrouter.anthropic_messages"
+    ApiBedrockConverse             ApiKind = "bedrock.converse"
+    ApiMistralChat                 ApiKind = "mistral.chat"
+    ApiCohereChatV2                ApiKind = "cohere.chat_v2"
 )
 ```
 
@@ -471,7 +471,14 @@ const (
     ExtOpenAIStore              = "openai.responses.store"
     ExtAnthropicBetas           = "anthropic.betas"
     ExtGeminiSafetySettings     = "gemini.safety_settings"
+    ExtOpenRouterModels         = "openrouter.models"
+    ExtOpenRouterRoute          = "openrouter.route"
+    ExtOpenRouterProvider       = "openrouter.provider"
     ExtOpenRouterProviderPrefs  = "openrouter.provider_preferences"
+    ExtOpenRouterPlugins        = "openrouter.plugins"
+    ExtOpenRouterDebug          = "openrouter.debug"
+    ExtOpenRouterTrace          = "openrouter.trace"
+    ExtOpenRouterSessionID      = "openrouter.session_id"
     ExtOllamaOptions            = "ollama.options"
 )
 ```
@@ -1680,7 +1687,7 @@ registry.Register(router.ProviderEndpoint{
 
 registry.Register(router.ProviderEndpoint{
     ProviderName: "openrouter",
-    APIKind:      adapt.ApiOpenRouterChat,
+    APIKind:      adapt.ApiOpenRouterChatCompletions,
     Family:       adapt.FamilyOpenAIChatCompletions,
     Client:       openrouterChatClient,
     Priority:     90,
@@ -1688,7 +1695,7 @@ registry.Register(router.ProviderEndpoint{
 
 registry.Register(router.ProviderEndpoint{
     ProviderName: "openrouter",
-    APIKind:      adapt.ApiOpenRouterMessages,
+    APIKind:      adapt.ApiOpenRouterAnthropicMessages,
     Family:       adapt.FamilyAnthropicMessages,
     Client:       openrouterMessagesClient,
     Priority:     80,

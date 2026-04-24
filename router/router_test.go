@@ -22,7 +22,13 @@ func TestStaticRouter(t *testing.T) {
 		SourceAPI:   adapt.ApiOpenAIChatCompletions,
 		Model:       "public-model",
 		NativeModel: "native-model",
-		Client:      client,
+		Endpoint: ProviderEndpoint{
+			ProviderName: "openrouter",
+			APIKind:      adapt.ApiOpenRouterChatCompletions,
+			Family:       adapt.FamilyOpenAIChatCompletions,
+			Client:       client,
+			Capabilities: CapabilitySet{Streaming: true, Tools: true},
+		},
 	})
 	route, err := r.Route(context.Background(), adapt.Request{
 		SourceAPI: adapt.ApiOpenAIChatCompletions,
@@ -32,6 +38,12 @@ func TestStaticRouter(t *testing.T) {
 		t.Fatal(err)
 	}
 	if route.Client == nil || route.NativeModel != "native-model" {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+	if route.TargetAPI != adapt.ApiOpenRouterChatCompletions || route.TargetFamily != adapt.FamilyOpenAIChatCompletions || route.ProviderName != "openrouter" {
+		t.Fatalf("unexpected endpoint metadata: %+v", route)
+	}
+	if !route.Capabilities.Streaming || !route.Capabilities.Tools {
 		t.Fatalf("unexpected route: %+v", route)
 	}
 	if _, err := r.Route(context.Background(), adapt.Request{

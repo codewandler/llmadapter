@@ -27,6 +27,7 @@ Gateway provider matrix slice: OpenAI-backed route covered by live gateway smoke
 Tool-use provider slice: OpenAI streamed tool calls and shared live tool-use smoke tests
 Tool loop e2e slice: shared live tool-result continuation smoke tests
 OpenRouter provider slice: native Chat Completions provider wrapper and shared smoke matrix entry
+Provider endpoint routing slice: routes carry target API kind, API family, provider name, and capabilities
 ```
 
 Verified:
@@ -72,7 +73,7 @@ LLMADAPTER_ADDR sets the listen address when no config file is used
 ANTHROPIC_API_KEY provides default Anthropic credentials when no config file is used
 LLMADAPTER_UPSTREAM_MODEL sets the default native model override when no config file is used
 provider config supports api_key or api_key_env
-route config supports source_api, model, provider, and native_model
+route config supports source_api, model, provider, provider_api, and native_model
 ```
 
 Anthropic path coverage:
@@ -103,6 +104,7 @@ runnable Anthropic-backed /v1/chat/completions gateway command
 live gateway smoke tests for streaming and non-streaming requests
 gateway route selection through router.StaticRouter
 native model rewrite before provider client invocation
+route results preserve provider endpoint metadata: target API kind, compatibility family, provider name, and capabilities
 same OpenAI Chat endpoint smoke-tested against Anthropic and OpenAI upstreams
 shared unified.Client tool-use smoke tests pass against Anthropic and OpenAI
 shared unified.Client tool-result continuation smoke tests pass against Anthropic and OpenAI
@@ -132,7 +134,7 @@ non-streaming Anthropic response bodies are not yet modeled separately from stre
 SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
 Raw/unmapped event preservation is minimal and should be expanded before gateway work
 router is static and does not yet include capability checks or fallback routing
-gateway config is intentionally minimal and does not yet support multiple provider implementations
+gateway config is intentionally minimal; routes can disambiguate same-provider endpoints with provider_api, but there is no full registry yet
 OpenAI provider is stream-first and covers smoke-tested text and tool-use paths
 OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses

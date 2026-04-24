@@ -44,28 +44,81 @@ func main() {
 }
 
 func buildRouter(cfg config) (router.Router, error) {
-	clients := make(map[string]unified.Client)
+	endpoints := make([]router.ProviderEndpoint, 0, len(cfg.Providers))
 	for _, provider := range cfg.Providers {
-		client, err := buildProvider(provider)
+		endpoint, err := buildProviderEndpoint(provider)
 		if err != nil {
 			return nil, err
 		}
-		clients[provider.Name] = client
+		endpoints = append(endpoints, endpoint)
 	}
 	routes := make([]router.StaticRoute, 0, len(cfg.Routes))
 	for _, route := range cfg.Routes {
-		client, ok := clients[route.Provider]
+		endpoint, ok, ambiguous := findProviderEndpoint(endpoints, route.Provider, route.ProviderAPI)
+		if ambiguous {
+			return nil, fmt.Errorf("route references provider %q without provider_api but multiple endpoints match", route.Provider)
+		}
 		if !ok {
-			return nil, fmt.Errorf("route references unknown provider %q", route.Provider)
+			return nil, fmt.Errorf("route references unknown provider endpoint %q %q", route.Provider, route.ProviderAPI)
 		}
 		routes = append(routes, router.StaticRoute{
 			SourceAPI:   route.SourceAPI,
 			Model:       route.Model,
 			NativeModel: route.NativeModel,
-			Client:      client,
+			Endpoint:    endpoint,
 		})
 	}
 	return router.NewStaticRouter(routes...), nil
+}
+
+func buildProviderEndpoint(provider providerConfig) (router.ProviderEndpoint, error) {
+	client, err := buildProvider(provider)
+	if err != nil {
+		return router.ProviderEndpoint{}, err
+	}
+	apiKind, family, capabilities, err := providerEndpointMetadata(provider.Type)
+	if err != nil {
+		return router.ProviderEndpoint{}, err
+	}
+	return router.ProviderEndpoint{
+		ProviderName: provider.Name,
+		APIKind:      apiKind,
+		Family:       family,
+		Client:       client,
+		Capabilities: capabilities,
+	}, nil
+}
+
+func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFamily, router.CapabilitySet, error) {
+	switch providerType {
+	case "anthropic":
+		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true}, nil
+	case "openai_chat":
+		return adapt.ApiOpenAIChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true}, nil
+	case "openrouter_chat":
+		return adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true}, nil
+	default:
+		return "", "", router.CapabilitySet{}, fmt.Errorf("unsupported provider type %q", providerType)
+	}
+}
+
+func findProviderEndpoint(endpoints []router.ProviderEndpoint, providerName string, apiKind adapt.ApiKind) (router.ProviderEndpoint, bool, bool) {
+	var match router.ProviderEndpoint
+	matches := 0
+	for _, endpoint := range endpoints {
+		if endpoint.ProviderName != providerName {
+			continue
+		}
+		if apiKind != "" && endpoint.APIKind != apiKind {
+			continue
+		}
+		match = endpoint
+		matches++
+	}
+	if matches == 1 {
+		return match, true, false
+	}
+	return router.ProviderEndpoint{}, false, matches > 1
 }
 
 func buildProvider(provider providerConfig) (unified.Client, error) {

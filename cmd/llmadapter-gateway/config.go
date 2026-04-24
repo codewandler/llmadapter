@@ -27,6 +27,7 @@ type routeConfig struct {
 	SourceAPI   adapt.ApiKind `json:"source_api"`
 	Model       string        `json:"model,omitempty"`
 	Provider    string        `json:"provider"`
+	ProviderAPI adapt.ApiKind `json:"provider_api,omitempty"`
 	NativeModel string        `json:"native_model,omitempty"`
 }
 
@@ -111,9 +112,28 @@ func validateConfig(cfg config) error {
 		return fmt.Errorf("at least one route is required")
 	}
 	for _, route := range cfg.Routes {
-		if _, ok := findProvider(cfg, route.Provider); !ok {
-			return fmt.Errorf("route references unknown provider %q", route.Provider)
+		if matches := countProviderEndpoints(cfg, route.Provider, route.ProviderAPI); matches == 0 {
+			return fmt.Errorf("route references unknown provider endpoint %q %q", route.Provider, route.ProviderAPI)
+		} else if matches > 1 {
+			return fmt.Errorf("route references provider %q without provider_api but multiple endpoints match", route.Provider)
 		}
 	}
 	return nil
+}
+
+func countProviderEndpoints(cfg config, providerName string, apiKind adapt.ApiKind) int {
+	count := 0
+	for _, provider := range cfg.Providers {
+		if provider.Name != providerName {
+			continue
+		}
+		if apiKind != "" {
+			providerAPI, _, _, err := providerEndpointMetadata(provider.Type)
+			if err != nil || providerAPI != apiKind {
+				continue
+			}
+		}
+		count++
+	}
+	return count
 }

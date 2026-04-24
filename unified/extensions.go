@@ -10,7 +10,14 @@ const (
 	ExtOpenAIStore              = "openai.responses.store"
 	ExtAnthropicBetas           = "anthropic.betas"
 	ExtGeminiSafetySettings     = "gemini.safety_settings"
+	ExtOpenRouterModels         = "openrouter.models"
+	ExtOpenRouterRoute          = "openrouter.route"
+	ExtOpenRouterProvider       = "openrouter.provider"
 	ExtOpenRouterProviderPrefs  = "openrouter.provider_preferences"
+	ExtOpenRouterPlugins        = "openrouter.plugins"
+	ExtOpenRouterDebug          = "openrouter.debug"
+	ExtOpenRouterTrace          = "openrouter.trace"
+	ExtOpenRouterSessionID      = "openrouter.session_id"
 	ExtOllamaOptions            = "ollama.options"
 )
 

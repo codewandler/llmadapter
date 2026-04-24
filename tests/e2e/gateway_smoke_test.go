@@ -24,6 +24,8 @@ import (
 
 type gatewayProvider struct {
 	name      string
+	apiKind   adapt.ApiKind
+	family    adapt.ApiFamily
 	apiKeyEnv []string
 	modelEnv  string
 	model     string
@@ -102,6 +104,8 @@ func gatewayProviders() []gatewayProvider {
 	return []gatewayProvider{
 		{
 			name:      "anthropic",
+			apiKind:   adapt.ApiAnthropicMessages,
+			family:    adapt.FamilyAnthropicMessages,
 			apiKeyEnv: []string{"ANTHROPIC_API_KEY"},
 			modelEnv:  "ANTHROPIC_MODEL",
 			model:     "claude-haiku-4-5-20251001",
@@ -117,6 +121,8 @@ func gatewayProviders() []gatewayProvider {
 		},
 		{
 			name:      "openai_chat",
+			apiKind:   adapt.ApiOpenAIChatCompletions,
+			family:    adapt.FamilyOpenAIChatCompletions,
 			apiKeyEnv: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
 			modelEnv:  "OPENAI_MODEL",
 			model:     "gpt-4.1-mini",
@@ -126,6 +132,8 @@ func gatewayProviders() []gatewayProvider {
 		},
 		{
 			name:      "openrouter_chat",
+			apiKind:   adapt.ApiOpenRouterChatCompletions,
+			family:    adapt.FamilyOpenAIChatCompletions,
 			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
 			modelEnv:  "OPENROUTER_MODEL",
 			model:     "openai/gpt-4.1-mini",
@@ -161,7 +169,12 @@ func newGateway(t *testing.T, provider gatewayProvider) (http.Handler, string) {
 			Endpoint: chat.Codec{},
 			Router: router.NewStaticRouter(router.StaticRoute{
 				SourceAPI: adapt.ApiOpenAIChatCompletions,
-				Client:    client,
+				Endpoint: router.ProviderEndpoint{
+					ProviderName: provider.name,
+					APIKind:      provider.apiKind,
+					Family:       provider.family,
+					Client:       client,
+				},
 			}),
 		},
 	}, model
