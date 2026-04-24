@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-04-24
+
+### Changed
+
+- `cmd/llmadapter-gateway` now runs through the shared `adapterconfig` and `gatewayserver` path used by `llmadapter serve`, while preserving the compatibility binary.
+
 ## [0.37.0] - 2026-04-24
 
 ### Added

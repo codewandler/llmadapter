@@ -73,7 +73,7 @@ Initial commands:
 - `llmadapter serve` runs the compatibility gateway on `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`; pass `--config`, `--addr`, or `--inspect-config`.
 - `llmadapter smoke` runs a minimal direct text request through a configured provider endpoint type; `-mode mux` runs the same request through the stateless mux client route path, `-config` builds that route path from a llmadapter JSON config, and `-mode auto` builds a mux client from detected environment/local Claude credentials.
 
-`cmd/llmadapter-gateway` remains as a compatibility binary while gateway serving moves under the Cobra CLI.
+`cmd/llmadapter-gateway` remains as a compatibility binary and now runs through the same shared gateway server path as `llmadapter serve`.
 
 The gateway command is `cmd/llmadapter-gateway`.
 

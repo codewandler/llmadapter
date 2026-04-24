@@ -282,7 +282,7 @@ Structured usage/cost accounting: canonical token and cost item types, modeldb-p
 Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, and live prompt-cache/tool/gateway smokes are in place.
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
 Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
-CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, serve, and smoke requests; `cmd/llmadapter-gateway` remains as the compatibility binary.
+CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, serve, and smoke requests; `cmd/llmadapter-gateway` remains as a compatibility binary over the same gateway server path.
 Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; gateway serving now uses the same adapterconfig router construction in the Cobra CLI path.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
 ```

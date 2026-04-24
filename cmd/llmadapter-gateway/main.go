@@ -3,18 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 
 	"github.com/codewandler/llmadapter/adapt"
-	anthropicendpoint "github.com/codewandler/llmadapter/endpoints/anthropicmessages"
-	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
-	responsesendpoint "github.com/codewandler/llmadapter/endpoints/openairesponses"
-	"github.com/codewandler/llmadapter/gateway"
+	"github.com/codewandler/llmadapter/adapterconfig"
+	"github.com/codewandler/llmadapter/gatewayserver"
 	"github.com/codewandler/llmadapter/modelmeta"
 	"github.com/codewandler/llmadapter/pipeline"
 	pricingpkg "github.com/codewandler/llmadapter/pricing"
@@ -37,56 +33,83 @@ func main() {
 	inspectConfigFlag := flag.Bool("inspect-config", false, "print resolved gateway config metadata as JSON and exit")
 	flag.Parse()
 
-	cfg, err := loadConfigFromEnv()
+	cfg, err := adapterconfig.LoadFromEnv()
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := validateConfig(cfg); err != nil {
+	if err := adapterconfig.Validate(cfg); err != nil {
 		log.Fatal(err)
 	}
 	if *inspectConfigFlag {
-		inspection, err := inspectConfig(cfg)
-		if err != nil {
-			log.Fatal(err)
-		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		if err := enc.Encode(inspection); err != nil {
+		if err := enc.Encode(compatInspectConfig(cfg)); err != nil {
 			log.Fatal(err)
 		}
 		return
 	}
-	r, err := buildRouter(cfg)
-	if err != nil {
+	if err := gatewayserver.ListenAndServe(cfg); err != nil {
 		log.Fatal(err)
 	}
+}
 
-	mux := http.NewServeMux()
-	cooldown, err := healthCooldown(cfg)
-	if err != nil {
-		log.Fatal(err)
-	}
-	health := gateway.NewHealthTracker(cooldown)
-	mux.Handle("/v1/chat/completions", gateway.Handler{
-		Endpoint: chat.Codec{},
-		Router:   r,
-		Health:   health,
-	})
-	mux.Handle("/v1/messages", gateway.Handler{
-		Endpoint: anthropicendpoint.Codec{},
-		Router:   r,
-		Health:   health,
-	})
-	mux.Handle("/v1/responses", gateway.Handler{
-		Endpoint: responsesendpoint.Codec{},
-		Router:   r,
-		Health:   health,
-	})
+type compatInspection struct {
+	Addr           string                      `json:"addr,omitempty"`
+	HealthCooldown string                      `json:"health_cooldown,omitempty"`
+	Providers      []compatProviderInspection  `json:"providers,omitempty"`
+	Routes         []adapterconfig.RouteConfig `json:"routes,omitempty"`
+}
 
-	log.Printf("llmadapter gateway listening on %s", cfg.Addr)
-	if err := http.ListenAndServe(cfg.Addr, mux); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(err)
+type compatProviderInspection struct {
+	Name             string               `json:"name"`
+	Type             string               `json:"type"`
+	APIKind          adapt.ApiKind        `json:"api_kind"`
+	Family           adapt.ApiFamily      `json:"family"`
+	Model            string               `json:"model,omitempty"`
+	ModelDBServiceID string               `json:"modeldb_service_id,omitempty"`
+	Priority         int                  `json:"priority,omitempty"`
+	Capabilities     router.CapabilitySet `json:"capabilities"`
+	Credential       credentialInspection `json:"credential"`
+	Tags             map[string]string    `json:"tags,omitempty"`
+}
+
+func compatInspectConfig(cfg adapterconfig.Config) compatInspection {
+	out := compatInspection{
+		Addr:           cfg.Addr,
+		HealthCooldown: cfg.HealthCooldown,
+		Providers:      make([]compatProviderInspection, 0, len(cfg.Providers)),
+		Routes:         cfg.Routes,
 	}
+	for _, provider := range cfg.Providers {
+		endpoint, err := adapterconfig.ProviderEndpointConfig(provider)
+		if err != nil {
+			out.Providers = append(out.Providers, compatProviderInspection{
+				Name: provider.Name,
+				Type: provider.Type,
+				Credential: credentialInspection{
+					InlineAPIKey: provider.APIKey != "",
+					APIKeyEnv:    provider.APIKeyEnv,
+				},
+			})
+			continue
+		}
+		out.Providers = append(out.Providers, compatProviderInspection{
+			Name:             provider.Name,
+			Type:             provider.Type,
+			APIKind:          endpoint.APIKind,
+			Family:           endpoint.Family,
+			Model:            provider.Model,
+			ModelDBServiceID: endpoint.Tags[adapterconfig.TagModelDBServiceID],
+			Priority:         provider.Priority,
+			Capabilities:     endpoint.Capabilities,
+			Credential: credentialInspection{
+				InlineAPIKey: provider.APIKey != "",
+				APIKeyEnv:    provider.APIKeyEnv,
+			},
+			Tags: endpoint.Tags,
+		})
+	}
+	return out
 }
 
 func buildRouter(cfg config) (router.Router, error) {
