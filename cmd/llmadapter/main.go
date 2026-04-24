@@ -1033,8 +1033,9 @@ func printResolutionCandidates(w io.Writer, resolutions []resolutionInfo) {
 	}
 	fmt.Fprintf(w, "Matches: %d candidates\n", len(resolutions))
 	for i, resolution := range resolutions {
-		fmt.Fprintf(w, "\n[%.2d] source=%s provider=%s type=%s api=%s weight=%d priority=%d\n",
+		fmt.Fprintf(w, "\n[%.2d] role=%s source=%s provider=%s type=%s api=%s weight=%d priority=%d\n",
 			i+1,
+			resolveProviderRole(resolution.ProviderType),
 			resolution.SourceAPI,
 			resolution.Provider,
 			resolution.ProviderType,
@@ -1043,6 +1044,23 @@ func printResolutionCandidates(w io.Writer, resolutions []resolutionInfo) {
 			resolution.Priority,
 		)
 		printResolution(w, resolution)
+	}
+}
+
+func resolveProviderRole(providerType string) string {
+	switch providerType {
+	case "claude_messages":
+		return "claude"
+	case "anthropic":
+		return "anthropic"
+	case "openrouter_messages":
+		return "openrouter_anthropic"
+	case "openrouter_chat":
+		return "openrouter_chat"
+	case "openrouter_responses":
+		return "openrouter_responses"
+	default:
+		return providerType
 	}
 }
 
