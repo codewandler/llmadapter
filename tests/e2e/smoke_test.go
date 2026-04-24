@@ -9,6 +9,7 @@ import (
 	"time"
 
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
@@ -257,6 +258,15 @@ func smokeProviders() []smokeProvider {
 			tools:     true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openrouter.NewClient(openrouter.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:      "minimax_chat",
+			apiKeyEnv: []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
+			modelEnv:  "MINIMAX_MODEL",
+			model:     "MiniMax-M2.7",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return minimax.NewClient(minimax.WithAPIKey(apiKey))
 			},
 		},
 		{

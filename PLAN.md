@@ -31,6 +31,7 @@ Provider endpoint routing slice: routes carry target API kind, API family, provi
 OpenRouter multi-endpoint slice: native Responses text streaming and Anthropic-compatible Messages support
 OpenRouter Responses tool slice: native Responses function-call streaming and tool-result continuation support
 Documentation slice: minimal README, AGENTS, and provider-extension agent skill
+MiniMax provider slice: OpenAI-compatible Chat Completions wrapper, gateway registration, and shared text smoke matrix entry
 ```
 
 Verified:
@@ -53,6 +54,8 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolUse' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream/minimax_chat' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/minimax_chat' -count=1 -v
 ```
 
 Implemented package surface:
@@ -67,6 +70,7 @@ providers/openai/chatcompletions/
 providers/openrouter/chatcompletions/
 providers/openrouter/messages/
 providers/openrouter/responses/
+providers/minimax/chatcompletions/
 tests/e2e/
 endpoints/openaichatcompletions/
 gateway/
@@ -121,6 +125,7 @@ shared unified.Client tool-result continuation smoke tests pass against Anthropi
 shared unified.Client text smoke tests pass across Anthropic, OpenAI Chat, OpenRouter Chat, OpenRouter Responses, and OpenRouter Messages
 OpenRouter Chat, Responses, and Messages pass shared tool-use and tool-result continuation smokes
 OpenRouter Responses routes through the OpenAI Chat gateway smoke path via canonical text conversion
+MiniMax Chat uses the OpenAI-compatible stream path and is registered in text and gateway smoke matrices
 ```
 
 Live e2e defaults:
@@ -140,6 +145,9 @@ OPENROUTER_RESPONSES_MODEL overrides the default OpenRouter Responses smoke-test
 default OpenRouter Responses smoke-test model: openai/gpt-4.1-mini
 OPENROUTER_MESSAGES_MODEL overrides the default OpenRouter Messages smoke-test model
 default OpenRouter Messages smoke-test model: anthropic/claude-sonnet-4
+MINIMAX_API_KEY or MINIMAX_KEY provides MiniMax credentials
+MINIMAX_MODEL overrides the default MiniMax smoke-test model
+default MiniMax smoke-test model: MiniMax-M2.7
 ```
 
 Known follow-up gaps:
@@ -156,6 +164,8 @@ OpenAI provider is stream-first and covers smoke-tested text and tool-use paths
 OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
 OpenRouter Responses provider is stream-first and covers smoke-tested text and function-call tool loops
 OpenRouter Messages provider reuses the Anthropic-compatible stream path against OpenRouter's native messages endpoint
+MiniMax Chat provider reuses the OpenAI-compatible stream path against MiniMax's /v1/chat/completions endpoint
+MiniMax Chat is currently marked text-streaming capable only; tools are documented upstream but not advertised in llmadapter until MiniMax-specific tool smoke coverage is added
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
 Provider support is currently strong for text + function-tool loops, not broad multimodal or media APIs
@@ -175,7 +185,7 @@ Important remaining test gaps: provider error bodies, mid-stream errors, invalid
 Next planned phase:
 
 ```text
-MiniMax provider continuation: add MiniMax Anthropic-compatible Messages first, then MiniMax OpenAI-compatible Chat Completions
+MiniMax provider continuation: add MiniMax Anthropic-compatible Messages, then validate MiniMax Chat tool-use/tool-result continuation before advertising tools
 Endpoint continuation: add downstream /v1/responses and /v1/messages endpoint codecs
 ```
 
@@ -205,7 +215,7 @@ MiniMax implementation plan:
 ```text
 1. Add adapt API kinds if/when implementation starts:
    - minimax.anthropic_messages -> family anthropic.messages
-   - minimax.chat_completions -> family openai.chat_completions
+   - minimax.chat_completions -> family openai.chat_completions (implemented)
 2. Add providers/minimax/messages as an Anthropic-compatible wrapper over providers/anthropic/messages.
    - Base URL: https://api.minimax.io/anthropic
    - Credential env: MINIMAX_API_KEY or MINIMAX_KEY
@@ -215,14 +225,14 @@ MiniMax implementation plan:
    - TestSmokeTextStream/minimax_messages
    - TestSmokeToolUse/minimax_messages
    - TestSmokeToolResultContinuation/minimax_messages
-4. Add providers/minimax/chatcompletions as an OpenAI-compatible wrapper over providers/openai/chatcompletions.
+4. Add providers/minimax/chatcompletions as an OpenAI-compatible wrapper over providers/openai/chatcompletions. (implemented)
    - Base URL: https://api.minimax.io
    - Default model: MiniMax-M2.7
    - Validate text/tool streaming behavior before setting Tools: true
 5. Register gateway provider types:
    - minimax_messages
-   - minimax_chat
-6. Update README and PLAN with MiniMax env vars and verification commands.
+   - minimax_chat (implemented)
+6. Update README and PLAN with MiniMax env vars and verification commands. (implemented for minimax_chat)
 ```
 
 ---

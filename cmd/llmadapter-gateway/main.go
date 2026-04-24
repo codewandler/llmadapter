@@ -12,6 +12,7 @@ import (
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
@@ -103,6 +104,8 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 		return adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, router.CapabilitySet{Streaming: true, Tools: true}, nil
 	case "openrouter_messages":
 		return adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true}, nil
+	case "minimax_chat":
+		return adapt.ApiMiniMaxChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true}, nil
 	default:
 		return "", "", router.CapabilitySet{}, fmt.Errorf("unsupported provider type %q", providerType)
 	}
@@ -213,6 +216,22 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 			opts = append(opts, openroutermessages.WithBaseURL(provider.BaseURL))
 		}
 		return openroutermessages.NewClient(opts...)
+	case "minimax_chat":
+		apiKey := provider.APIKey
+		if apiKey == "" && provider.APIKeyEnv != "" {
+			apiKey = os.Getenv(provider.APIKeyEnv)
+		}
+		if apiKey == "" {
+			apiKey = firstEnv("MINIMAX_API_KEY", "MINIMAX_KEY")
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
+		}
+		opts := []minimax.Option{minimax.WithAPIKey(apiKey)}
+		if provider.BaseURL != "" {
+			opts = append(opts, minimax.WithBaseURL(provider.BaseURL))
+		}
+		return minimax.NewClient(opts...)
 	default:
 		return nil, fmt.Errorf("unsupported provider type %q", provider.Type)
 	}

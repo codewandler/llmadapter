@@ -6,7 +6,7 @@ Current implemented surface:
 
 - Core packages: `unified`, `adapt`, `pipeline`, `transport`, `router`, `gateway`.
 - Endpoint codec: OpenAI-compatible `/v1/chat/completions`.
-- Providers: Anthropic Messages, OpenAI Chat Completions, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages.
+- Providers: Anthropic Messages, OpenAI Chat Completions, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions.
 - Live e2e smoke tests for text streaming, tool calls, tool-result continuation, and gateway routing.
 
 ## Quick Start
@@ -30,6 +30,7 @@ Live tests skip when credentials are missing. Supported credential env vars:
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY` or `OPENAI_KEY`
 - `OPENROUTER_API_KEY` or `OPENROUTER_KEY`
+- `MINIMAX_API_KEY` or `MINIMAX_KEY`
 
 Provider model override env vars:
 
@@ -38,6 +39,7 @@ Provider model override env vars:
 - `OPENROUTER_MODEL`
 - `OPENROUTER_RESPONSES_MODEL`
 - `OPENROUTER_MESSAGES_MODEL`
+- `MINIMAX_MODEL`
 
 ## Gateway
 
@@ -56,6 +58,7 @@ Example provider endpoint types:
 - `openrouter_chat`
 - `openrouter_responses`
 - `openrouter_messages`
+- `minimax_chat`
 
 ## Design Notes
 
