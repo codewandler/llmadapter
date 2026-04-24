@@ -148,3 +148,33 @@ func TestClientRespectsSourceAPI(t *testing.T) {
 		t.Fatalf("provider should not be called")
 	}
 }
+
+func TestClientDefaultSourceIsAuto(t *testing.T) {
+	provider := &fakeClient{events: []unified.Event{
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	client := New(router.NewStaticRouter(router.StaticRoute{
+		SourceAPI:   adapt.ApiAnthropicMessages,
+		Model:       "haiku",
+		NativeModel: "claude-haiku",
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: "claude",
+			APIKind:      adapt.ApiAnthropicMessages,
+			Family:       adapt.FamilyAnthropicMessages,
+			Client:       provider,
+		},
+	}))
+
+	events, err := client.Request(context.Background(), unified.Request{Model: "haiku"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-events
+	routeEvent, ok := first.(unified.RouteEvent)
+	if !ok {
+		t.Fatalf("first event = %T, want unified.RouteEvent", first)
+	}
+	if routeEvent.SourceAPI != string(adapt.ApiAnthropicMessages) || provider.req.Model != "claude-haiku" {
+		t.Fatalf("unexpected route/provider request: route=%+v req=%+v", routeEvent, provider.req)
+	}
+}

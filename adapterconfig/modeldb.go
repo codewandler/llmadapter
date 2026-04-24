@@ -128,7 +128,7 @@ func resolveModelDBItem(catalog modeldb.Catalog, cfg ModelDBConfig, serviceID st
 	return modeldb.Item{Model: offering.Model, Offering: offering.Offering}, true
 }
 
-func resolveConfiguredModelDBAlias(catalog modeldb.Catalog, cfg ModelDBConfig, serviceID string, apiType modeldb.APIType, name string) (modeldb.Item, bool) {
+func resolveConfiguredModelDBAlias(catalog modeldb.Catalog, cfg ModelDBConfig, serviceID string, _ modeldb.APIType, name string) (modeldb.Item, bool) {
 	normalized := normalizeModelDBAlias(name)
 	for i := len(cfg.Aliases) - 1; i >= 0; i-- {
 		alias := cfg.Aliases[i]
@@ -139,7 +139,7 @@ func resolveConfiguredModelDBAlias(catalog modeldb.Catalog, cfg ModelDBConfig, s
 			continue
 		}
 		offering, ok := catalog.Offerings[modeldb.OfferingRef{ServiceID: alias.ServiceID, WireModelID: alias.WireModelID}]
-		if !ok || !offering.HasExposure(apiType) {
+		if !ok {
 			continue
 		}
 		return modeldb.Item{Model: catalog.Models[offering.ModelKey], Offering: offering}, true

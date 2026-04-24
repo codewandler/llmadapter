@@ -180,6 +180,92 @@ func TestAutoMuxClientModelDBIntentPrefersMatchingProvider(t *testing.T) {
 	}
 }
 
+func TestAutoMuxClientModelDBIntentPrefersOwnerProviderOverBroker(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+	claudeDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	if err := os.WriteFile(filepath.Join(claudeDir, ".credentials.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:         true,
+		EnableLocalClaude: true,
+		UseModelDB:        true,
+		Intents:           []AutoIntent{{Name: "haiku", SourceAPI: adapt.ApiOpenAIResponses}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, ok := autoRouteModel(result.Config, adapt.ApiOpenAIResponses, "haiku")
+	if !ok {
+		t.Fatalf("missing haiku route: %+v", result.Config.Routes)
+	}
+	if route.Provider != "claude" || route.ProviderAPI != adapt.ApiAnthropicMessages {
+		t.Fatalf("expected owner provider route before broker route: %+v", route)
+	}
+}
+
+func TestAutoMuxClientAutoSourcePrefersAnthropicRouteForAnthropicAlias(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+	claudeDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	if err := os.WriteFile(filepath.Join(claudeDir, ".credentials.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:         true,
+		EnableLocalClaude: true,
+		UseModelDB:        true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := BuildRouter(result.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := r.Route(context.Background(), adapt.Request{
+		Unified: unified.Request{Model: "haiku", Stream: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.SourceAPI != adapt.ApiAnthropicMessages || selected.ProviderName != "claude" || selected.TargetAPI != adapt.ApiAnthropicMessages {
+		t.Fatalf("unexpected auto-source route: %+v", selected)
+	}
+}
+
+func TestAutoMuxClientAutoSourceOpenRouterAliasUsesMessagesEndpoint(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:         true,
+		EnableLocalClaude: false,
+		UseModelDB:        true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := BuildRouter(result.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := r.Route(context.Background(), adapt.Request{
+		Unified: unified.Request{Model: "haiku", Stream: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.SourceAPI != adapt.ApiAnthropicMessages || selected.ProviderName != "openrouter_messages" || selected.TargetAPI != adapt.ApiOpenRouterAnthropicMessages {
+		t.Fatalf("unexpected auto-source OpenRouter route: %+v", selected)
+	}
+}
+
 func TestAutoMuxClientCanAddDynamicRoutes(t *testing.T) {
 	clearAutoEnv(t)
 	t.Setenv("OPENAI_API_KEY", "test-openai-key")

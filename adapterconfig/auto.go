@@ -3,6 +3,7 @@ package adapterconfig
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/modelmeta"
@@ -68,11 +69,7 @@ func AutoMuxClient(opts AutoOptions) (AutoResult, error) {
 	}
 	cfg.Routes = routes
 	ApplyDefaults(&cfg)
-	sourceAPI := opts.SourceAPI
-	if sourceAPI == "" {
-		sourceAPI = adapt.ApiOpenAIResponses
-	}
-	client, err := NewMuxClient(cfg, WithSourceAPI(sourceAPI))
+	client, err := NewMuxClient(cfg, WithSourceAPI(opts.SourceAPI))
 	if err != nil {
 		return AutoResult{Config: cfg, Enabled: enabled, Skipped: skipped}, err
 	}
@@ -135,8 +132,12 @@ func autoRoutes(cfg Config, opts AutoOptions) ([]RouteConfig, error) {
 		var out []RouteConfig
 		dynamic := map[adapt.ApiKind]bool{}
 		for _, intent := range opts.Intents {
-			route, ok := routeForIntent(cfg, intent, opts, catalog, modelDBEnabled)
-			if ok {
+			for _, sourceAPI := range intentSourceAPIs(intent, opts) {
+				intent.SourceAPI = sourceAPI
+				route, ok := routeForIntent(cfg, intent, opts, catalog, modelDBEnabled)
+				if !ok {
+					continue
+				}
 				out = append(out, route)
 				if opts.DynamicModels && !dynamic[route.SourceAPI] {
 					out = append(out, dynamicRoute(route))
@@ -166,7 +167,7 @@ func autoModelAliasRoutes(cfg Config, opts AutoOptions, catalog modeldb.Catalog,
 		return nil
 	}
 	var out []RouteConfig
-	for _, sourceAPI := range modelAliasRouteSourceAPIs(opts, existing) {
+	for _, sourceAPI := range modelAliasRouteSourceAPIs(opts) {
 		for _, alias := range modelDBAliasNames(cfg.ModelDB) {
 			if hasRouteModel(existing, sourceAPI, alias) || hasRouteModel(out, sourceAPI, alias) {
 				continue
@@ -181,23 +182,25 @@ func autoModelAliasRoutes(cfg Config, opts AutoOptions, catalog modeldb.Catalog,
 	return out
 }
 
-func modelAliasRouteSourceAPIs(opts AutoOptions, existing []RouteConfig) []adapt.ApiKind {
+func modelAliasRouteSourceAPIs(opts AutoOptions) []adapt.ApiKind {
 	if opts.SourceAPI != "" {
 		return []adapt.ApiKind{opts.SourceAPI}
 	}
-	seen := map[adapt.ApiKind]bool{}
-	var out []adapt.ApiKind
-	for _, route := range existing {
-		if route.SourceAPI == "" || seen[route.SourceAPI] {
-			continue
-		}
-		seen[route.SourceAPI] = true
-		out = append(out, route.SourceAPI)
+	return autoSourceAPIs()
+}
+
+func intentSourceAPIs(intent AutoIntent, opts AutoOptions) []adapt.ApiKind {
+	if intent.SourceAPI != "" {
+		return []adapt.ApiKind{intent.SourceAPI}
 	}
-	if len(out) != 0 {
-		return out
+	if opts.SourceAPI != "" {
+		return []adapt.ApiKind{opts.SourceAPI}
 	}
-	return []adapt.ApiKind{adapt.ApiOpenAIResponses}
+	return autoSourceAPIs()
+}
+
+func autoSourceAPIs() []adapt.ApiKind {
+	return []adapt.ApiKind{adapt.ApiOpenAIResponses, adapt.ApiOpenAIChatCompletions, adapt.ApiAnthropicMessages}
 }
 
 func modelDBAliasNames(cfg ModelDBConfig) []string {
@@ -254,6 +257,13 @@ func routeForIntent(cfg Config, intent AutoIntent, opts AutoOptions, catalog mod
 }
 
 func modelDBRouteForIntent(cfg Config, intentName string, sourceAPI adapt.ApiKind, catalog modeldb.Catalog) (RouteConfig, bool) {
+	type candidate struct {
+		route        RouteConfig
+		providerType string
+		serviceID    string
+		creator      string
+	}
+	var candidates []candidate
 	for _, providerType := range preferredProviderTypes(sourceAPI) {
 		for _, provider := range cfg.Providers {
 			if provider.Type != providerType {
@@ -271,20 +281,66 @@ func modelDBRouteForIntent(cfg Config, intentName string, sourceAPI adapt.ApiKin
 			if !ok {
 				continue
 			}
-			if _, ok := resolveModelDBItem(catalog, cfg.ModelDB, serviceID, apiType, intentName); !ok {
+			item, ok := resolveModelDBItem(catalog, cfg.ModelDB, serviceID, apiType, intentName)
+			if !ok {
 				continue
 			}
-			return RouteConfig{
-				SourceAPI:    sourceAPI,
-				Model:        intentName,
-				Provider:     provider.Name,
-				ProviderAPI:  descriptor.APIKind,
-				ModelDBModel: intentName,
-				Weight:       100,
-			}, true
+			candidates = append(candidates, candidate{
+				route: RouteConfig{
+					SourceAPI:    sourceAPI,
+					Model:        intentName,
+					Provider:     provider.Name,
+					ProviderAPI:  descriptor.APIKind,
+					ModelDBModel: intentName,
+					Weight:       100,
+				},
+				providerType: provider.Type,
+				serviceID:    serviceID,
+				creator:      item.Model.Key.Creator,
+			})
 		}
 	}
-	return RouteConfig{}, false
+	if len(candidates) == 0 {
+		return RouteConfig{}, false
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return modelDBRouteCandidateRank(candidates[i]) < modelDBRouteCandidateRank(candidates[j])
+	})
+	return candidates[0].route, true
+}
+
+func modelDBRouteCandidateRank(c struct {
+	route        RouteConfig
+	providerType string
+	serviceID    string
+	creator      string
+}) int {
+	rank := 1000
+	if c.creator != "" && c.serviceID == c.creator {
+		rank = 0
+	} else if c.creator != "" {
+		rank = 100
+	}
+	return rank + modelDBProviderPreference(c.providerType)
+}
+
+func modelDBProviderPreference(providerType string) int {
+	switch providerType {
+	case "claude":
+		return 0
+	case "anthropic":
+		return 1
+	case "openai_responses", "openai_chat":
+		return 2
+	case "codex_responses":
+		return 3
+	case "minimax_messages", "minimax_chat":
+		return 4
+	case "openrouter_messages", "openrouter_responses", "openrouter_chat":
+		return 50
+	default:
+		return 100
+	}
 }
 
 func autoModelDBConfig(opts AutoOptions) ModelDBConfig {

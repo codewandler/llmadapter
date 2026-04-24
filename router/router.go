@@ -75,12 +75,15 @@ type StaticRouter struct {
 }
 
 type StaticRoute struct {
-	SourceAPI   adapt.ApiKind
-	Model       string
-	NativeModel string
-	Weight      int
-	Endpoint    ProviderEndpoint
+	SourceAPI          adapt.ApiKind
+	Model              string
+	NativeModel        string
+	Weight             int
+	Endpoint           ProviderEndpoint
+	CapabilityResolver CapabilityResolver
 }
+
+type CapabilityResolver func(context.Context, adapt.Request, ProviderEndpoint) CapabilitySet
 
 func NewStaticRouter(routes ...StaticRoute) *StaticRouter {
 	return &StaticRouter{routes: append([]StaticRoute(nil), routes...)}
@@ -98,7 +101,7 @@ func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, 
 	var skipped []string
 	var candidates []StaticRoute
 	for _, route := range r.routes {
-		if route.SourceAPI != "" && route.SourceAPI != req.SourceAPI {
+		if req.SourceAPI != "" && route.SourceAPI != "" && route.SourceAPI != req.SourceAPI {
 			continue
 		}
 		if route.Model != "" && route.Model != req.Unified.Model {
@@ -107,7 +110,8 @@ func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, 
 		if route.Endpoint.Client == nil {
 			return nil, fmt.Errorf("route for model %q has no client", req.Unified.Model)
 		}
-		if reason := capabilityMismatch(req.Unified, route.Endpoint.Capabilities); reason != "" {
+		caps := routeCapabilities(ctx, route, req)
+		if reason := capabilityMismatch(req.Unified, caps); reason != "" {
 			skipped = append(skipped, fmt.Sprintf("%s/%s: %s", route.Endpoint.ProviderName, route.Endpoint.APIKind, reason))
 			continue
 		}
@@ -115,11 +119,11 @@ func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, 
 	}
 	if len(candidates) > 0 {
 		sort.SliceStable(candidates, func(i, j int) bool {
-			return routeRank(candidates[i], candidates[j]) > 0
+			return routeRank(req, candidates[i], candidates[j]) > 0
 		})
 		routes := make([]Route, 0, len(candidates))
 		for _, candidate := range candidates {
-			routes = append(routes, routeFromStatic(candidate, req))
+			routes = append(routes, routeFromStatic(ctx, candidate, req))
 		}
 		return routes, nil
 	}
@@ -129,28 +133,58 @@ func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, 
 	return nil, fmt.Errorf("no route for api %q model %q", req.SourceAPI, req.Unified.Model)
 }
 
-func routeFromStatic(route StaticRoute, req adapt.Request) Route {
+func routeCapabilities(ctx context.Context, route StaticRoute, req adapt.Request) CapabilitySet {
+	if route.CapabilityResolver == nil {
+		return route.Endpoint.Capabilities
+	}
+	return route.CapabilityResolver(ctx, req, route.Endpoint)
+}
+
+func routeFromStatic(ctx context.Context, route StaticRoute, req adapt.Request) Route {
 	nativeModel := route.NativeModel
 	if nativeModel == "" {
 		nativeModel = req.Unified.Model
 	}
+	sourceAPI := req.SourceAPI
+	if sourceAPI == "" {
+		sourceAPI = route.SourceAPI
+	}
+	caps := routeCapabilities(ctx, route, req)
 	return Route{
-		SourceAPI:    req.SourceAPI,
+		SourceAPI:    sourceAPI,
 		TargetAPI:    route.Endpoint.APIKind,
 		TargetFamily: route.Endpoint.Family,
 		ProviderName: route.Endpoint.ProviderName,
 		PublicModel:  req.Unified.Model,
 		NativeModel:  nativeModel,
 		Client:       route.Endpoint.Client,
-		Capabilities: route.Endpoint.Capabilities,
+		Capabilities: caps,
 	}
 }
 
-func routeRank(candidate, current StaticRoute) int {
+func routeRank(req adapt.Request, candidate, current StaticRoute) int {
 	if candidate.Weight != current.Weight {
 		return candidate.Weight - current.Weight
 	}
+	if req.SourceAPI == "" {
+		if candidateSourceRank, currentSourceRank := sourceAPIRank(candidate.SourceAPI), sourceAPIRank(current.SourceAPI); candidateSourceRank != currentSourceRank {
+			return currentSourceRank - candidateSourceRank
+		}
+	}
 	return candidate.Endpoint.Priority - current.Endpoint.Priority
+}
+
+func sourceAPIRank(api adapt.ApiKind) int {
+	switch api {
+	case adapt.ApiAnthropicMessages:
+		return 0
+	case adapt.ApiOpenAIResponses:
+		return 1
+	case adapt.ApiOpenAIChatCompletions:
+		return 2
+	default:
+		return 10
+	}
 }
 
 func capabilityMismatch(req unified.Request, caps CapabilitySet) string {

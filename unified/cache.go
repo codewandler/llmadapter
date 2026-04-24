@@ -6,6 +6,14 @@ const (
 	CacheControlEphemeral CacheControlType = "ephemeral"
 )
 
+type CachePolicy string
+
+const (
+	CachePolicyAuto CachePolicy = "auto"
+	CachePolicyOn   CachePolicy = "on"
+	CachePolicyOff  CachePolicy = "off"
+)
+
 type CacheControl struct {
 	Type CacheControlType `json:"type"`
 	TTL  string           `json:"ttl,omitempty"`

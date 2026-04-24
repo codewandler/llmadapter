@@ -304,6 +304,8 @@ func TestSmokePromptCache(t *testing.T) {
 			req := unified.Request{
 				Model:           model,
 				MaxOutputTokens: &maxTokens,
+				CachePolicy:     unified.CachePolicyOn,
+				CacheKey:        "llmadapter-smoke-" + provider.name,
 				Instructions: []unified.Instruction{{
 					Kind: unified.InstructionSystem,
 					Content: []unified.ContentPart{unified.TextPart{
@@ -468,6 +470,7 @@ func smokeProviders() []smokeProvider {
 			modelEnv:        codex.EnvModel,
 			model:           codex.DefaultModel,
 			tools:           true,
+			promptCache:     true,
 			newClient:       newCodexSmokeClient,
 		},
 		{
@@ -491,12 +494,13 @@ func smokeProviders() []smokeProvider {
 			},
 		},
 		{
-			name:      "minimax_messages",
-			apiKeyEnv: []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
-			modelEnv:  "MINIMAX_MESSAGES_MODEL",
-			model:     "MiniMax-M2.7",
-			tools:     true,
-			reasoning: true,
+			name:        "minimax_messages",
+			apiKeyEnv:   []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
+			modelEnv:    "MINIMAX_MESSAGES_MODEL",
+			model:       "MiniMax-M2.7",
+			tools:       true,
+			reasoning:   true,
+			promptCache: true,
 			// MiniMax emits reasoning before final text on the Anthropic-compatible surface.
 			maxOutputTokens: 512,
 			newClient: func(apiKey string) (unified.Client, error) {

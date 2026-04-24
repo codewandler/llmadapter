@@ -181,6 +181,7 @@ type ToolDefinition struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
 	InputSchema json.RawMessage `json:"input_schema,omitempty"`
+	Cache       *CacheControl   `json:"cache_control,omitempty"`
 }
 
 type ToolChoiceWire struct {

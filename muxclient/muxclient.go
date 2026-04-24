@@ -19,7 +19,7 @@ type Client struct {
 type Option func(*Client)
 
 func New(r router.Router, opts ...Option) *Client {
-	c := &Client{router: r, source: adapt.ApiOpenAIResponses, fallback: true}
+	c := &Client{router: r, fallback: true}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(c)

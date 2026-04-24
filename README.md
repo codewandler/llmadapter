@@ -34,6 +34,8 @@ go run ./cmd/llmadapter routes
 go run ./cmd/llmadapter models
 go run ./cmd/llmadapter models --catalog --service openai --query gpt
 go run ./cmd/llmadapter resolve gpt-4.1-mini
+go run ./cmd/llmadapter infer "what is 1+1?"
+go run ./cmd/llmadapter infer -m sonnet --effort high "explain Go channels"
 go run ./cmd/llmadapter serve --inspect-config
 go run ./cmd/llmadapter smoke -type openai_responses
 go run ./cmd/llmadapter smoke -mode mux -type openai_responses
@@ -74,6 +76,7 @@ Initial commands:
 - `llmadapter routes` lists configured or auto-detected source API to provider endpoint routes; pass `--config` to inspect a JSON config instead of auto-detected credentials.
 - `llmadapter models` lists public/native model mappings from configured or auto-detected routes; pass `--query` to filter. Add `--catalog` to inspect the modeldb catalog using built-in metadata or `modeldb.catalog_path`/`overlay_paths` from `--config`.
 - `llmadapter resolve <model>` explains which source API route, provider endpoint, API family, native model, modeldb service, and capabilities will be used.
+- `llmadapter infer <message>` sends a prompt through the configured or auto-detected mux client, prints the resolved route/model information, streams reasoning and text deltas, then prints provider usage/cost data when available. It supports `--config`, `--source-api`, `--model/-m`, `--system/-s`, `--max-tokens`, `--temperature`, `--thinking`, `--effort`, and `--timeout`.
 - `llmadapter serve` runs the compatibility gateway on `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`; pass `--config`, `--addr`, or `--inspect-config`.
 - `llmadapter smoke` runs a minimal direct text request through a configured provider endpoint type; `-mode mux` runs the same request through the stateless mux client route path, `-config` builds that route path from a llmadapter JSON config, and `-mode auto` builds a mux client from detected environment/local Claude credentials.
 
@@ -94,7 +97,7 @@ Configuration:
 - `modeldb.overlay_paths` optionally merges one or more JSON catalog files after the base catalog.
 - `modeldb.aliases` can bind local intent names to explicit service/wire-model pairs; route `modeldb_model` resolves a catalog alias/name into a fixed native model for that route.
 - Provider `capabilities` can override default endpoint metadata for a configured model, for example to disable `vision` or `json_schema` on a model that does not support it.
-- Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route. Dynamic routes with `dynamic_models: true` can also enrich usage costs per request when the requested provider-native model ID exists in the catalog.
+- Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route. Dynamic routes with `dynamic_models: true` can also narrow capabilities and enrich usage costs per request when the requested provider-native model ID exists in the catalog.
 - `claude` defaults `modeldb_service_id` to `anthropic` because it invokes Anthropic Claude models through Claude Code-compatible auth.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
 
@@ -219,15 +222,51 @@ OpenAI Responses-compatible continuation and cache-key controls are also carried
 
 Conversation/session state belongs above llmadapter, for example in `agentsdk`. llmadapter only exposes stateless request/event/provider primitives needed by those layers.
 
-The in-process mux client is a stateless library layer over provider endpoints and router selection. `adapterconfig.NewMuxClient` can build it from llmadapter JSON config, including modeldb-backed model alias resolution, capability metadata, and pricing processors, without requiring an HTTP gateway process.
+The in-process mux client is a stateless library layer over provider endpoints and router selection. `adapterconfig.NewMuxClient` can build it from llmadapter JSON config, including modeldb-backed model alias resolution, capability metadata, and pricing processors, without requiring an HTTP gateway process. If no source API is preset, the mux client treats source API as auto and lets the router choose across all configured source routes; callers can still pin a compatibility source with `WithSourceAPI`.
 
-`adapterconfig.AutoMuxClient` can build the same stateless mux client from detected credentials. It checks registered provider endpoint env vars such as `OPENAI_API_KEY`/`OPENAI_KEY`, Anthropic/OpenRouter/MiniMax keys, Claude bearer token env vars, and local Claude Code OAuth credentials when enabled. With `UseModelDB`, detected providers are tagged with their default modeldb service IDs so fixed-route capability metadata and fixed or dynamic-route pricing enrichment can work without hand-written provider config. Auto intents also use modeldb aliases to choose a provider that can resolve the requested model name, for example routing `opus` to a Claude-compatible endpoint when available.
+`adapterconfig.AutoMuxClient` can build the same stateless mux client from detected credentials. It checks registered provider endpoint env vars such as `OPENAI_API_KEY`/`OPENAI_KEY`, Anthropic/OpenRouter/MiniMax keys, and local Claude Code OAuth credentials when enabled. With `UseModelDB`, detected providers are tagged with their default modeldb service IDs so fixed-route capability metadata and fixed or dynamic-route pricing enrichment can work without hand-written provider config. Auto intents and built-in aliases use modeldb-backed owner/provider preference so Claude-family names such as `haiku`, `sonnet`, and `opus` prefer `claude`, then `anthropic`, then broker endpoints such as OpenRouter. If only OpenRouter is available, auto source routing prefers the Anthropic-compatible Messages endpoint for Claude-family aliases before OpenRouter Responses/Chat fallbacks.
 
 Built-in modeldb aliases are centralized in `adapterconfig.DefaultModelDBAliases()`. Claude-family `haiku`, `sonnet`, and `opus` resolve to provider-local Anthropic/OpenRouter wire IDs, with `sonnet` and `opus` pinned to Claude 4.6. JSON configs can override aliases through `modeldb.aliases`; auto mux callers can append or override aliases through `AutoOptions.ModelDBAliases`.
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 
-Canonical `unified.TextPart` values can carry `CacheControl` hints. Anthropic-family providers encode those hints as block-level `cache_control`, and the shared prompt-cache smoke verifies provider-reported cache write/read accounting for Anthropic and Claude Code-compatible access.
+Canonical requests can carry `CachePolicy`, `CacheKey`, and `CacheTTL` as provider-neutral prompt-cache intent. Responses-family providers use `CacheKey` as `prompt_cache_key` with best-effort retention, and Codex maps that key into Codex session/window headers. Anthropic-family providers, including OpenRouter Messages and MiniMax Messages, map `CachePolicy` to block-level `cache_control` on the last cacheable system/tool block; explicit `TextPart.CacheControl` hints are still encoded directly. The shared prompt-cache smoke verifies provider-reported cache write/read accounting for Anthropic, Claude Code-compatible access, Codex, and MiniMax Messages where credentials are available.
+
+## Prompt Caching
+
+llmadapter separates cache intent from exact provider wire details.
+
+Request-level cache fields express provider-neutral intent:
+
+```go
+unified.Request{
+	CachePolicy: unified.CachePolicyOn,
+	CacheKey:    "session-123",
+	CacheTTL:    "1h",
+}
+```
+
+`CachePolicy` controls whether providers should use prompt caching when supported. `CacheKey` gives Responses/Codex-style providers a stable cache identity. `CacheTTL` is a best-effort retention hint; providers that do not support the requested duration may ignore or approximate it.
+
+Block-level cache controls mark exact cache boundaries:
+
+```go
+unified.TextPart{
+	Text:         "stable system prefix",
+	CacheControl: unified.EphemeralCache("1h"),
+}
+```
+
+Tool definitions can also carry `CacheControl` when a provider supports caching tool schemas.
+
+Provider mappings are best-effort:
+
+- Anthropic-family Messages providers encode explicit block/tool `CacheControl` as native `cache_control`; `CachePolicy` can also derive cache control for the last cacheable system/tool block.
+- OpenAI/OpenRouter Responses-style providers use `CacheKey` as `prompt_cache_key` with best-effort retention.
+- Codex maps `CacheKey` into Codex session/window cache headers.
+- `CachePolicyOff` disables llmadapter's policy-derived cache mapping, but explicit provider extensions remain expert overrides.
+
+Session-level cache strategy belongs above llmadapter. Higher layers such as `agentsdk` should decide which conversation prefix is stable, derive stable cache keys, and attach explicit block controls before sending a stateless `unified.Request`.
 
 The `modelmeta` package maps modeldb offering exposures into route capabilities and limits. The gateway uses metadata only for configured fixed-model routes; modeldb can narrow advertised capabilities and add token limits, but it never creates hidden providers, clients, or routes.
 
@@ -239,7 +278,7 @@ The `claude` provider type is an Anthropic Messages-compatible endpoint variant 
 
 The default HTTP byte-stream transport advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression. Custom HTTP clients can preserve that behavior by starting from `transport.CloneDefaultHTTPClient()`.
 
-See `DESIGN.md` for the target architecture and `PLAN.md` for current status, known gaps, and next implementation phases.
+See `DESIGN.md` for the target architecture, `docs/ARCHITECTURE.md` for the current package architecture review, and `PLAN.md` for current status, known gaps, and next implementation phases.
 
 ## Known Limitations
 
@@ -247,6 +286,6 @@ See `DESIGN.md` for the target architecture and `PLAN.md` for current status, kn
 - Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
 - OpenRouter extension passthrough preserves raw JSON controls but does not yet validate provider-specific extension schemas.
 - Native OpenAI Responses has live smoke coverage for `previous_response_id` continuation. OpenRouter Responses encodes the same fields, but live context preservation is not advertised because the current backend smoke did not preserve prior-turn context.
-- Modeldb-backed metadata only narrows configured fixed-model routes. Pricing works for fixed routes and dynamic routes when the selected native model has catalog pricing; dynamic per-request capability lookup is still planned.
-- Prompt cache request hints currently map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions; higher-level session cache policy belongs above llmadapter.
+- Modeldb-backed metadata narrows configured fixed-model routes and known dynamic model requests. Pricing works for fixed routes and dynamic routes when the selected native model has catalog pricing. Dynamic model IDs missing from the catalog still use provider endpoint defaults.
+- Prompt cache request hints currently map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions; higher-level session cache policy belongs above llmadapter. OpenRouter and MiniMax caching depend on the selected endpoint: use Messages surfaces for Anthropic block cache controls, or Responses-compatible surfaces for prompt-cache-key style controls. Codex maps the prompt cache key into Codex session/window headers.
 - Provider and endpoint codecs cover smoke-tested text, tools, structured output, and basic image inputs; they are not full conformance implementations for every provider field.

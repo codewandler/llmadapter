@@ -89,6 +89,48 @@ func TestCodecEncodeSystemCacheControl(t *testing.T) {
 	}
 }
 
+func TestCodecEncodeCachePolicy(t *testing.T) {
+	maxTokens := 128
+	req := adapt.Request{Unified: unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		CachePolicy:     unified.CachePolicyOn,
+		CacheTTL:        "1h",
+		Instructions: []unified.Instruction{{
+			Kind: unified.InstructionSystem,
+			Content: []unified.ContentPart{
+				unified.TextPart{Text: "first"},
+				unified.TextPart{Text: "last"},
+			},
+		}},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Tools: []unified.Tool{{
+			Kind:        unified.ToolKindFunction,
+			Name:        "lookup",
+			Description: "look up a value",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}},
+		Stream: true,
+	}}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.System.Blocks[0].Cache != nil {
+		t.Fatalf("expected first system block to remain uncached: %+v", wire.System.Blocks)
+	}
+	if got := wire.System.Blocks[1].Cache; got == nil || got.Type != "ephemeral" || got.TTL != "1h" {
+		t.Fatalf("unexpected system cache control: %+v", wire.System.Blocks)
+	}
+	if len(wire.Tools) != 1 || wire.Tools[0].Cache == nil || wire.Tools[0].Cache.TTL != "1h" {
+		t.Fatalf("unexpected tool cache control: %+v", wire.Tools)
+	}
+}
+
 func TestCodecEncodeReasoningThinking(t *testing.T) {
 	maxTokens := 4096
 	temperature := 0.2

@@ -2,12 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/adapterconfig"
+	"github.com/codewandler/llmadapter/unified"
 	"github.com/codewandler/modeldb"
 )
 
@@ -186,7 +191,7 @@ func TestResolveCommandShowsRankedCandidates(t *testing.T) {
 		"Provider type: claude",
 		"[02] provider=anthropic type=anthropic source=anthropic.messages api=anthropic.messages",
 		"Provider type: anthropic",
-		"[03] provider=openrouter type=openrouter_responses source=openrouter.responses api=openai.responses",
+		"[03] provider=openrouter type=openrouter_responses source=openai.responses api=openrouter.responses",
 		"Provider type: openrouter_responses",
 	} {
 		if !strings.Contains(got, want) {
@@ -200,6 +205,17 @@ func TestResolveCommandShowsRankedCandidates(t *testing.T) {
 	}
 	if claudeIdx >= anthropicIdx {
 		t.Fatalf("candidate ranking order is wrong:\n%s", got)
+	}
+}
+
+func TestResolveInferModelUsesBestCandidateWhenSourceAPIOmitted(t *testing.T) {
+	cfg := readTestConfig(t, writeTestResolveCandidateConfig(t))
+	resolution, err := resolveInferModel(cfg, "haiku", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolution.Provider != "claude" || resolution.ProviderAPI != adapt.ApiAnthropicMessages || resolution.SourceAPI != adapt.ApiAnthropicMessages {
+		t.Fatalf("unexpected infer resolution: %+v", resolution)
 	}
 }
 
@@ -238,6 +254,36 @@ func TestServeInspectConfigCommand(t *testing.T) {
 	}
 }
 
+func TestRunInferRequestStreamsReasoningTextAndUsage(t *testing.T) {
+	client := fakeInferClient{events: []unified.Event{
+		unified.RouteEvent{ProviderName: "openai", NativeModel: "gpt-test"},
+		unified.ReasoningDeltaEvent{Text: "thinking"},
+		unified.TextDeltaEvent{Text: "answer"},
+		unified.NewUsageEvent(unified.TokenItems{
+			{Kind: unified.TokenKindInputNew, Count: 4},
+			{Kind: unified.TokenKindOutputReasoning, Count: 2},
+			{Kind: unified.TokenKindOutput, Count: 3},
+		}, unified.CostItems{{Kind: unified.CostKindOutput, Amount: 0.0012}}),
+	}}
+	var out bytes.Buffer
+	err := runInferRequest(context.Background(), &out, &client, "gpt-test", "hello", inferParams{maxTokens: 16, thinking: "on", timeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{ansiDim + "thinking" + ansiReset + "answer", "── usage ──", "input.new: 4", "output.reasoning: 2", "output: 3", "cost: $0.001200"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+	if client.request.Model != "gpt-test" || client.request.MaxOutputTokens == nil || *client.request.MaxOutputTokens != 16 {
+		t.Fatalf("unexpected request: %+v", client.request)
+	}
+	if client.request.Reasoning == nil || !client.request.Reasoning.Expose {
+		t.Fatalf("expected reasoning request: %+v", client.request.Reasoning)
+	}
+}
+
 func writeTestConfig(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "llmadapter.json")
@@ -249,6 +295,30 @@ func writeTestConfig(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func readTestConfig(t *testing.T, path string) adapterconfig.Config {
+	t.Helper()
+	cfg, err := adapterconfig.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+type fakeInferClient struct {
+	request unified.Request
+	events  []unified.Event
+}
+
+func (c *fakeInferClient) Request(_ context.Context, req unified.Request) (<-chan unified.Event, error) {
+	c.request = req
+	out := make(chan unified.Event, len(c.events))
+	for _, ev := range c.events {
+		out <- ev
+	}
+	close(out)
+	return out, nil
 }
 
 func writeTestCatalogConfig(t *testing.T) string {

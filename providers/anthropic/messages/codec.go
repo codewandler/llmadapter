@@ -81,8 +81,10 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 			Name:        tool.Name,
 			Description: tool.Description,
 			InputSchema: tool.InputSchema,
+			Cache:       encodeCacheControl(tool.CacheControl),
 		})
 	}
+	applyCachePolicy(&out, ureq)
 	if ureq.ToolChoice != nil {
 		choice, err := encodeToolChoice(req, *ureq.ToolChoice)
 		if err != nil {
@@ -94,6 +96,35 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 		applyOpenRouterExtensions(&out, ureq.Extensions)
 	}
 	return out, nil
+}
+
+func applyCachePolicy(out *MessageRequest, req unified.Request) {
+	cache := cacheControlForPolicy(req)
+	if cache == nil {
+		return
+	}
+	if out.System != nil {
+		out.System.ApplyCacheToLastText(cache)
+	}
+	for i := len(out.Tools) - 1; i >= 0; i-- {
+		if out.Tools[i].Cache == nil {
+			out.Tools[i].Cache = cache
+		}
+		break
+	}
+}
+
+func cacheControlForPolicy(req unified.Request) *CacheControl {
+	switch req.CachePolicy {
+	case unified.CachePolicyOn, unified.CachePolicyAuto:
+		ttl := req.CacheTTL
+		if ttl == "" {
+			ttl = "1h"
+		}
+		return &CacheControl{Type: "ephemeral", TTL: ttl}
+	default:
+		return nil
+	}
 }
 
 func applyReasoning(req *adapt.Request, out *MessageRequest) error {

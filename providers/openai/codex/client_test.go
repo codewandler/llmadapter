@@ -39,14 +39,13 @@ func TestClientMutatesCodexRequest(t *testing.T) {
 	req := unified.Request{
 		Model:           "codex",
 		MaxOutputTokens: &maxTokens,
+		CachePolicy:     unified.CachePolicyOn,
+		CacheKey:        "session-1",
 		Messages: []unified.Message{{
 			Role:    unified.RoleUser,
 			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
 		}},
 		Stream: true,
-	}
-	if err := req.Extensions.Set(unified.ExtOpenAIPromptCacheKey, "session-1"); err != nil {
-		t.Fatal(err)
 	}
 	events, err := client.Request(context.Background(), req)
 	if err != nil {

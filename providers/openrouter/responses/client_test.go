@@ -230,6 +230,23 @@ func TestEncodeOpenAIResponsesExtensions(t *testing.T) {
 	}
 }
 
+func TestEncodeUnifiedCachePolicy(t *testing.T) {
+	wire, warnings := encodeRequest(unified.Request{
+		Model:       "openai/test",
+		CachePolicy: unified.CachePolicyOn,
+		CacheKey:    "session-1",
+	})
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if wire.PromptCacheKey != "session-1" {
+		t.Fatalf("prompt_cache_key = %q", wire.PromptCacheKey)
+	}
+	if wire.PromptCacheRetention != "24h" {
+		t.Fatalf("prompt_cache_retention = %q", wire.PromptCacheRetention)
+	}
+}
+
 func TestEncodeOpenAIResponsesExtensionsInvalid(t *testing.T) {
 	req := unified.Request{Model: "openai/test"}
 	if err := req.Extensions.SetRaw(unified.ExtOpenAIPreviousResponseID, json.RawMessage(`123`)); err != nil {

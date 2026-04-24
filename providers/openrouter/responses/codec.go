@@ -86,9 +86,36 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 			out.Text.Format = responseFormat
 		}
 	}
+	applyUnifiedCachePolicy(&out, req)
 	applyOpenAIResponsesExtensions(&out, req.Extensions, &warnings)
 	applyOpenRouterExtensions(&out, req.Extensions)
 	return out, warnings
+}
+
+func applyUnifiedCachePolicy(out *requestWire, req unified.Request) {
+	switch req.CachePolicy {
+	case unified.CachePolicyOn, unified.CachePolicyAuto:
+		if req.CacheKey != "" && out.PromptCacheKey == "" {
+			out.PromptCacheKey = req.CacheKey
+		}
+		if out.PromptCacheRetention == "" && (req.CacheKey != "" || req.CacheTTL != "") {
+			out.PromptCacheRetention = responsesCacheRetention(req.CacheTTL)
+		}
+	case unified.CachePolicyOff:
+		out.PromptCacheKey = ""
+		out.PromptCacheRetention = ""
+	}
+}
+
+func responsesCacheRetention(ttl string) string {
+	switch ttl {
+	case "", "24h":
+		return "24h"
+	case "in_memory":
+		return "in_memory"
+	default:
+		return ttl
+	}
 }
 
 func appendContentPart(out []contentPartWire, part unified.ContentPart, role unified.Role, field string, warnings *[]mappingWarning) []contentPartWire {

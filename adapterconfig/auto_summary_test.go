@@ -43,6 +43,35 @@ func TestAutoResultRouteSummaryDefaultsSourceAPI(t *testing.T) {
 	}
 }
 
+func TestAutoResultRouteSummaryAutoSourcePrefersAnthropicMessages(t *testing.T) {
+	result := AutoResult{Config: Config{Routes: []RouteConfig{
+		{
+			SourceAPI:   adapt.ApiOpenAIResponses,
+			Model:       "haiku",
+			Provider:    "claude",
+			ProviderAPI: adapt.ApiAnthropicMessages,
+			NativeModel: "claude-haiku",
+			Weight:      100,
+		},
+		{
+			SourceAPI:   adapt.ApiAnthropicMessages,
+			Model:       "haiku",
+			Provider:    "claude",
+			ProviderAPI: adapt.ApiAnthropicMessages,
+			NativeModel: "claude-haiku",
+			Weight:      100,
+		},
+	}}}
+
+	summary, ok := result.RouteSummary("", "haiku")
+	if !ok {
+		t.Fatal("expected summary")
+	}
+	if summary.SourceAPI != adapt.ApiAnthropicMessages || summary.ProviderAPI != adapt.ApiAnthropicMessages {
+		t.Fatalf("unexpected summary: %+v", summary)
+	}
+}
+
 func TestAutoResultRouteSummaryDynamicModel(t *testing.T) {
 	result := AutoResult{Config: Config{Routes: []RouteConfig{{
 		SourceAPI:     adapt.ApiOpenAIResponses,

@@ -9,11 +9,12 @@ const (
 )
 
 type Tool struct {
-	Kind        ToolKind        `json:"kind"`
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema,omitempty"`
-	Config      map[string]any  `json:"config,omitempty"`
+	Kind         ToolKind        `json:"kind"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description,omitempty"`
+	InputSchema  json.RawMessage `json:"input_schema,omitempty"`
+	Config       map[string]any  `json:"config,omitempty"`
+	CacheControl *CacheControl   `json:"cache_control,omitempty"`
 }
 
 type ToolChoiceMode string

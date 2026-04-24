@@ -31,6 +31,30 @@ func TestAnthropicFamilyDescriptorsAdvertiseReasoning(t *testing.T) {
 	}
 }
 
+func TestAnthropicCacheControlDescriptorsAdvertisePromptCaching(t *testing.T) {
+	for _, providerType := range []string{"anthropic", "claude", "openrouter_messages", "minimax_messages"} {
+		descriptor, ok := Lookup(providerType)
+		if !ok {
+			t.Fatalf("missing descriptor %q", providerType)
+		}
+		if !descriptor.Capabilities.PromptCaching {
+			t.Fatalf("%s should advertise prompt caching: %+v", providerType, descriptor.Capabilities)
+		}
+	}
+}
+
+func TestResponsesCacheKeyDescriptorsAdvertisePromptCaching(t *testing.T) {
+	for _, providerType := range []string{"codex_responses"} {
+		descriptor, ok := Lookup(providerType)
+		if !ok {
+			t.Fatalf("missing descriptor %q", providerType)
+		}
+		if !descriptor.Capabilities.PromptCaching {
+			t.Fatalf("%s should advertise prompt caching: %+v", providerType, descriptor.Capabilities)
+		}
+	}
+}
+
 func TestListSorted(t *testing.T) {
 	list := List()
 	if len(list) == 0 {

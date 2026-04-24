@@ -43,7 +43,7 @@ func NewMuxClient(cfg Config, opts ...MuxClientOption) (unified.Client, error) {
 	if err := Validate(cfg); err != nil {
 		return nil, err
 	}
-	options := MuxClientOptions{SourceAPI: adapt.ApiOpenAIResponses}
+	options := MuxClientOptions{}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&options)
@@ -92,11 +92,12 @@ func BuildRouter(cfg Config) (router.Router, error) {
 			endpoint = EndpointWithPricing(endpoint, route, catalog)
 		}
 		routes = append(routes, router.StaticRoute{
-			SourceAPI:   route.SourceAPI,
-			Model:       route.Model,
-			NativeModel: route.NativeModel,
-			Weight:      route.Weight,
-			Endpoint:    endpoint,
+			SourceAPI:          route.SourceAPI,
+			Model:              route.Model,
+			NativeModel:        route.NativeModel,
+			Weight:             route.Weight,
+			Endpoint:           endpoint,
+			CapabilityResolver: dynamicModelCapabilityResolver(endpoint, route, catalog, modelDBEnabled),
 		})
 	}
 	return router.NewStaticRouter(routes...), nil
@@ -187,6 +188,23 @@ func EndpointWithModelDBMetadata(endpoint router.ProviderEndpoint, route RouteCo
 		endpoint.Capabilities = capabilities
 	}
 	return endpoint
+}
+
+func dynamicModelCapabilityResolver(endpoint router.ProviderEndpoint, route RouteConfig, catalog modeldb.Catalog, modelDBEnabled bool) router.CapabilityResolver {
+	serviceID := endpoint.Tags[TagModelDBServiceID]
+	if !modelDBEnabled || !route.DynamicModels || serviceID == "" {
+		return nil
+	}
+	return func(_ context.Context, req adapt.Request, endpoint router.ProviderEndpoint) router.CapabilitySet {
+		if req.Unified.Model == "" {
+			return endpoint.Capabilities
+		}
+		capabilities, ok := modelmeta.EnrichCapabilities(endpoint.Capabilities, catalog, serviceID, req.Unified.Model, endpoint.Family)
+		if !ok {
+			return endpoint.Capabilities
+		}
+		return capabilities
+	}
 }
 
 func descriptorForProvider(provider ProviderConfig) (providerregistry.Descriptor, bool) {

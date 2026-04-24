@@ -23,6 +23,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	ansiDim   = "\033[2m"
+	ansiReset = "\033[0m"
+)
+
 func main() {
 	cmd := newRootCommand(os.Stdout, os.Stderr)
 	if err := cmd.Execute(); err != nil {
@@ -47,6 +52,7 @@ func newRootCommand(out, errOut io.Writer) *cobra.Command {
 	cmd.AddCommand(newResolveCommand())
 	cmd.AddCommand(newServeCommand())
 	cmd.AddCommand(newSmokeCommand())
+	cmd.AddCommand(newInferCommand())
 	return cmd
 }
 
@@ -235,7 +241,11 @@ func newServeCommand() *cobra.Command {
 				return err
 			}
 			if inspectConfig {
-				return writeJSON(cmd.OutOrStdout(), inspectServeConfig(cfg))
+				inspection, err := adapterconfig.InspectConfig(cfg)
+				if err != nil {
+					return err
+				}
+				return writeJSON(cmd.OutOrStdout(), inspection)
 			}
 			return gatewayserver.ListenAndServe(cfg)
 		},
@@ -364,6 +374,43 @@ func newSmokeCommand() *cobra.Command {
 	return cmd
 }
 
+type inferParams struct {
+	configPath  string
+	sourceAPI   string
+	model       string
+	system      string
+	maxTokens   int
+	temperature float64
+	thinking    string
+	effort      string
+	timeout     time.Duration
+}
+
+func newInferCommand() *cobra.Command {
+	params := inferParams{
+		maxTokens: 8000,
+		timeout:   2 * time.Minute,
+	}
+	cmd := &cobra.Command{
+		Use:   "infer <message>",
+		Short: "Send a prompt through the configured or auto-detected mux client",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runInferCommand(cmd.Context(), cmd.OutOrStdout(), params, args[0])
+		},
+	}
+	cmd.Flags().StringVar(&params.configPath, "config", "", "llmadapter JSON config path; defaults to auto-detected credentials")
+	cmd.Flags().StringVar(&params.sourceAPI, "source-api", "", "source API for mux routing; omit to use the best resolved candidate")
+	cmd.Flags().StringVarP(&params.model, "model", "m", "", "model alias or provider-native model; defaults to the selected route model")
+	cmd.Flags().StringVarP(&params.system, "system", "s", "", "system prompt")
+	cmd.Flags().IntVar(&params.maxTokens, "max-tokens", params.maxTokens, "maximum output tokens")
+	cmd.Flags().Float64Var(&params.temperature, "temperature", 0, "sampling temperature 0.0-2.0; 0 uses provider default")
+	cmd.Flags().StringVar(&params.thinking, "thinking", "", "thinking mode: auto, on, off")
+	cmd.Flags().StringVar(&params.effort, "effort", "", "reasoning effort: low, medium, high, max")
+	cmd.Flags().DurationVar(&params.timeout, "timeout", params.timeout, "request timeout")
+	return cmd
+}
+
 type routeInfo struct {
 	SourceAPI   adapt.ApiKind `json:"source_api"`
 	Model       string        `json:"model,omitempty"`
@@ -407,39 +454,6 @@ type resolutionInfo struct {
 	Priority       int                  `json:"priority,omitempty"`
 	ModelDBService string               `json:"modeldb_service_id,omitempty"`
 	Capabilities   router.CapabilitySet `json:"capabilities"`
-}
-
-type serveConfigInspection struct {
-	Addr           string                    `json:"addr"`
-	HealthCooldown string                    `json:"health_cooldown,omitempty"`
-	Providers      []serveProviderInspection `json:"providers,omitempty"`
-	Routes         []serveRouteInspection    `json:"routes,omitempty"`
-}
-
-type serveProviderInspection struct {
-	Name             string               `json:"name"`
-	Type             string               `json:"type"`
-	APIKind          adapt.ApiKind        `json:"api_kind"`
-	Family           adapt.ApiFamily      `json:"family"`
-	Model            string               `json:"model,omitempty"`
-	ModelDBServiceID string               `json:"modeldb_service_id,omitempty"`
-	APIKeyEnv        string               `json:"api_key_env,omitempty"`
-	InlineAPIKey     bool                 `json:"inline_api_key,omitempty"`
-	BaseURL          string               `json:"base_url,omitempty"`
-	Priority         int                  `json:"priority,omitempty"`
-	Capabilities     router.CapabilitySet `json:"capabilities"`
-}
-
-type serveRouteInspection struct {
-	SourceAPI          adapt.ApiKind `json:"source_api"`
-	Model              string        `json:"model,omitempty"`
-	Provider           string        `json:"provider"`
-	ProviderAPI        adapt.ApiKind `json:"provider_api,omitempty"`
-	DynamicModels      bool          `json:"dynamic_models,omitempty"`
-	NativeModel        string        `json:"native_model,omitempty"`
-	ModelDBModel       string        `json:"modeldb_model,omitempty"`
-	ModelDBWireModelID string        `json:"modeldb_wire_model_id,omitempty"`
-	Weight             int           `json:"weight,omitempty"`
 }
 
 type catalogModelFlags struct {
@@ -628,57 +642,6 @@ func loadServeConfig(path string, addr string) (adapterconfig.Config, error) {
 		cfg.Addr = addr
 	}
 	return cfg, nil
-}
-
-func inspectServeConfig(cfg adapterconfig.Config) serveConfigInspection {
-	inspection := serveConfigInspection{
-		Addr:           cfg.Addr,
-		HealthCooldown: cfg.HealthCooldown,
-		Providers:      make([]serveProviderInspection, 0, len(cfg.Providers)),
-		Routes:         make([]serveRouteInspection, 0, len(cfg.Routes)),
-	}
-	for _, provider := range cfg.Providers {
-		endpoint, err := adapterconfig.ProviderEndpointConfig(provider)
-		if err != nil {
-			inspection.Providers = append(inspection.Providers, serveProviderInspection{
-				Name:         provider.Name,
-				Type:         provider.Type,
-				Model:        provider.Model,
-				APIKeyEnv:    provider.APIKeyEnv,
-				InlineAPIKey: provider.APIKey != "",
-				BaseURL:      provider.BaseURL,
-				Priority:     provider.Priority,
-			})
-			continue
-		}
-		inspection.Providers = append(inspection.Providers, serveProviderInspection{
-			Name:             provider.Name,
-			Type:             provider.Type,
-			APIKind:          endpoint.APIKind,
-			Family:           endpoint.Family,
-			Model:            provider.Model,
-			ModelDBServiceID: endpoint.Tags[adapterconfig.TagModelDBServiceID],
-			APIKeyEnv:        provider.APIKeyEnv,
-			InlineAPIKey:     provider.APIKey != "",
-			BaseURL:          provider.BaseURL,
-			Priority:         provider.Priority,
-			Capabilities:     endpoint.Capabilities,
-		})
-	}
-	for _, route := range cfg.Routes {
-		inspection.Routes = append(inspection.Routes, serveRouteInspection{
-			SourceAPI:          route.SourceAPI,
-			Model:              route.Model,
-			Provider:           route.Provider,
-			ProviderAPI:        route.ProviderAPI,
-			DynamicModels:      route.DynamicModels,
-			NativeModel:        route.NativeModel,
-			ModelDBModel:       route.ModelDBModel,
-			ModelDBWireModelID: route.ModelDBWireModelID,
-			Weight:             route.Weight,
-		})
-	}
-	return inspection
 }
 
 func routeInfos(cfg adapterconfig.Config, sourceAPI adapt.ApiKind) []routeInfo {
@@ -1037,8 +1000,8 @@ func printResolutionCandidates(w io.Writer, resolutions []resolutionInfo) {
 			i+1,
 			resolution.Provider,
 			resolution.ProviderType,
-			resolution.ProviderAPI,
 			resolution.SourceAPI,
+			resolution.ProviderAPI,
 			resolution.Weight,
 			resolution.Priority,
 		)
@@ -1178,6 +1141,208 @@ func runSmokeRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 	}
 	fmt.Fprintln(w, text)
 	return nil
+}
+
+func runInferCommand(ctx context.Context, w io.Writer, params inferParams, prompt string) error {
+	sourceAPI := adapt.ApiKind(params.sourceAPI)
+	cfg, err := inferConfig(params.configPath)
+	if err != nil {
+		return err
+	}
+	model := params.model
+	if model == "" {
+		model = defaultModelFromRoutes(cfg.Routes, sourceAPI)
+	}
+	if model == "" {
+		return fmt.Errorf("model is required when no default route model exists")
+	}
+	resolution, err := resolveInferModel(cfg, model, sourceAPI)
+	if err != nil {
+		return err
+	}
+	client, err := adapterconfig.NewMuxClient(cfg, adapterconfig.WithSourceAPI(resolution.SourceAPI))
+	if err != nil {
+		return err
+	}
+	printResolution(w, resolution)
+	fmt.Fprintln(w)
+	return runInferRequest(ctx, w, client, model, prompt, params)
+}
+
+func inferConfig(configPath string) (adapterconfig.Config, error) {
+	if configPath != "" {
+		cfg, err := adapterconfig.Load(configPath)
+		if err != nil {
+			return adapterconfig.Config{}, err
+		}
+		return cfg, nil
+	}
+	result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
+		EnableEnv:         true,
+		EnableLocalClaude: true,
+		EnableLocalCodex:  true,
+		UseModelDB:        true,
+		DynamicModels:     true,
+	})
+	if err != nil {
+		return result.Config, err
+	}
+	return result.Config, nil
+}
+
+func resolveInferModel(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKind) (resolutionInfo, error) {
+	if sourceAPI != "" {
+		return resolveModel(cfg, model, sourceAPI)
+	}
+	resolutions, err := resolveModelCandidates(cfg, model)
+	if err != nil {
+		return resolutionInfo{}, err
+	}
+	return resolutions[0], nil
+}
+
+func runInferRequest(ctx context.Context, w io.Writer, client unified.Client, model, prompt string, params inferParams) error {
+	ctx, cancel := context.WithTimeout(ctx, params.timeout)
+	defer cancel()
+	req, err := inferRequest(model, prompt, params)
+	if err != nil {
+		return err
+	}
+	events, err := client.Request(ctx, req)
+	if err != nil {
+		return err
+	}
+	var (
+		inReasoning bool
+		hadOutput   bool
+		lastUsage   *unified.UsageEvent
+	)
+	for ev := range events {
+		switch e := ev.(type) {
+		case unified.RouteEvent:
+			// Resolution is printed before the stream; the route event is metadata for programmatic callers.
+		case unified.ReasoningDeltaEvent:
+			if !inReasoning {
+				fmt.Fprint(w, ansiDim)
+				inReasoning = true
+			}
+			fmt.Fprint(w, e.Text)
+			hadOutput = true
+		case unified.TextDeltaEvent:
+			if inReasoning {
+				fmt.Fprint(w, ansiReset)
+				inReasoning = false
+			}
+			fmt.Fprint(w, e.Text)
+			hadOutput = true
+		case unified.UsageEvent:
+			copy := e
+			lastUsage = &copy
+		case unified.ErrorEvent:
+			if inReasoning {
+				fmt.Fprint(w, ansiReset)
+			}
+			return e.Err
+		}
+	}
+	if inReasoning {
+		fmt.Fprint(w, ansiReset)
+	}
+	if hadOutput {
+		fmt.Fprintln(w)
+	}
+	printInferUsage(w, lastUsage)
+	return nil
+}
+
+func inferRequest(model, prompt string, params inferParams) (unified.Request, error) {
+	req := unified.Request{
+		Model:           model,
+		MaxOutputTokens: &params.maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: prompt}},
+		}},
+		Stream: true,
+	}
+	if params.system != "" {
+		req.Instructions = append(req.Instructions, unified.Instruction{
+			Kind:    unified.InstructionSystem,
+			Content: []unified.ContentPart{unified.TextPart{Text: params.system}},
+		})
+	}
+	if params.temperature > 0 {
+		req.Temperature = &params.temperature
+	}
+	reasoning, err := inferReasoning(params.thinking, params.effort)
+	if err != nil {
+		return unified.Request{}, err
+	}
+	req.Reasoning = reasoning
+	return req, nil
+}
+
+func inferReasoning(thinking, effort string) (*unified.ReasoningConfig, error) {
+	thinking = strings.ToLower(strings.TrimSpace(thinking))
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	if thinking != "" {
+		switch thinking {
+		case "auto", "on", "off":
+		default:
+			return nil, fmt.Errorf("invalid thinking mode %q", thinking)
+		}
+	}
+	if effort != "" {
+		switch effort {
+		case "low", "medium", "high", "max":
+		default:
+			return nil, fmt.Errorf("invalid effort %q", effort)
+		}
+	}
+	if thinking == "" && effort == "" {
+		return nil, nil
+	}
+	if thinking == "off" {
+		return nil, nil
+	}
+	cfg := &unified.ReasoningConfig{}
+	if thinking == "on" || effort != "" {
+		cfg.Expose = true
+	}
+	if effort != "" {
+		cfg.Effort = unified.ReasoningEffort(effort)
+	}
+	return cfg, nil
+}
+
+func printInferUsage(w io.Writer, usage *unified.UsageEvent) {
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "%s── usage ──%s\n", ansiDim, ansiReset)
+	if usage == nil || (!usage.Usage().HasTokens() && usage.Costs.Total() == 0) {
+		fmt.Fprintln(w, "  unavailable")
+		return
+	}
+	for _, item := range usage.Tokens {
+		if item.Count != 0 {
+			fmt.Fprintf(w, "  %s: %d\n", item.Kind, item.Count)
+		}
+	}
+	if total := usage.Costs.Total(); total > 0 {
+		fmt.Fprintf(w, "  cost: %s\n", formatCost(total))
+	}
+}
+
+func formatCost(cost float64) string {
+	switch {
+	case cost < 0.0001:
+		return fmt.Sprintf("$%.8f", cost)
+	case cost < 0.01:
+		return fmt.Sprintf("$%.6f", cost)
+	case cost < 1:
+		return fmt.Sprintf("$%.4f", cost)
+	default:
+		return fmt.Sprintf("$%.2f", cost)
+	}
 }
 
 func defaultModelFromConfig(path string, sourceAPI adapt.ApiKind) string {

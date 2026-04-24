@@ -24,5 +24,9 @@ type Request struct {
 	Stream bool   `json:"stream,omitempty"`
 	User   string `json:"user,omitempty"`
 
+	CachePolicy CachePolicy `json:"cache_policy,omitempty"`
+	CacheKey    string      `json:"cache_key,omitempty"`
+	CacheTTL    string      `json:"cache_ttl,omitempty"`
+
 	Extensions Extensions `json:"extensions,omitempty"`
 }

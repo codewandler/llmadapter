@@ -209,6 +209,45 @@ func TestStaticRouterRoutesReturnsRankedCandidates(t *testing.T) {
 	}
 }
 
+func TestStaticRouterAutoSourceConsidersAllRoutesAndRanksBySource(t *testing.T) {
+	client := noopClient{}
+	r := NewStaticRouter(
+		StaticRoute{
+			SourceAPI: adapt.ApiOpenAIResponses,
+			Model:     "haiku",
+			Weight:    100,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "claude",
+				APIKind:      adapt.ApiAnthropicMessages,
+				Family:       adapt.FamilyAnthropicMessages,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+			},
+		},
+		StaticRoute{
+			SourceAPI: adapt.ApiAnthropicMessages,
+			Model:     "haiku",
+			Weight:    100,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "claude",
+				APIKind:      adapt.ApiAnthropicMessages,
+				Family:       adapt.FamilyAnthropicMessages,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true},
+			},
+		},
+	)
+	route, err := r.Route(context.Background(), adapt.Request{
+		Unified: unified.Request{Model: "haiku", Stream: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.SourceAPI != adapt.ApiAnthropicMessages || route.TargetAPI != adapt.ApiAnthropicMessages {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+}
+
 func TestStaticRouterFallsBackFromHigherWeightCapabilityMismatch(t *testing.T) {
 	client := noopClient{}
 	r := NewStaticRouter(

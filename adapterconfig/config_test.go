@@ -51,6 +51,19 @@ func TestProviderEndpointConfigCodexMetadata(t *testing.T) {
 	}
 }
 
+func TestProviderEndpointConfigClaudeMetadata(t *testing.T) {
+	endpoint, err := ProviderEndpointConfig(ProviderConfig{Name: "claude", Type: "claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if endpoint.APIKind != adapt.ApiAnthropicMessages || endpoint.Family != adapt.FamilyAnthropicMessages {
+		t.Fatalf("unexpected endpoint: %+v", endpoint)
+	}
+	if endpoint.Tags[TagModelDBServiceID] != "anthropic" {
+		t.Fatalf("unexpected tags: %+v", endpoint.Tags)
+	}
+}
+
 func TestBuildRouterResolvesModelDBAlias(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "catalog.json")
 	if err := modeldb.SaveJSON(path, testResolvableModelDBCatalog("openrouter", "openai/gpt-test", []string{"gpt-test"})); err != nil {
@@ -128,6 +141,60 @@ func TestBuildRouterDynamicModelPassthrough(t *testing.T) {
 	}
 	if route.NativeModel != "gpt-new" || route.PublicModel != "gpt-new" {
 		t.Fatalf("unexpected dynamic route: %+v", route)
+	}
+}
+
+func TestBuildRouterDynamicModelCapabilitiesUseModelDBExposure(t *testing.T) {
+	catalogPath := filepath.Join(t.TempDir(), "catalog.json")
+	if err := modeldb.SaveJSON(catalogPath, testDynamicCapabilityCatalog("openrouter")); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{
+		ModelDB: ModelDBConfig{CatalogPath: catalogPath},
+		Providers: []ProviderConfig{{
+			Name:             "openrouter",
+			Type:             "openrouter_responses",
+			APIKey:           "key",
+			ModelDBServiceID: "openrouter",
+		}},
+		Routes: []RouteConfig{{
+			SourceAPI:     adapt.ApiOpenAIResponses,
+			Provider:      "openrouter",
+			ProviderAPI:   adapt.ApiOpenRouterResponses,
+			DynamicModels: true,
+		}},
+	}
+	ApplyDefaults(&cfg)
+	r, err := BuildRouter(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified: unified.Request{
+			Model:  "no-tools",
+			Stream: true,
+			Tools:  []unified.Tool{{Name: "lookup"}},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected no-tools model to be rejected for tool request")
+	}
+
+	route, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified: unified.Request{
+			Model:  "with-tools",
+			Stream: true,
+			Tools:  []unified.Tool{{Name: "lookup"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.NativeModel != "with-tools" || !route.Capabilities.Tools {
+		t.Fatalf("unexpected route: %+v", route)
 	}
 }
 
@@ -269,6 +336,101 @@ func TestEndpointWithModelDBMetadataNarrowsCapabilities(t *testing.T) {
 	}
 }
 
+func TestInspectConfigResolvesRoutesWithoutProviderCredentials(t *testing.T) {
+	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "test"}
+	catalog := modeldb.NewCatalog()
+	catalog.Models[key] = modeldb.ModelRecord{
+		Key:    key,
+		Limits: modeldb.Limits{ContextWindow: 128000, MaxOutput: 4096},
+	}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "openrouter", WireModelID: "openai/gpt-test"}] = modeldb.Offering{
+		ServiceID:   "openrouter",
+		WireModelID: "openai/gpt-test",
+		ModelKey:    key,
+		Pricing:     &modeldb.Pricing{Input: 1, Output: 2},
+		Exposures: []modeldb.OfferingExposure{{
+			APIType: modeldb.APITypeOpenAIResponses,
+			ExposedCapabilities: &modeldb.Capabilities{
+				Streaming:        true,
+				ToolUse:          true,
+				StructuredOutput: true,
+			},
+		}},
+	}
+	cfg := Config{
+		Addr: ":9090",
+		Providers: []ProviderConfig{{
+			Name:             "openrouter",
+			Type:             "openrouter_responses",
+			Model:            "openai/gpt-test",
+			ModelDBServiceID: "openrouter",
+		}},
+		Routes: []RouteConfig{{
+			SourceAPI:   adapt.ApiOpenAIResponses,
+			Provider:    "openrouter",
+			ProviderAPI: adapt.ApiOpenRouterResponses,
+		}},
+	}
+	ApplyDefaults(&cfg)
+
+	inspection, err := InspectConfigWithCatalog(cfg, catalog, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inspection.Providers) != 1 || inspection.Providers[0].InlineAPIKey {
+		t.Fatalf("unexpected provider inspection: %+v", inspection.Providers)
+	}
+	if len(inspection.Routes) != 1 {
+		t.Fatalf("routes = %+v", inspection.Routes)
+	}
+	route := inspection.Routes[0]
+	if route.TargetAPI != adapt.ApiOpenRouterResponses || route.TargetFamily != adapt.FamilyOpenAIResponses {
+		t.Fatalf("unexpected target metadata: %+v", route)
+	}
+	if !route.Capabilities.Streaming || !route.Capabilities.Tools || !route.Capabilities.JSONSchema {
+		t.Fatalf("unexpected capabilities: %+v", route.Capabilities)
+	}
+	if route.Capabilities.MaxInputTokens != 128000 || route.Capabilities.MaxOutputTokens != 4096 {
+		t.Fatalf("unexpected limits: %+v", route.Capabilities)
+	}
+	if !route.ModelDB.Enabled || !route.ModelDB.OfferingFound || !route.ModelDB.ExposureFound || !route.ModelDB.PricingAvailable {
+		t.Fatalf("unexpected modeldb inspection: %+v", route.ModelDB)
+	}
+}
+
+func TestInspectConfigReportsResolvedModelDBModel(t *testing.T) {
+	catalog := testResolvableModelDBCatalog("openrouter", "openai/gpt-test", []string{"fast-model"})
+	cfg := Config{
+		Providers: []ProviderConfig{{
+			Name:             "openrouter",
+			Type:             "openrouter_responses",
+			ModelDBServiceID: "openrouter",
+		}},
+		Routes: []RouteConfig{{
+			SourceAPI:    adapt.ApiOpenAIResponses,
+			Provider:     "openrouter",
+			ProviderAPI:  adapt.ApiOpenRouterResponses,
+			ModelDBModel: "fast-model",
+		}},
+	}
+	ApplyDefaults(&cfg)
+
+	inspection, err := InspectConfigWithCatalog(cfg, catalog, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inspection.Routes) != 1 {
+		t.Fatalf("routes = %+v", inspection.Routes)
+	}
+	route := inspection.Routes[0]
+	if route.ModelDBModel != "fast-model" || route.NativeModel != "openai/gpt-test" {
+		t.Fatalf("unexpected resolved route inspection: %+v", route)
+	}
+	if route.ModelDB.WireModelID != "openai/gpt-test" || !route.ModelDB.ExposureFound {
+		t.Fatalf("unexpected modeldb inspection: %+v", route.ModelDB)
+	}
+}
+
 func (c fakeClient) Request(context.Context, unified.Request) (<-chan unified.Event, error) {
 	out := make(chan unified.Event, len(c.events))
 	for _, ev := range c.events {
@@ -292,5 +454,30 @@ func testResolvableModelDBCatalog(serviceID, wireModelID string, aliases []strin
 			ExposedCapabilities: &modeldb.Capabilities{Streaming: true},
 		}},
 	}
+	return catalog
+}
+
+func testDynamicCapabilityCatalog(serviceID string) modeldb.Catalog {
+	catalog := modeldb.NewCatalog()
+	catalog.Services[serviceID] = modeldb.Service{ID: serviceID, Name: "Test Service"}
+	add := func(wireModelID string, tools bool) {
+		key := modeldb.ModelKey{Creator: "test", Family: wireModelID}
+		catalog.Models[key] = modeldb.ModelRecord{Key: key}
+		catalog.Offerings[modeldb.OfferingRef{ServiceID: serviceID, WireModelID: wireModelID}] = modeldb.Offering{
+			ServiceID:   serviceID,
+			WireModelID: wireModelID,
+			ModelKey:    key,
+			Exposures: []modeldb.OfferingExposure{{
+				APIType: modeldb.APITypeOpenAIResponses,
+				ExposedCapabilities: &modeldb.Capabilities{
+					Streaming:        true,
+					ToolUse:          tools,
+					StructuredOutput: true,
+				},
+			}},
+		}
+	}
+	add("no-tools", false)
+	add("with-tools", true)
 	return catalog
 }
