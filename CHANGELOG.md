@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-04-24
+
 ### Added
 
 - **OpenAI Chat structured output mapping** - OpenAI Chat-compatible endpoint decoding and provider encoding now preserve `response_format` JSON mode and JSON schema requests, and gateway metadata advertises those capabilities for OpenAI Chat and OpenRouter Chat endpoints.
@@ -193,7 +195,8 @@ match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/codewandler/llmadapter/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/codewandler/llmadapter/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/codewandler/llmadapter/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/codewandler/llmadapter/compare/v0.14.0...v0.15.0
