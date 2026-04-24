@@ -14,6 +14,8 @@ import (
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
+	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
+	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -97,6 +99,10 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 		return adapt.ApiOpenAIChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true}, nil
 	case "openrouter_chat":
 		return adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true}, nil
+	case "openrouter_responses":
+		return adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, router.CapabilitySet{Streaming: true}, nil
+	case "openrouter_messages":
+		return adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true}, nil
 	default:
 		return "", "", router.CapabilitySet{}, fmt.Errorf("unsupported provider type %q", providerType)
 	}
@@ -175,6 +181,38 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 			opts = append(opts, openrouter.WithBaseURL(provider.BaseURL))
 		}
 		return openrouter.NewClient(opts...)
+	case "openrouter_responses":
+		apiKey := provider.APIKey
+		if apiKey == "" && provider.APIKeyEnv != "" {
+			apiKey = os.Getenv(provider.APIKeyEnv)
+		}
+		if apiKey == "" {
+			apiKey = firstEnv("OPENROUTER_API_KEY", "OPENROUTER_KEY")
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
+		}
+		opts := []openrouterresponses.Option{openrouterresponses.WithAPIKey(apiKey)}
+		if provider.BaseURL != "" {
+			opts = append(opts, openrouterresponses.WithBaseURL(provider.BaseURL))
+		}
+		return openrouterresponses.NewClient(opts...)
+	case "openrouter_messages":
+		apiKey := provider.APIKey
+		if apiKey == "" && provider.APIKeyEnv != "" {
+			apiKey = os.Getenv(provider.APIKeyEnv)
+		}
+		if apiKey == "" {
+			apiKey = firstEnv("OPENROUTER_API_KEY", "OPENROUTER_KEY")
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("provider %q requires api_key", provider.Name)
+		}
+		opts := []openroutermessages.Option{openroutermessages.WithAPIKey(apiKey)}
+		if provider.BaseURL != "" {
+			opts = append(opts, openroutermessages.WithBaseURL(provider.BaseURL))
+		}
+		return openroutermessages.NewClient(opts...)
 	default:
 		return nil, fmt.Errorf("unsupported provider type %q", provider.Type)
 	}

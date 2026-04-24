@@ -11,6 +11,8 @@ import (
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
+	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
+	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -19,6 +21,7 @@ type smokeProvider struct {
 	apiKeyEnv []string
 	modelEnv  string
 	model     string
+	tools     bool
 	newClient func(apiKey string) (unified.Client, error)
 }
 
@@ -80,6 +83,9 @@ func TestSmokeToolUse(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			if !provider.tools {
+				t.Skipf("%s does not advertise tool smoke support in this slice", provider.name)
+			}
 			client, model := newSmokeClient(t, provider)
 			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()
@@ -138,6 +144,9 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			if !provider.tools {
+				t.Skipf("%s does not advertise tool smoke support in this slice", provider.name)
+			}
 			client, model := newSmokeClient(t, provider)
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -225,6 +234,7 @@ func smokeProviders() []smokeProvider {
 			apiKeyEnv: []string{"ANTHROPIC_API_KEY"},
 			modelEnv:  "ANTHROPIC_MODEL",
 			model:     "claude-haiku-4-5-20251001",
+			tools:     true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return anthropic.NewClient(anthropic.WithAPIKey(apiKey))
 			},
@@ -234,6 +244,7 @@ func smokeProviders() []smokeProvider {
 			apiKeyEnv: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
 			modelEnv:  "OPENAI_MODEL",
 			model:     "gpt-4.1-mini",
+			tools:     true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openai.NewClient(openai.WithAPIKey(apiKey))
 			},
@@ -243,8 +254,28 @@ func smokeProviders() []smokeProvider {
 			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
 			modelEnv:  "OPENROUTER_MODEL",
 			model:     "openai/gpt-4.1-mini",
+			tools:     true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openrouter.NewClient(openrouter.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:      "openrouter_responses",
+			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:  "OPENROUTER_RESPONSES_MODEL",
+			model:     "openai/gpt-4.1-mini",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:      "openrouter_messages",
+			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:  "OPENROUTER_MESSAGES_MODEL",
+			model:     "anthropic/claude-sonnet-4",
+			tools:     true,
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openroutermessages.NewClient(openroutermessages.WithAPIKey(apiKey))
 			},
 		},
 	}

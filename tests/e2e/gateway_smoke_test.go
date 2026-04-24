@@ -18,6 +18,8 @@ import (
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	openrouter "github.com/codewandler/llmadapter/providers/openrouter/chatcompletions"
+	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
+	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -139,6 +141,28 @@ func gatewayProviders() []gatewayProvider {
 			model:     "openai/gpt-4.1-mini",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openrouter.NewClient(openrouter.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:      "openrouter_responses",
+			apiKind:   adapt.ApiOpenRouterResponses,
+			family:    adapt.FamilyOpenAIResponses,
+			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:  "OPENROUTER_RESPONSES_MODEL",
+			model:     "openai/gpt-4.1-mini",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:      "openrouter_messages",
+			apiKind:   adapt.ApiOpenRouterAnthropicMessages,
+			family:    adapt.FamilyAnthropicMessages,
+			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:  "OPENROUTER_MESSAGES_MODEL",
+			model:     "anthropic/claude-sonnet-4",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openroutermessages.NewClient(openroutermessages.WithAPIKey(apiKey))
 			},
 		},
 	}

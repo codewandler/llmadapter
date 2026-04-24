@@ -79,17 +79,37 @@ func TestBuildProviderOpenRouterRequiresKey(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected missing key error")
 	}
+	_, err = buildProvider(providerConfig{Name: "openrouter", Type: "openrouter_responses"})
+	if err == nil {
+		t.Fatalf("expected missing key error")
+	}
+	_, err = buildProvider(providerConfig{Name: "openrouter", Type: "openrouter_messages"})
+	if err == nil {
+		t.Fatalf("expected missing key error")
+	}
 }
 
 func TestProviderEndpointMetadata(t *testing.T) {
-	apiKind, family, capabilities, err := providerEndpointMetadata("openrouter_chat")
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		providerType string
+		apiKind      adapt.ApiKind
+		family       adapt.ApiFamily
+		tools        bool
+	}{
+		{"openrouter_chat", adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, true},
+		{"openrouter_responses", adapt.ApiOpenRouterResponses, adapt.FamilyOpenAIResponses, false},
+		{"openrouter_messages", adapt.ApiOpenRouterAnthropicMessages, adapt.FamilyAnthropicMessages, true},
 	}
-	if apiKind != adapt.ApiOpenRouterChatCompletions || family != adapt.FamilyOpenAIChatCompletions {
-		t.Fatalf("unexpected endpoint metadata: %q %q", apiKind, family)
-	}
-	if !capabilities.Streaming || !capabilities.Tools {
-		t.Fatalf("unexpected capabilities: %+v", capabilities)
+	for _, tt := range tests {
+		apiKind, family, capabilities, err := providerEndpointMetadata(tt.providerType)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if apiKind != tt.apiKind || family != tt.family {
+			t.Fatalf("unexpected endpoint metadata: %q %q", apiKind, family)
+		}
+		if !capabilities.Streaming || capabilities.Tools != tt.tools {
+			t.Fatalf("unexpected capabilities: %+v", capabilities)
+		}
 	}
 }

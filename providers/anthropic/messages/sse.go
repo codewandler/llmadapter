@@ -15,13 +15,17 @@ func (d *SSEFrameDecoder) PushFrame(ctx context.Context, raw []byte) ([]Event, e
 	if err != nil {
 		return nil, err
 	}
+	if len(frame.Data) == 0 || string(frame.Data) == "[DONE]" {
+		return nil, nil
+	}
 	eventType := frame.Event
-	if eventType == "" {
+	if eventType == "" || eventType == "data" || eventType == "message" {
 		var envelope struct {
 			Type string `json:"type"`
 		}
-		_ = json.Unmarshal(frame.Data, &envelope)
-		eventType = envelope.Type
+		if err := json.Unmarshal(frame.Data, &envelope); err == nil && envelope.Type != "" {
+			eventType = envelope.Type
+		}
 	}
 
 	switch eventType {

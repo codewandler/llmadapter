@@ -28,6 +28,7 @@ Tool-use provider slice: OpenAI streamed tool calls and shared live tool-use smo
 Tool loop e2e slice: shared live tool-result continuation smoke tests
 OpenRouter provider slice: native Chat Completions provider wrapper and shared smoke matrix entry
 Provider endpoint routing slice: routes carry target API kind, API family, provider name, and capabilities
+OpenRouter multi-endpoint slice: native Responses text streaming and Anthropic-compatible Messages support
 ```
 
 Verified:
@@ -46,6 +47,10 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolUse/openrouter_chat' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/openrouter_chat' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/openrouter_chat' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolUse' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke' -count=1 -v
 ```
 
 Implemented package surface:
@@ -58,6 +63,8 @@ transport/
 providers/anthropic/messages/
 providers/openai/chatcompletions/
 providers/openrouter/chatcompletions/
+providers/openrouter/messages/
+providers/openrouter/responses/
 tests/e2e/
 endpoints/openaichatcompletions/
 gateway/
@@ -108,6 +115,9 @@ route results preserve provider endpoint metadata: target API kind, compatibilit
 same OpenAI Chat endpoint smoke-tested against Anthropic and OpenAI upstreams
 shared unified.Client tool-use smoke tests pass against Anthropic and OpenAI
 shared unified.Client tool-result continuation smoke tests pass against Anthropic and OpenAI
+shared unified.Client text smoke tests pass across Anthropic, OpenAI Chat, OpenRouter Chat, OpenRouter Responses, and OpenRouter Messages
+OpenRouter Messages passes shared tool-use and tool-result continuation smokes
+OpenRouter Responses routes through the OpenAI Chat gateway smoke path via canonical text conversion
 ```
 
 Live e2e defaults:
@@ -123,6 +133,10 @@ default OpenAI smoke-test model: gpt-4.1-mini
 OPENROUTER_API_KEY or OPENROUTER_KEY provides OpenRouter credentials
 OPENROUTER_MODEL overrides the default OpenRouter smoke-test model
 default OpenRouter smoke-test model: openai/gpt-4.1-mini
+OPENROUTER_RESPONSES_MODEL overrides the default OpenRouter Responses smoke-test model
+default OpenRouter Responses smoke-test model: openai/gpt-4.1-mini
+OPENROUTER_MESSAGES_MODEL overrides the default OpenRouter Messages smoke-test model
+default OpenRouter Messages smoke-test model: anthropic/claude-sonnet-4
 ```
 
 Known follow-up gaps:
@@ -137,9 +151,11 @@ router is static and does not yet include capability checks or fallback routing
 gateway config is intentionally minimal; routes can disambiguate same-provider endpoints with provider_api, but there is no full registry yet
 OpenAI provider is stream-first and covers smoke-tested text and tool-use paths
 OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
+OpenRouter Responses provider is stream-first and currently covers smoke-tested text streaming
+OpenRouter Messages provider reuses the Anthropic-compatible stream path against OpenRouter's native messages endpoint
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
-OpenRouter provider family still needs native Responses and Anthropic-compatible Messages support
+OpenRouter Responses tool-call mapping is not implemented yet
 streaming provider errors after response start need a final policy
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
 ```
@@ -147,7 +163,7 @@ runnable gateway uses one Anthropic route and can optionally override upstream m
 Next planned phase:
 
 ```text
-Provider support continuation: add OpenRouter native Responses and Anthropic-compatible Messages packages, then expand route/provider capability tests
+Provider support continuation: add OpenRouter Responses tool-call mapping, then add downstream /v1/responses and /v1/messages endpoint codecs
 ```
 
 ---
