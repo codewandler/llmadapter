@@ -151,39 +151,9 @@ func NewClient(cfg ClientConfig) (unified.Client, error) {
 	}
 	switch providerType {
 	case "anthropic":
-		if cfg.APIKey == "" {
-			return nil, fmt.Errorf("provider type %q requires api key", providerType)
-		}
-		opts := []anthropic.Option{
-			anthropic.WithAPIKey(cfg.APIKey),
-			anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
-				req.Unified.Stream = true
-				return nil
-			})),
-		}
-		if cfg.BaseURL != "" {
-			opts = append(opts, anthropic.WithBaseURL(cfg.BaseURL))
-		}
-		return anthropic.NewClient(opts...)
+		return newAnthropicClient(cfg, false)
 	case "claude_messages":
-		opts := []anthropic.Option{
-			anthropic.WithClaudeHeaders(),
-			anthropic.WithClaudeCodePreflight(),
-			anthropic.WithSystemCacheControl(""),
-			anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
-				req.Unified.Stream = true
-				return nil
-			})),
-		}
-		if cfg.APIKey != "" {
-			opts = append(opts, anthropic.WithBearerTokenProvider(anthropic.NewStaticTokenProvider(anthropic.NewStaticBearerToken(cfg.APIKey))))
-		} else {
-			opts = append(opts, anthropic.WithLocalClaudeOAuth())
-		}
-		if cfg.BaseURL != "" {
-			opts = append(opts, anthropic.WithBaseURL(cfg.BaseURL))
-		}
-		return anthropic.NewClient(opts...)
+		return newAnthropicClient(cfg, true)
 	case "openai_chat":
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("provider type %q requires api key", providerType)
@@ -259,6 +229,42 @@ func NewClient(cfg ClientConfig) (unified.Client, error) {
 	default:
 		return nil, fmt.Errorf("unsupported provider type %q", providerType)
 	}
+}
+
+func newAnthropicClient(cfg ClientConfig, claudeCompatible bool) (unified.Client, error) {
+	if cfg.APIKey == "" && !claudeCompatible {
+		return nil, fmt.Errorf("provider type %q requires api key", cfg.Type)
+	}
+
+	opts := []anthropic.Option{}
+	if claudeCompatible {
+		opts = append(opts,
+			anthropic.WithClaudeHeaders(),
+			anthropic.WithClaudeCodePreflight(),
+			anthropic.WithSystemCacheControl(""),
+		)
+	}
+
+	if cfg.APIKey != "" {
+		if claudeCompatible {
+			opts = append(opts, anthropic.WithBearerTokenProvider(anthropic.NewStaticTokenProvider(anthropic.NewStaticBearerToken(cfg.APIKey))))
+		} else {
+			opts = append(opts, anthropic.WithAPIKey(cfg.APIKey))
+		}
+	} else if claudeCompatible {
+		opts = append(opts, anthropic.WithLocalClaudeOAuth())
+	}
+
+	opts = append(opts, anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
+		req.Unified.Stream = true
+		return nil
+	})))
+
+	if cfg.BaseURL != "" {
+		opts = append(opts, anthropic.WithBaseURL(cfg.BaseURL))
+	}
+
+	return anthropic.NewClient(opts...)
 }
 
 type requestProcessorFunc func(context.Context, *adapt.Request) error
