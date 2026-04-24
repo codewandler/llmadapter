@@ -171,6 +171,17 @@ func decodeMessage(msg anthropic.InputMessage, field string) ([]unified.Message,
 			content = append(content, unified.TextPart{Text: block.Text})
 		case "thinking":
 			content = append(content, unified.ReasoningPart{Text: block.Thinking})
+		case "image":
+			if block.Source == nil {
+				warnings = append(warnings, decodeWarning(blockField+".source", "empty image source was dropped"))
+				continue
+			}
+			image, ok := decodeImageBlockSource(*block.Source)
+			if !ok {
+				warnings = append(warnings, decodeWarning(blockField+".source.type", fmt.Sprintf("unsupported image source type %q was dropped", block.Source.Type)))
+				continue
+			}
+			content = append(content, image)
 		case "tool_use":
 			input := block.Input
 			if len(input) == 0 {
@@ -197,6 +208,17 @@ func decodeMessage(msg anthropic.InputMessage, field string) ([]unified.Message,
 		Content:   content,
 		ToolCalls: toolCalls,
 	}}, warnings
+}
+
+func decodeImageBlockSource(source anthropic.BlockSource) (unified.ImagePart, bool) {
+	switch source.Type {
+	case "url":
+		return unified.ImagePart{Source: unified.BlobSource{Kind: unified.BlobSourceURL, URL: source.URL, MIMEType: source.MediaType}}, true
+	case "base64":
+		return unified.ImagePart{Source: unified.BlobSource{Kind: unified.BlobSourceBase64, Base64: source.Data, MIMEType: source.MediaType}}, true
+	default:
+		return unified.ImagePart{}, false
+	}
 }
 
 func contentBlockText(value any, field string) (string, []adapt.Warning) {

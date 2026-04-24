@@ -215,8 +215,12 @@ func decodeContent(raw json.RawMessage, field string) ([]unified.ContentPart, []
 		return []unified.ContentPart{unified.TextPart{Text: text}}, nil, nil
 	}
 	var parts []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
+		Type     string `json:"type"`
+		Text     string `json:"text"`
+		ImageURL *struct {
+			URL    string `json:"url"`
+			Detail string `json:"detail,omitempty"`
+		} `json:"image_url"`
 	}
 	if err := json.Unmarshal(raw, &parts); err != nil {
 		return nil, nil, statusError(http.StatusBadRequest, "unsupported_content", "content must be a string or text-part array")
@@ -224,11 +228,24 @@ func decodeContent(raw json.RawMessage, field string) ([]unified.ContentPart, []
 	out := make([]unified.ContentPart, 0, len(parts))
 	var warnings []adapt.Warning
 	for i, part := range parts {
-		if part.Type == "text" {
+		switch part.Type {
+		case "text":
 			out = append(out, unified.TextPart{Text: part.Text})
-			continue
+		case "image_url":
+			if part.ImageURL == nil || part.ImageURL.URL == "" {
+				warnings = append(warnings, decodeWarning(field+"."+strconv.Itoa(i)+".image_url", "empty image_url content part was dropped"))
+				continue
+			}
+			out = append(out, unified.ImagePart{
+				Source: unified.BlobSource{
+					Kind: unified.BlobSourceURL,
+					URL:  part.ImageURL.URL,
+					Meta: map[string]any{"detail": part.ImageURL.Detail},
+				},
+			})
+		default:
+			warnings = append(warnings, decodeWarning(field+"."+strconv.Itoa(i)+".type", fmt.Sprintf("unsupported content part type %q was dropped", part.Type)))
 		}
-		warnings = append(warnings, decodeWarning(field+"."+strconv.Itoa(i)+".type", fmt.Sprintf("unsupported content part type %q was dropped", part.Type)))
 	}
 	return out, warnings, nil
 }

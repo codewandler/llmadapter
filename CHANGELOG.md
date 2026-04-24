@@ -15,6 +15,7 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - **OpenAI Responses structured output mapping** - OpenAI Responses endpoint decoding and OpenRouter Responses provider encoding now preserve `text.format` JSON mode and JSON schema requests, with matching gateway capability metadata.
+- **Endpoint image input decode** - OpenAI Chat, OpenAI Responses, and Anthropic Messages endpoint codecs now decode supported image URL/base64/file references into canonical `unified.ImagePart` values instead of dropping them.
 
 ## [0.18.0] - 2026-04-24
 

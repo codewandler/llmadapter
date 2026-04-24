@@ -60,7 +60,7 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 	body := `{
 		"model":"gpt-test",
 		"input":[
-			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"},{"type":"input_image","image_url":"x"}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"},{"type":"input_audio"}]},
 			{"type":"web_search_call"}
 		],
 		"tools":[{"type":"web_search","name":"ignored"}],
@@ -81,6 +81,25 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterProvider, `{"allow_fallbacks":true}`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterDebug, `true`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterSessionID, `"sess_1"`)
+}
+
+func TestDecodeHTTPImageContent(t *testing.T) {
+	body := `{
+		"model":"gpt-test",
+		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"describe"},{"type":"input_image","image_url":"https://example.com/image.png"}]}]
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(req.Unified.Messages) != 1 || len(req.Unified.Messages[0].Content) != 2 {
+		t.Fatalf("content = %+v", req.Unified.Messages)
+	}
+	image, ok := req.Unified.Messages[0].Content[1].(unified.ImagePart)
+	if !ok || image.Source.Kind != unified.BlobSourceURL || image.Source.URL != "https://example.com/image.png" {
+		t.Fatalf("image = %+v", req.Unified.Messages[0].Content[1])
+	}
 }
 
 func TestDecodeHTTPResponseFormat(t *testing.T) {

@@ -200,6 +200,15 @@ func decodeContent(parts []ContentPart, field string) ([]unified.ContentPart, []
 		switch part.Type {
 		case "input_text", "output_text", "text":
 			out = append(out, unified.TextPart{Text: part.Text})
+		case "input_image":
+			switch {
+			case part.ImageURL != "":
+				out = append(out, unified.ImagePart{Source: unified.BlobSource{Kind: unified.BlobSourceURL, URL: part.ImageURL}})
+			case part.FileID != "":
+				out = append(out, unified.ImagePart{Source: unified.BlobSource{Kind: unified.BlobSourceFileID, FileID: part.FileID}})
+			default:
+				warnings = append(warnings, decodeWarning(field+"."+strconv.Itoa(i), "empty input_image content part was dropped"))
+			}
 		default:
 			warnings = append(warnings, decodeWarning(field+"."+strconv.Itoa(i)+".type", fmt.Sprintf("unsupported content part type %q was dropped", part.Type)))
 		}

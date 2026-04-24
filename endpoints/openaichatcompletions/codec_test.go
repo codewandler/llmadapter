@@ -46,7 +46,7 @@ func TestDecodeHTTP(t *testing.T) {
 func TestDecodeHTTPWarnings(t *testing.T) {
 	body := `{
 		"model":"test-model",
-		"messages":[{"role":"user","content":[{"type":"text","text":"hello"},{"type":"image_url","image_url":{"url":"x"}}]}],
+		"messages":[{"role":"user","content":[{"type":"text","text":"hello"},{"type":"input_audio","input_audio":{"data":"x"}}]}],
 		"stop":["ok",42],
 		"tools":[{"type":"web_search","function":{"name":"ignored"}}],
 		"tool_choice":{"type":"unknown"},
@@ -66,6 +66,25 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterProvider, `{"order":["anthropic"]}`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterPlugins, `[{"id":"web"}]`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterSessionID, `"sess_1"`)
+}
+
+func TestDecodeHTTPImageContent(t *testing.T) {
+	body := `{
+		"model":"test-model",
+		"messages":[{"role":"user","content":[{"type":"text","text":"describe"},{"type":"image_url","image_url":{"url":"https://example.com/image.png","detail":"low"}}]}]
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(req.Unified.Messages) != 1 || len(req.Unified.Messages[0].Content) != 2 {
+		t.Fatalf("content = %+v", req.Unified.Messages)
+	}
+	image, ok := req.Unified.Messages[0].Content[1].(unified.ImagePart)
+	if !ok || image.Source.Kind != unified.BlobSourceURL || image.Source.URL != "https://example.com/image.png" || image.Source.Meta["detail"] != "low" {
+		t.Fatalf("image = %+v", req.Unified.Messages[0].Content[1])
+	}
 }
 
 func TestDecodeHTTPResponseFormat(t *testing.T) {

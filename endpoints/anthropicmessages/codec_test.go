@@ -67,7 +67,7 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 		"max_tokens":32,
 		"messages":[{"role":"user","content":[
 			{"type":"text","text":"hello"},
-			{"type":"image","source":{"type":"url","url":"x"}},
+			{"type":"document","source":{"type":"url","url":"x"}},
 			{"type":"tool_result","tool_use_id":"toolu","content":[{"type":"text","text":"ok"},{"type":"image"}]}
 		]}],
 		"tool_choice":{"type":"unknown"},
@@ -86,6 +86,29 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterProvider, `{"order":["openai"]}`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterTrace, `{"enabled":true}`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterSessionID, `"sess_1"`)
+}
+
+func TestDecodeHTTPImageContent(t *testing.T) {
+	body := `{
+		"model":"claude-test",
+		"max_tokens":32,
+		"messages":[{"role":"user","content":[
+			{"type":"text","text":"describe"},
+			{"type":"image","source":{"type":"url","url":"https://example.com/image.png"}}
+		]}]
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(req.Unified.Messages) != 1 || len(req.Unified.Messages[0].Content) != 2 {
+		t.Fatalf("content = %+v", req.Unified.Messages)
+	}
+	image, ok := req.Unified.Messages[0].Content[1].(unified.ImagePart)
+	if !ok || image.Source.Kind != unified.BlobSourceURL || image.Source.URL != "https://example.com/image.png" {
+		t.Fatalf("image = %+v", req.Unified.Messages[0].Content[1])
+	}
 }
 
 func TestWriteEventsNonStreaming(t *testing.T) {
