@@ -10,6 +10,10 @@ can be created to match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+No unreleased changes yet.
+
+## [0.10.1] - 2026-04-24
+
 ### Added
 
 - **Provider error tests** - Added focused OpenAI-compatible and Anthropic-compatible mid-stream error tests.
@@ -139,7 +143,8 @@ can be created to match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/codewandler/llmadapter/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/codewandler/llmadapter/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/codewandler/llmadapter/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/codewandler/llmadapter/compare/v0.7.0...v0.8.0
