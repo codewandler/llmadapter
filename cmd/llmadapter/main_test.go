@@ -219,6 +219,27 @@ func TestResolveInferModelUsesBestCandidateWhenSourceAPIOmitted(t *testing.T) {
 	}
 }
 
+func TestResolveInferModelPrefersExactRouteOverDynamicFallback(t *testing.T) {
+	cfg := adapterconfig.Config{
+		Providers: []adapterconfig.ProviderConfig{
+			{Name: "anthropic", Type: "anthropic", APIKey: "test"},
+			{Name: "openai", Type: "openai_responses", APIKey: "test"},
+		},
+		Routes: []adapterconfig.RouteConfig{
+			{SourceAPI: adapt.ApiAnthropicMessages, Provider: "anthropic", DynamicModels: true, Weight: 1},
+			{SourceAPI: adapt.ApiOpenAIResponses, Model: "gpt-4.1-mini", Provider: "openai", Weight: 100},
+		},
+	}
+	adapterconfig.ApplyDefaults(&cfg)
+	resolution, err := resolveInferModel(cfg, "gpt-4.1-mini", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolution.Provider != "openai" || resolution.SourceAPI != adapt.ApiOpenAIResponses || resolution.MatchedAs != "public_model" {
+		t.Fatalf("unexpected infer resolution: %+v", resolution)
+	}
+}
+
 func TestResolveCommandWithDynamicRoute(t *testing.T) {
 	path := writeTestDynamicConfig(t)
 	var out, errOut bytes.Buffer
@@ -232,6 +253,18 @@ func TestResolveCommandWithDynamicRoute(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestInferCommandModelDefaultIsHaiku(t *testing.T) {
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"infer", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); !strings.Contains(got, "-m, --model string") || !strings.Contains(got, "(default \"haiku\")") {
+		t.Fatalf("infer help does not show haiku model default:\n%s", got)
 	}
 }
 
@@ -279,8 +312,21 @@ func TestRunInferRequestStreamsReasoningTextAndUsage(t *testing.T) {
 	if client.request.Model != "gpt-test" || client.request.MaxOutputTokens == nil || *client.request.MaxOutputTokens != 16 {
 		t.Fatalf("unexpected request: %+v", client.request)
 	}
+	if client.request.CachePolicy != unified.CachePolicyOn {
+		t.Fatalf("expected cache policy on by default, got %q", client.request.CachePolicy)
+	}
 	if client.request.Reasoning == nil || !client.request.Reasoning.Expose {
 		t.Fatalf("expected reasoning request: %+v", client.request.Reasoning)
+	}
+}
+
+func TestInferRequestNoCacheDisablesCachePolicy(t *testing.T) {
+	req, err := inferRequest("gpt-test", "hello", inferParams{maxTokens: 16, noCache: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.CachePolicy != unified.CachePolicyOff {
+		t.Fatalf("expected cache policy off, got %q", req.CachePolicy)
 	}
 }
 

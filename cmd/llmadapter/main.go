@@ -384,10 +384,12 @@ type inferParams struct {
 	thinking    string
 	effort      string
 	timeout     time.Duration
+	noCache     bool
 }
 
 func newInferCommand() *cobra.Command {
 	params := inferParams{
+		model:     "haiku",
 		maxTokens: 8000,
 		timeout:   2 * time.Minute,
 	}
@@ -401,13 +403,14 @@ func newInferCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&params.configPath, "config", "", "llmadapter JSON config path; defaults to auto-detected credentials")
 	cmd.Flags().StringVar(&params.sourceAPI, "source-api", "", "source API for mux routing; omit to use the best resolved candidate")
-	cmd.Flags().StringVarP(&params.model, "model", "m", "", "model alias or provider-native model; defaults to the selected route model")
+	cmd.Flags().StringVarP(&params.model, "model", "m", params.model, "model alias or provider-native model")
 	cmd.Flags().StringVarP(&params.system, "system", "s", "", "system prompt")
 	cmd.Flags().IntVar(&params.maxTokens, "max-tokens", params.maxTokens, "maximum output tokens")
 	cmd.Flags().Float64Var(&params.temperature, "temperature", 0, "sampling temperature 0.0-2.0; 0 uses provider default")
 	cmd.Flags().StringVar(&params.thinking, "thinking", "", "thinking mode: auto, on, off")
 	cmd.Flags().StringVar(&params.effort, "effort", "", "reasoning effort: low, medium, high, max")
 	cmd.Flags().DurationVar(&params.timeout, "timeout", params.timeout, "request timeout")
+	cmd.Flags().BoolVar(&params.noCache, "no-cache", false, "disable prompt cache policy for this request")
 	return cmd
 }
 
@@ -1087,7 +1090,20 @@ func resolveModelCandidates(cfg adapterconfig.Config, model string) ([]resolutio
 }
 
 func resolveCandidatePriority(resolution resolutionInfo) int {
-	return resolveSourceAPIPriority(resolution.SourceAPI)*1000 + resolveProviderTypePriority(resolution.ProviderType)
+	return resolveMatchPriority(resolution.MatchedAs)*10000 + resolveSourceAPIPriority(resolution.SourceAPI)*1000 + resolveProviderTypePriority(resolution.ProviderType)
+}
+
+func resolveMatchPriority(matchedAs string) int {
+	switch matchedAs {
+	case "public_model":
+		return 0
+	case "native_model":
+		return 1
+	case "dynamic_model":
+		return 2
+	default:
+		return 10
+	}
 }
 
 func resolveSourceAPIPriority(sourceAPI adapt.ApiKind) int {
@@ -1259,11 +1275,15 @@ func inferRequest(model, prompt string, params inferParams) (unified.Request, er
 	req := unified.Request{
 		Model:           model,
 		MaxOutputTokens: &params.maxTokens,
+		CachePolicy:     unified.CachePolicyOn,
 		Messages: []unified.Message{{
 			Role:    unified.RoleUser,
 			Content: []unified.ContentPart{unified.TextPart{Text: prompt}},
 		}},
 		Stream: true,
+	}
+	if params.noCache {
+		req.CachePolicy = unified.CachePolicyOff
 	}
 	if params.system != "" {
 		req.Instructions = append(req.Instructions, unified.Instruction{
