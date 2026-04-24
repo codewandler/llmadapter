@@ -16,89 +16,130 @@ import (
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	"github.com/codewandler/llmadapter/router"
+	"github.com/codewandler/llmadapter/unified"
 )
 
+type gatewayProvider struct {
+	name      string
+	apiKeyEnv []string
+	modelEnv  string
+	model     string
+	newClient func(apiKey string) (unified.Client, error)
+}
+
 func TestGatewaySmokeNonStreaming(t *testing.T) {
-	handler, model := newAnthropicGateway(t)
-	body := `{
-		"model":` + jsonQuote(model) + `,
-		"messages":[{"role":"user","content":"Reply with exactly: llmadapter gateway smoke ok"}],
-		"max_tokens":64
-	}`
+	for _, provider := range gatewayProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			handler, model := newGateway(t, provider)
+			body := `{
+				"model":` + jsonQuote(model) + `,
+				"messages":[{"role":"user","content":"Reply with exactly: llmadapter gateway smoke ok"}],
+				"max_tokens":64
+			}`
 
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body)))
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body)))
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
-	}
-	var resp struct {
-		Object  string `json:"object"`
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Object != "chat.completion" || len(resp.Choices) != 1 {
-		t.Fatalf("unexpected response: %+v", resp)
-	}
-	if !strings.Contains(strings.ToLower(resp.Choices[0].Message.Content), "llmadapter gateway smoke ok") {
-		t.Fatalf("unexpected content: %q", resp.Choices[0].Message.Content)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+			}
+			var resp struct {
+				Object  string `json:"object"`
+				Choices []struct {
+					Message struct {
+						Content string `json:"content"`
+					} `json:"message"`
+				} `json:"choices"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatal(err)
+			}
+			if resp.Object != "chat.completion" || len(resp.Choices) != 1 {
+				t.Fatalf("unexpected response: %+v", resp)
+			}
+			if !strings.Contains(strings.ToLower(resp.Choices[0].Message.Content), "llmadapter gateway smoke ok") {
+				t.Fatalf("unexpected content: %q", resp.Choices[0].Message.Content)
+			}
+		})
 	}
 }
 
 func TestGatewaySmokeStreaming(t *testing.T) {
-	handler, model := newAnthropicGateway(t)
-	body := `{
-		"model":` + jsonQuote(model) + `,
-		"messages":[{"role":"user","content":"Reply with exactly: llmadapter gateway stream ok"}],
-		"max_tokens":64,
-		"stream":true
-	}`
+	for _, provider := range gatewayProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			handler, model := newGateway(t, provider)
+			body := `{
+				"model":` + jsonQuote(model) + `,
+				"messages":[{"role":"user","content":"Reply with exactly: llmadapter gateway stream ok"}],
+				"max_tokens":64,
+				"stream":true
+			}`
 
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body)))
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body)))
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
-	}
-	text, done, err := collectOpenAIStreamText(w.Body.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !done {
-		t.Fatalf("stream did not include [DONE]: %s", w.Body.String())
-	}
-	if !strings.Contains(strings.ToLower(text), "llmadapter gateway stream ok") {
-		t.Fatalf("unexpected stream text: %q", text)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+			}
+			text, done, err := collectOpenAIStreamText(w.Body.Bytes())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !done {
+				t.Fatalf("stream did not include [DONE]: %s", w.Body.String())
+			}
+			if !strings.Contains(strings.ToLower(text), "llmadapter gateway stream ok") {
+				t.Fatalf("unexpected stream text: %q", text)
+			}
+		})
 	}
 }
 
-func newAnthropicGateway(t *testing.T) (http.Handler, string) {
+func gatewayProviders() []gatewayProvider {
+	return []gatewayProvider{
+		{
+			name:      "anthropic",
+			apiKeyEnv: []string{"ANTHROPIC_API_KEY"},
+			modelEnv:  "ANTHROPIC_MODEL",
+			model:     "claude-haiku-4-5-20251001",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return anthropic.NewClient(
+					anthropic.WithAPIKey(apiKey),
+					anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
+						req.Unified.Stream = true
+						return nil
+					})),
+				)
+			},
+		},
+		{
+			name:      "openai_chat",
+			apiKeyEnv: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
+			modelEnv:  "OPENAI_MODEL",
+			model:     "gpt-4.1-mini",
+			newClient: func(apiKey string) (unified.Client, error) {
+				return openai.NewClient(openai.WithAPIKey(apiKey))
+			},
+		},
+	}
+}
+
+func newGateway(t *testing.T, provider gatewayProvider) (http.Handler, string) {
 	t.Helper()
 	if os.Getenv("TEST_INTEGRATION") == "" {
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
 	}
-	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	apiKey := firstSetEnv(provider.apiKeyEnv...)
 	if apiKey == "" {
-		t.Skip("set ANTHROPIC_API_KEY to run Anthropic gateway e2e smoke tests")
+		t.Skipf("set one of %s to run %s gateway e2e smoke tests", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
-	model := os.Getenv("ANTHROPIC_MODEL")
-	if model == "" {
-		model = "claude-haiku-4-5-20251001"
+	model := provider.model
+	if fromEnv := os.Getenv(provider.modelEnv); fromEnv != "" {
+		model = fromEnv
 	}
-	client, err := anthropic.NewClient(
-		anthropic.WithAPIKey(apiKey),
-		anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
-			req.Unified.Stream = true
-			return nil
-		})),
-	)
+	client, err := provider.newClient(apiKey)
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}

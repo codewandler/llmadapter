@@ -23,6 +23,7 @@ Phase 4 gateway e2e slice: runnable Anthropic-backed gateway command and live ga
 Phase 6 first slice: static router with endpoint/model matching and native model rewrite
 Gateway config slice: optional JSON config for providers and static routes
 Provider support slice: OpenAI Chat Completions upstream provider
+Gateway provider matrix slice: OpenAI-backed route covered by live gateway smoke tests
 ```
 
 Verified:
@@ -34,6 +35,7 @@ env GOCACHE=/tmp/go-cache go vet ./...
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestSmokeTextStream -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke' -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream/openai_chat' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/openai_chat' -count=1 -v
 ```
 
 Implemented package surface:
@@ -91,6 +93,7 @@ runnable Anthropic-backed /v1/chat/completions gateway command
 live gateway smoke tests for streaming and non-streaming requests
 gateway route selection through router.StaticRouter
 native model rewrite before provider client invocation
+same OpenAI Chat endpoint smoke-tested against Anthropic and OpenAI upstreams
 ```
 
 Live e2e defaults:
@@ -116,6 +119,7 @@ Raw/unmapped event preservation is minimal and should be expanded before gateway
 router is static and does not yet include capability checks or fallback routing
 gateway config is intentionally minimal and does not yet support multiple provider implementations
 OpenAI provider is stream-first and currently covers the smoke-test text path
+OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
 streaming provider errors after response start need a final policy
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
