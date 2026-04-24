@@ -21,6 +21,7 @@ Phase 3: Anthropic Messages programmatic client path
 Phase 4 first slice: /v1/chat/completions endpoint codec and minimal gateway handler
 Phase 4 gateway e2e slice: runnable Anthropic-backed gateway command and live gateway smoke tests
 Phase 6 first slice: static router with endpoint/model matching and native model rewrite
+Gateway config slice: optional JSON config for providers and static routes
 ```
 
 Verified:
@@ -46,6 +47,17 @@ endpoints/openaichatcompletions/
 gateway/
 cmd/llmadapter-gateway/
 router/
+```
+
+Gateway command config:
+
+```text
+LLMADAPTER_CONFIG optionally points to a JSON config file
+LLMADAPTER_ADDR sets the listen address when no config file is used
+ANTHROPIC_API_KEY provides default Anthropic credentials when no config file is used
+LLMADAPTER_UPSTREAM_MODEL sets the default native model override when no config file is used
+provider config supports api_key or api_key_env
+route config supports source_api, model, provider, and native_model
 ```
 
 Anthropic path coverage:
@@ -95,7 +107,8 @@ Anthropic request mapping covers the phase-3 vertical slice, not the full Messag
 non-streaming Anthropic response bodies are not yet modeled separately from stream events
 SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
 Raw/unmapped event preservation is minimal and should be expanded before gateway work
-router is static and does not yet include capability checks, fallback routing, or config loading
+router is static and does not yet include capability checks or fallback routing
+gateway config is intentionally minimal and does not yet support multiple provider implementations
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
 streaming provider errors after response start need a final policy
 runnable gateway uses one Anthropic route and can optionally override upstream model via env
