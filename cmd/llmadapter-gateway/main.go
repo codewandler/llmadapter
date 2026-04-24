@@ -11,6 +11,7 @@ import (
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	"github.com/codewandler/llmadapter/router"
 )
 
 func main() {
@@ -26,9 +27,6 @@ func main() {
 		anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
 			// The Anthropic client path is stream-first; endpoint codecs can still collect into non-stream JSON.
 			req.Unified.Stream = true
-			if modelOverride != "" {
-				req.Unified.Model = modelOverride
-			}
 			return nil
 		})),
 	)
@@ -39,7 +37,11 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/v1/chat/completions", gateway.Handler{
 		Endpoint: chat.Codec{},
-		Client:   client,
+		Router: router.NewStaticRouter(router.StaticRoute{
+			SourceAPI:   adapt.ApiOpenAIChatCompletions,
+			NativeModel: modelOverride,
+			Client:      client,
+		}),
 	})
 
 	log.Printf("llmadapter gateway listening on %s", addr)

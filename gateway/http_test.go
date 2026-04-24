@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codewandler/llmadapter/adapt"
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
+	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -22,7 +24,10 @@ func TestHandlerWritesEndpointErrorBeforeResponseStarts(t *testing.T) {
 	client := &staticClient{events: []unified.Event{
 		unified.ErrorEvent{Err: errors.New("provider failed")},
 	}}
-	handler := Handler{Endpoint: chat.Codec{}, Client: client}
+	handler := Handler{Endpoint: chat.Codec{}, Router: router.NewStaticRouter(router.StaticRoute{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Client:    client,
+	})}
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
 		"model":"model",
@@ -60,7 +65,11 @@ func TestHandlerChatCompletions(t *testing.T) {
 		unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText},
 		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
 	}}
-	handler := Handler{Endpoint: chat.Codec{}, Client: client}
+	handler := Handler{Endpoint: chat.Codec{}, Router: router.NewStaticRouter(router.StaticRoute{
+		SourceAPI:   adapt.ApiOpenAIChatCompletions,
+		NativeModel: "native-model",
+		Client:      client,
+	})}
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
 		"model":"model",
@@ -73,7 +82,7 @@ func TestHandlerChatCompletions(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
 	}
-	if client.req.Model != "model" || len(client.req.Messages) != 1 {
+	if client.req.Model != "native-model" || len(client.req.Messages) != 1 {
 		t.Fatalf("unexpected client request: %+v", client.req)
 	}
 	if !strings.Contains(w.Body.String(), `"content":"pong"`) {

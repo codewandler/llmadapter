@@ -16,6 +16,7 @@ import (
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	"github.com/codewandler/llmadapter/router"
 )
 
 func TestGatewaySmokeNonStreaming(t *testing.T) {
@@ -107,7 +108,10 @@ func newAnthropicGateway(t *testing.T) (http.Handler, string) {
 		ctx: ctx,
 		handler: gateway.Handler{
 			Endpoint: chat.Codec{},
-			Client:   client,
+			Router: router.NewStaticRouter(router.StaticRoute{
+				SourceAPI: adapt.ApiOpenAIChatCompletions,
+				Client:    client,
+			}),
 		},
 	}, model
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -16,7 +17,7 @@ type Endpoint interface {
 
 type Handler struct {
 	Endpoint Endpoint
-	Client   unified.Client
+	Router   router.Router
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +28,15 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = h.Endpoint.WriteError(ctx, tw, err)
 		return
 	}
-	events, err := h.Client.Request(ctx, req.Unified)
+	route, err := h.Router.Route(ctx, req)
+	if err != nil {
+		_ = h.Endpoint.WriteError(ctx, tw, err)
+		return
+	}
+	if route.NativeModel != "" {
+		req.Unified.Model = route.NativeModel
+	}
+	events, err := route.Client.Request(ctx, req.Unified)
 	if err != nil {
 		_ = h.Endpoint.WriteError(ctx, tw, err)
 		return
