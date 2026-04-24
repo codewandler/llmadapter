@@ -34,6 +34,7 @@ Documentation slice: minimal README, AGENTS, and provider-extension agent skill
 MiniMax provider slice: OpenAI-compatible Chat Completions wrapper, gateway registration, and shared text smoke matrix entry
 MiniMax Messages slice: Anthropic-compatible Messages wrapper, gateway registration, and shared text/tool smoke matrix entries
 Conformance cleanup slice: OpenAI Chat gateway reasoning_details encoding and structured provider HTTP/mid-stream error tests
+Endpoint slice: downstream Anthropic-compatible /v1/messages gateway codec and live Anthropic-family gateway smokes
 ```
 
 Verified:
@@ -62,6 +63,7 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolUse/minimax_messages' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/minimax_messages' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/minimax_messages' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestAnthropicMessagesGatewaySmoke' -count=1 -v
 ```
 
 Implemented package surface:
@@ -80,6 +82,7 @@ providers/minimax/chatcompletions/
 providers/minimax/messages/
 tests/e2e/
 endpoints/openaichatcompletions/
+endpoints/anthropicmessages/
 gateway/
 cmd/llmadapter-gateway/
 router/
@@ -119,6 +122,9 @@ Gateway path coverage:
 OpenAI Chat Completions HTTP request -> unified.Request
 unified.Event -> OpenAI Chat Completions non-streaming JSON response
 unified.Event -> OpenAI Chat Completions SSE chunks
+Anthropic Messages HTTP request -> unified.Request
+unified.Event -> Anthropic Messages non-streaming JSON response
+unified.Event -> Anthropic Messages SSE chunks
 minimal gateway handler with configured unified.Client
 endpoint-shaped errors before response start
 runnable Anthropic-backed /v1/chat/completions gateway command
@@ -127,6 +133,7 @@ gateway route selection through router.StaticRouter
 native model rewrite before provider client invocation
 route results preserve provider endpoint metadata: target API kind, compatibility family, provider name, and capabilities
 same OpenAI Chat endpoint smoke-tested against Anthropic and OpenAI upstreams
+same Anthropic Messages endpoint smoke-tested against Anthropic, OpenRouter Messages, and MiniMax Messages upstreams
 shared unified.Client tool-use smoke tests pass against Anthropic and OpenAI
 shared unified.Client tool-result continuation smoke tests pass against Anthropic and OpenAI
 shared unified.Client text smoke tests pass across Anthropic, OpenAI Chat, OpenRouter Chat, OpenRouter Responses, and OpenRouter Messages
@@ -197,7 +204,7 @@ Next planned phase:
 
 ```text
 MiniMax provider continuation: validate MiniMax Chat tool-use/tool-result continuation before advertising tools
-Endpoint continuation: add downstream /v1/responses and /v1/messages endpoint codecs
+Endpoint continuation: add downstream /v1/responses endpoint codec
 ```
 
 MiniMax research notes:

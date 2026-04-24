@@ -29,6 +29,18 @@ func TestLoadConfig(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigIncludesOpenAIAndAnthropicRoutes(t *testing.T) {
+	t.Setenv("LLMADAPTER_ADDR", "")
+	t.Setenv("ANTHROPIC_API_KEY", "key")
+	cfg := defaultConfigFromEnv()
+	if len(cfg.Routes) != 2 {
+		t.Fatalf("routes = %+v", cfg.Routes)
+	}
+	if cfg.Routes[0].SourceAPI != adapt.ApiOpenAIChatCompletions || cfg.Routes[1].SourceAPI != adapt.ApiAnthropicMessages {
+		t.Fatalf("unexpected default routes: %+v", cfg.Routes)
+	}
+}
+
 func TestValidateConfig(t *testing.T) {
 	err := validateConfig(config{
 		Providers: []providerConfig{{Name: "anthropic", Type: "anthropic"}},

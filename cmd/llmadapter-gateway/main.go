@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/codewandler/llmadapter/adapt"
+	anthropicendpoint "github.com/codewandler/llmadapter/endpoints/anthropicmessages"
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
@@ -38,6 +39,10 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/v1/chat/completions", gateway.Handler{
 		Endpoint: chat.Codec{},
+		Router:   r,
+	})
+	mux.Handle("/v1/messages", gateway.Handler{
+		Endpoint: anthropicendpoint.Codec{},
 		Router:   r,
 	})
 
