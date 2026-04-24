@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAutoResultRouteSummary(t *testing.T) {
+func TestAutoResultRouteSummaryFromConfig(t *testing.T) {
 	result := AutoResult{
 		Config: Config{Routes: []RouteConfig{{
 			SourceAPI:   adapt.ApiOpenAIResponses,
