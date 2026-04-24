@@ -430,7 +430,7 @@ func smokeProviders() []smokeProvider {
 			},
 		},
 		{
-			name:             "claude_messages",
+			name:             "claude",
 			apiKeyEnv:        nil,
 			localClaudeOAuth: true,
 			modelEnv:         "CLAUDE_MODEL",

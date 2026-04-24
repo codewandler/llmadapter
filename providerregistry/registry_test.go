@@ -20,7 +20,7 @@ func TestLookup(t *testing.T) {
 }
 
 func TestAnthropicFamilyDescriptorsAdvertiseReasoning(t *testing.T) {
-	for _, providerType := range []string{"anthropic", "claude_messages", "openrouter_messages", "minimax_messages"} {
+	for _, providerType := range []string{"anthropic", "claude", "openrouter_messages", "minimax_messages"} {
 		descriptor, ok := Lookup(providerType)
 		if !ok {
 			t.Fatalf("missing descriptor %q", providerType)

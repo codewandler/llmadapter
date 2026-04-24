@@ -196,7 +196,7 @@ func providerModelDBServiceID(provider providerConfig) string {
 	if provider.ModelDBServiceID != "" {
 		return provider.ModelDBServiceID
 	}
-	if provider.Type == "claude_messages" {
+	if provider.Type == "claude" {
 		return "anthropic"
 	}
 	if provider.Type == "codex_responses" {
@@ -336,7 +336,7 @@ func providerEndpointMetadata(providerType string) (adapt.ApiKind, adapt.ApiFami
 	switch providerType {
 	case "anthropic":
 		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, Reasoning: true, ReasoningDeltas: true}, nil
-	case "claude_messages":
+	case "claude":
 		return adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, Reasoning: true, ReasoningDeltas: true}, nil
 	case "openai_chat":
 		return adapt.ApiOpenAIChatCompletions, adapt.FamilyOpenAIChatCompletions, router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true}, nil
@@ -397,7 +397,7 @@ func buildProvider(provider providerConfig) (unified.Client, error) {
 			opts = append(opts, anthropic.WithBaseURL(provider.BaseURL))
 		}
 		return anthropic.NewClient(opts...)
-	case "claude_messages":
+	case "claude":
 		apiKey := providerAPIKey(provider)
 		opts := []anthropic.Option{
 			anthropic.WithClaudeHeaders(),

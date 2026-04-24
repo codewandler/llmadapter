@@ -10,11 +10,19 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.4] - 2026-04-24
+
+### Changed
+
+- Normalized Claude-compatible provider naming by using `claude` as the canonical provider type (replacing `claude_messages`) across descriptors, auto-routing, gateway/runtime pathing, and CLI/provider resolution.
+- Removed the separate instance naming layer so provider identity is consistently derived from provider type while preserving local Claude credential-based auto-enable behavior.
+- Updated resolve/output test snapshots, default docs, and e2e smoke/gateway provider labels to match the new naming model.
+
 ## [0.48.1] - 2026-04-24
 
 ### Changed
 
-- Internal refactor: `providerregistry` now builds both `anthropic` and `claude_messages` clients through a shared Anthropic client construction path while preserving Claude-compatible options as a provider variant.
+- Internal refactor: `providerregistry` now builds both `anthropic` and `claude` clients through a shared Anthropic client construction path while preserving Claude-compatible options as a provider variant.
 
 ## [0.48.0] - 2026-04-24
 
@@ -177,9 +185,9 @@ match these entries as the project starts publishing releases.
 
 ### Added
 
-- Added `claude_messages` as a Claude Code-compatible Anthropic Messages provider endpoint with bearer/local OAuth auth, Claude CLI headers, `beta=true` request shaping, and request preflight metadata.
+- Added `claude` as a Claude Code-compatible Anthropic Messages provider endpoint with bearer/local OAuth auth, Claude CLI headers, `beta=true` request shaping, and request preflight metadata.
 - Claude Code-compatible providers now default `modeldb_service_id` to `anthropic` so fixed-route pricing and capability metadata continue to use Anthropic Claude offerings.
-- Added `claude_messages` to the shared live text/tool/gateway smoke matrices, gated by local Claude Code OAuth credentials.
+- Added `claude` to the shared live text/tool/gateway smoke matrices, gated by local Claude Code OAuth credentials.
 - Added a default decompressing HTTP transport that advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression.
 
 ## [0.26.0] - 2026-04-24

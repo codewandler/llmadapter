@@ -95,7 +95,7 @@ Configuration:
 - `modeldb.aliases` can bind local intent names to explicit service/wire-model pairs; route `modeldb_model` resolves a catalog alias/name into a fixed native model for that route.
 - Provider `capabilities` can override default endpoint metadata for a configured model, for example to disable `vision` or `json_schema` on a model that does not support it.
 - Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route. Dynamic routes with `dynamic_models: true` can also enrich usage costs per request when the requested provider-native model ID exists in the catalog.
-- `claude_messages` defaults `modeldb_service_id` to `anthropic` because it invokes Anthropic Claude models through Claude Code-compatible auth.
+- `claude` defaults `modeldb_service_id` to `anthropic` because it invokes Anthropic Claude models through Claude Code-compatible auth.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
 
 Docker:
@@ -109,7 +109,7 @@ docker run --rm -p 8080:8080 -v "$PWD/llmadapter.json:/etc/llmadapter/config.jso
 Example provider endpoint types:
 
 - `anthropic`
-- `claude_messages`
+- `claude`
 - `openai_chat`
 - `openai_responses`
 - `codex_responses`
@@ -159,7 +159,7 @@ Example config:
     },
     {
       "name": "claude",
-      "type": "claude_messages",
+      "type": "claude",
       "model": "claude-haiku-4-5-20251001"
     }
   ],
@@ -235,7 +235,7 @@ The `pricing` package can enrich `unified.UsageEvent` values with `CostItems` us
 
 Codex is modeled as provider endpoint type `codex_responses` with API kind `codex.responses` and family `openai.responses`. It uses Codex/ChatGPT OAuth credentials and `https://chatgpt.com/backend-api/codex/responses`, not the normal OpenAI platform API URL. Its default modeldb service ID is `codex`.
 
-The `claude_messages` provider type is an Anthropic Messages-compatible endpoint variant for Claude Code-style access. It uses bearer/OAuth auth instead of `x-api-key`, adds Claude CLI compatibility headers and `beta=true`, reads local Claude OAuth credentials when no bearer token env var is configured, applies Claude Code request preflight system blocks with cache control, and maps canonical reasoning requests to Anthropic extended thinking. Extended-thinking stream smoke coverage is live-verified for Anthropic, Claude Code-compatible access, MiniMax Messages, and OpenRouter Messages.
+The `claude` provider type is an Anthropic Messages-compatible endpoint variant for Claude Code-style access. It uses bearer/OAuth auth instead of `x-api-key`, adds Claude CLI compatibility headers and `beta=true`, reads local Claude OAuth credentials when no bearer token env var is configured, applies Claude Code request preflight system blocks with cache control, and maps canonical reasoning requests to Anthropic extended thinking. Extended-thinking stream smoke coverage is live-verified for Anthropic, Claude Code-compatible access, MiniMax Messages, and OpenRouter Messages.
 
 The default HTTP byte-stream transport advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression. Custom HTTP clients can preserve that behavior by starting from `transport.CloneDefaultHTTPClient()`.
 

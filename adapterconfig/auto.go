@@ -81,9 +81,8 @@ func AutoMuxClient(opts AutoOptions) (AutoResult, error) {
 
 func autoProvider(descriptor providerregistry.Descriptor, opts AutoOptions) (ProviderConfig, AutoProvider, bool) {
 	model := modelFromEnv(descriptor)
-	instanceName := autoProviderInstanceName(descriptor)
-	status := AutoProvider{Name: instanceName, Type: descriptor.Type, API: descriptor.APIKind, Model: model}
-	if descriptor.Type == "claude_messages" {
+	status := AutoProvider{Name: descriptor.Type, Type: descriptor.Type, API: descriptor.APIKind, Model: model}
+	if descriptor.Type == "claude" {
 		if opts.EnableLocalClaude && anthropic.LocalTokenStoreAvailable() {
 			status.Reason = "local_claude_oauth"
 			return autoProviderConfig(descriptor, "", model, opts), status, true
@@ -118,21 +117,13 @@ func autoProvider(descriptor providerregistry.Descriptor, opts AutoOptions) (Pro
 }
 
 func autoProviderConfig(descriptor providerregistry.Descriptor, apiKeyEnv string, model string, opts AutoOptions) ProviderConfig {
-	name := autoProviderInstanceName(descriptor)
 	return ProviderConfig{
-		Name:             name,
+		Name:             descriptor.Type,
 		Type:             descriptor.Type,
 		APIKeyEnv:        apiKeyEnv,
 		Model:            model,
 		ModelDBServiceID: autoModelDBServiceID(descriptor.Type, opts.UseModelDB),
 	}
-}
-
-func autoProviderInstanceName(descriptor providerregistry.Descriptor) string {
-	if descriptor.InstanceName != "" {
-		return descriptor.InstanceName
-	}
-	return descriptor.Type
 }
 
 func autoRoutes(cfg Config, opts AutoOptions) ([]RouteConfig, error) {
@@ -357,11 +348,11 @@ func bestProviderForAPI(cfg Config, sourceAPI adapt.ApiKind) (ProviderConfig, bo
 func preferredProviderTypes(sourceAPI adapt.ApiKind) []string {
 	switch sourceAPI {
 	case adapt.ApiOpenAIResponses:
-		return []string{"openai_responses", "openrouter_responses", "codex_responses", "anthropic", "claude_messages", "openrouter_messages", "minimax_messages"}
+		return []string{"openai_responses", "openrouter_responses", "codex_responses", "anthropic", "claude", "openrouter_messages", "minimax_messages"}
 	case adapt.ApiOpenAIChatCompletions:
-		return []string{"openai_chat", "openrouter_chat", "minimax_chat", "anthropic", "claude_messages"}
+		return []string{"openai_chat", "openrouter_chat", "minimax_chat", "anthropic", "claude"}
 	case adapt.ApiAnthropicMessages:
-		return []string{"anthropic", "claude_messages", "openrouter_messages", "minimax_messages"}
+		return []string{"anthropic", "claude", "openrouter_messages", "minimax_messages"}
 	default:
 		return nil
 	}
@@ -372,7 +363,7 @@ func autoModelDBServiceID(providerType string, enabled bool) string {
 		return ""
 	}
 	switch providerType {
-	case "anthropic", "claude_messages":
+	case "anthropic", "claude":
 		return "anthropic"
 	case "openai_chat", "openai_responses":
 		return "openai"

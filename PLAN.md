@@ -67,7 +67,7 @@ Auto mux modeldb intent slice: when `UseModelDB` is enabled, auto intents choose
 Model alias slice: `adapterconfig.DefaultModelDBAliases()` centralizes built-in provider-local aliases for Claude-family `haiku`, `sonnet`, and `opus`; auto mux callers can inject or override aliases through `AutoOptions.ModelDBAliases`
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
-Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, Anthropic modeldb service identity, and Anthropic extended-thinking request mapping
+Claude compatibility slice: `claude` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, Anthropic modeldb service identity, and Anthropic extended-thinking request mapping
 Codex compatibility slice: `codex_responses` registers a Codex/ChatGPT OAuth-backed Responses endpoint with API kind `codex.responses`, OpenAI Responses family routing, Codex-specific URL/header/body handling, local auth detection, and Codex modeldb service identity
 Prompt cache slice: canonical TextPart cache_control hints encode through Anthropic-family system/content blocks and live prompt-cache smoke verifies provider-reported cache write/read usage for Anthropic and Claude Code-compatible access
 OpenAI Responses provider slice: native OpenAI Responses provider endpoint is registered and live-verified for text, tools, gateway routing, and previous_response_id continuation
@@ -101,7 +101,7 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke.*/minimax_messages' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestAnthropicMessagesGatewaySmoke' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestResponsesGatewaySmoke' -count=1 -v
-env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokePromptCache/(anthropic|claude_messages)' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokePromptCache/(anthropic|claude)' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke(TextStream|ToolUse|ToolResultContinuation|ResponsesContinuation)/openai_responses|TestResponsesGatewaySmoke(NonStreaming|Streaming)/openai_responses' -count=1 -v
 env GOCACHE=/tmp/go-cache go test ./...
 ```
@@ -142,7 +142,7 @@ LLMADAPTER_UPSTREAM_MODEL sets the default native model override when no config 
 provider config supports api_key or api_key_env
 provider config supports base_url, model, priority, and capability overrides
 provider config supports modeldb_service_id for pricing/catalog service identity
-provider type claude_messages defaults modeldb_service_id to anthropic
+provider type claude defaults modeldb_service_id to anthropic
 provider type codex_responses defaults modeldb_service_id to codex
 modeldb config supports catalog_path, overlay_paths, and aliases
 route config supports source_api, model, provider, provider_api, modeldb_model, native_model, modeldb_wire_model_id, dynamic_models, and weight
@@ -169,7 +169,7 @@ structured token categories for input.new, input.cache_read, input.cache_write, 
 unified.Collect(...)
 fake transport integration tests
 live Anthropic smoke test through unified.Client
-live prompt-cache smoke checks provider-reported cache write/read tokens for Anthropic and claude_messages
+live prompt-cache smoke checks provider-reported cache write/read tokens for Anthropic and claude
 ```
 
 Gateway path coverage:
@@ -208,7 +208,7 @@ fixed-model gateway routes can narrow endpoint capabilities and attach token lim
 gateway config inspection exposes the resolved metadata path for debugging route/API/modeldb configuration
 gateway modeldb loading can use built-in catalog data, an explicit JSON catalog path, and local JSON overlays
 route modeldb_model resolution can turn catalog/local aliases into explicit native models before metadata/pricing enrichment
-claude_messages can be routed as an Anthropic Messages-compatible endpoint while preserving Anthropic modeldb pricing/capability metadata
+claude can be routed as an Anthropic Messages-compatible endpoint while preserving Anthropic modeldb pricing/capability metadata
 ```
 
 Live e2e defaults:
@@ -233,8 +233,8 @@ MINIMAX_MODEL overrides the default MiniMax smoke-test model
 default MiniMax smoke-test model: MiniMax-M2.7
 MINIMAX_MESSAGES_MODEL overrides the default MiniMax Messages smoke-test model
 default MiniMax Messages smoke-test model: MiniMax-M2.7
-Local Claude Code OAuth credentials in `~/.claude/.credentials.json` (or `CLAUDE_CONFIG_DIR`) provide claude_messages credentials when that provider type is configured
-CLAUDE_MODEL overrides the default claude_messages smoke-test model
+Local Claude Code OAuth credentials in `~/.claude/.credentials.json` (or `CLAUDE_CONFIG_DIR`) provide claude credentials when that provider type is configured
+CLAUDE_MODEL overrides the default claude smoke-test model
 CODEX_ACCESS_TOKEN, CODEX_CODE_OAUTH_TOKEN, or local Codex OAuth credentials provide codex_responses credentials when that provider type is configured
 CODEX_AUTH_PATH overrides the Codex local auth file path, otherwise ~/.codex/auth.json is used
 CODEX_MODEL overrides the default codex_responses smoke-test model
@@ -457,7 +457,7 @@ Implementation pieces:
    - set metadata user_id derived from ~/.claude.json device/account/session data when available (implemented)
    - optionally add cache_control to the last system block with default TTL (implemented)
    - coerce thinking temperature to an Anthropic-valid value when extended thinking is enabled (implemented)
-5. Add gateway config provider type "claude_messages". (implemented)
+5. Add gateway config provider type "claude". (implemented)
 6. Add e2e tests gated by TEST_INTEGRATION and local Claude credentials:
    - text stream (implemented)
    - thinking stream for Anthropic, Claude Code-compatible access, MiniMax Messages, and OpenRouter Messages (implemented)

@@ -182,7 +182,7 @@ func TestBuildProviderClaudeMessagesAuthSources(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(os.Getenv("CLAUDE_CONFIG_DIR"), ".credentials.json"), []byte(`{}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	client, err := buildProvider(providerConfig{Name: "claude", Type: "claude_messages"})
+	client, err := buildProvider(providerConfig{Name: "claude", Type: "claude"})
 	if err != nil {
 		t.Fatalf("unexpected claude provider error: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestBuildProviderClaudeMessagesAuthSources(t *testing.T) {
 	}
 
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
-	_, err = buildProvider(providerConfig{Name: "claude", Type: "claude_messages"})
+	_, err = buildProvider(providerConfig{Name: "claude", Type: "claude"})
 	if err == nil {
 		t.Fatalf("expected missing local Claude credentials error")
 	}
@@ -223,7 +223,7 @@ func TestProviderEndpointMetadata(t *testing.T) {
 		family       adapt.ApiFamily
 		tools        bool
 	}{
-		{"claude_messages", adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, true},
+		{"claude", adapt.ApiAnthropicMessages, adapt.FamilyAnthropicMessages, true},
 		{"openai_responses", adapt.ApiOpenAIResponses, adapt.FamilyOpenAIResponses, true},
 		{"codex_responses", adapt.ApiCodexResponses, adapt.FamilyOpenAIResponses, true},
 		{"openrouter_chat", adapt.ApiOpenRouterChatCompletions, adapt.FamilyOpenAIChatCompletions, true},
@@ -276,7 +276,7 @@ func TestApplyCapabilityOverrides(t *testing.T) {
 }
 
 func TestClaudeMessagesDefaultsModelDBServiceIDToAnthropic(t *testing.T) {
-	provider := providerConfig{Name: "claude", Type: "claude_messages"}
+	provider := providerConfig{Name: "claude", Type: "claude"}
 	tags := providerEndpointTags(provider)
 	if tags[tagModelDBServiceID] != "anthropic" {
 		t.Fatalf("unexpected tags: %+v", tags)

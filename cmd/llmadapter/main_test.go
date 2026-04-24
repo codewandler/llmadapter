@@ -182,8 +182,8 @@ func TestResolveCommandShowsRankedCandidates(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"Matches: 3 candidates",
-		"[01] provider=claude type=claude_messages source=anthropic.messages api=anthropic.messages",
-		"Provider type: claude_messages",
+		"[01] provider=claude type=claude source=anthropic.messages api=anthropic.messages",
+		"Provider type: claude",
 		"[02] provider=anthropic type=anthropic source=anthropic.messages api=anthropic.messages",
 		"Provider type: anthropic",
 		"[03] provider=openrouter type=openrouter_responses source=openrouter.responses api=openai.responses",
@@ -193,7 +193,7 @@ func TestResolveCommandShowsRankedCandidates(t *testing.T) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
 	}
-	claudeIdx := strings.Index(got, "Provider type: claude_messages")
+	claudeIdx := strings.Index(got, "Provider type: claude")
 	anthropicIdx := strings.Index(got, "Provider type: anthropic")
 	if claudeIdx == -1 || anthropicIdx == -1 {
 		t.Fatalf("missing expected provider ranking in output:\n%s", got)
@@ -332,7 +332,7 @@ func writeTestResolveCandidateConfig(t *testing.T) string {
 		"providers":[
 			{"name":"openai","type":"openai_responses","api_key":"test","model":"provider-default"},
 			{"name":"anthropic","type":"anthropic","api_key":"test","modeldb_service_id":"anthropic","model":"anthropic/claude-haiku-4-5-20251001"},
-			{"name":"claude","type":"claude_messages"},
+			{"name":"claude","type":"claude"},
 			{"name":"openrouter","type":"openrouter_responses","api_key":"test","modeldb_service_id":"openrouter","model":"openai/gpt-haiku-test"}
 		],
 		"routes":[

@@ -131,7 +131,7 @@ func gatewayProviders() []gatewayProvider {
 			},
 		},
 		{
-			name:             "claude_messages",
+			name:             "claude",
 			apiKind:          adapt.ApiAnthropicMessages,
 			family:           adapt.FamilyAnthropicMessages,
 			capabilities:     router.CapabilitySet{Streaming: true, Tools: true},

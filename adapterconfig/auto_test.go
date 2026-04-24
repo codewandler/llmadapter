@@ -53,8 +53,8 @@ func TestAutoMuxClientDetectsLocalClaudeOAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !autoEnabled(result.Enabled, "claude_messages") {
-		t.Fatalf("expected claude_messages enabled: %+v", result.Enabled)
+	if !autoEnabled(result.Enabled, "claude") {
+		t.Fatalf("expected claude enabled: %+v", result.Enabled)
 	}
 	route, ok := autoRoute(result.Config, adapt.ApiAnthropicMessages)
 	if !ok {

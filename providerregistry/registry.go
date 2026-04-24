@@ -22,7 +22,6 @@ import (
 
 type Descriptor struct {
 	Type              string               `json:"type"`
-	InstanceName      string               `json:"instance_name,omitempty"`
 	APIKind           adapt.ApiKind        `json:"api_kind"`
 	Family            adapt.ApiFamily      `json:"family"`
 	Capabilities      router.CapabilitySet `json:"capabilities"`
@@ -40,7 +39,6 @@ type ClientConfig struct {
 var descriptors = []Descriptor{
 	{
 		Type:              "anthropic",
-		InstanceName:      "anthropic",
 		APIKind:           adapt.ApiAnthropicMessages,
 		Family:            adapt.FamilyAnthropicMessages,
 		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true, Vision: true, Reasoning: true, ReasoningDeltas: true},
@@ -49,8 +47,7 @@ var descriptors = []Descriptor{
 		DefaultModel:      "claude-haiku-4-5-20251001",
 	},
 	{
-		Type:              "claude_messages",
-		InstanceName:      "claude",
+		Type:              "claude",
 		APIKind:           adapt.ApiAnthropicMessages,
 		Family:            adapt.FamilyAnthropicMessages,
 		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true, Vision: true, Reasoning: true, ReasoningDeltas: true},
@@ -155,7 +152,7 @@ func NewClient(cfg ClientConfig) (unified.Client, error) {
 	switch providerType {
 	case "anthropic":
 		return newAnthropicClient(cfg, false)
-	case "claude_messages":
+	case "claude":
 		return newAnthropicClient(cfg, true)
 	case "openai_chat":
 		if cfg.APIKey == "" {

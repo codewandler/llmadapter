@@ -233,7 +233,7 @@ func providerModelDBServiceID(provider ProviderConfig) string {
 	if provider.ModelDBServiceID != "" {
 		return provider.ModelDBServiceID
 	}
-	if provider.Type == "claude_messages" {
+	if provider.Type == "claude" {
 		return "anthropic"
 	}
 	if provider.Type == "codex_responses" {

@@ -582,7 +582,7 @@ func credentialSource(provider adapterconfig.ProviderConfig) string {
 			return "env:" + key + ":set"
 		}
 	}
-	if provider.Type == "claude_messages" {
+	if provider.Type == "claude" {
 		return "local_claude_oauth"
 	}
 	if provider.Type == "codex_responses" {
@@ -1142,7 +1142,7 @@ func resolveSourceAPIPriority(sourceAPI adapt.ApiKind) int {
 
 func resolveProviderTypePriority(providerType string) int {
 	switch providerType {
-	case "claude_messages":
+	case "claude":
 		return 0
 	case "anthropic":
 		return 1
