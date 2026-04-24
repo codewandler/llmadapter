@@ -191,6 +191,20 @@ func newResolveCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if sourceAPI == "" {
+				resolutions, err := resolveModelCandidates(cfg, args[0])
+				if err != nil {
+					return err
+				}
+				if jsonOut {
+					return writeJSON(cmd.OutOrStdout(), map[string]any{
+						"input":      args[0],
+						"candidates": resolutions,
+					})
+				}
+				printResolutionCandidates(cmd.OutOrStdout(), resolutions)
+				return nil
+			}
 			resolution, err := resolveModel(cfg, args[0], adapt.ApiKind(sourceAPI))
 			if err != nil {
 				return err
@@ -203,7 +217,7 @@ func newResolveCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&configPath, "config", "", "llmadapter JSON config path; defaults to auto-detected env/local credentials")
-	cmd.Flags().StringVar(&sourceAPI, "source-api", string(adapt.ApiOpenAIResponses), "source API to resolve")
+	cmd.Flags().StringVar(&sourceAPI, "source-api", "", "source API to resolve; omit for candidates across all source APIs")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print resolution as JSON")
 	return cmd
 }
@@ -1010,6 +1024,125 @@ func printResolution(w io.Writer, resolution resolutionInfo) {
 		resolution.Capabilities.JSONSchema,
 		resolution.Capabilities.Reasoning,
 	)
+}
+
+func printResolutionCandidates(w io.Writer, resolutions []resolutionInfo) {
+	if len(resolutions) == 1 {
+		printResolution(w, resolutions[0])
+		return
+	}
+	fmt.Fprintf(w, "Matches: %d candidates\n", len(resolutions))
+	for i, resolution := range resolutions {
+		fmt.Fprintf(w, "\n[%.2d]\n", i+1)
+		printResolution(w, resolution)
+	}
+}
+
+func resolveModelCandidates(cfg adapterconfig.Config, model string) ([]resolutionInfo, error) {
+	resolutions := make([]resolutionInfo, 0)
+	for _, route := range cfg.Routes {
+		matchedAs := ""
+		switch {
+		case route.Model == model:
+			matchedAs = "public_model"
+		case route.NativeModel == model:
+			matchedAs = "native_model"
+		case route.DynamicModels:
+			matchedAs = "dynamic_model"
+		default:
+			continue
+		}
+		provider, endpoint, err := routeEndpoint(cfg, route)
+		if err != nil {
+			return nil, err
+		}
+		if adapterconfig.ConfigUsesModelDB(cfg) {
+			catalog, err := adapterconfig.LoadModelDBCatalog(cfg.ModelDB)
+			if err != nil {
+				return nil, err
+			}
+			route, err = adapterconfig.ResolveRouteModelDBModel(route, endpoint, catalog, cfg.ModelDB)
+			if err != nil {
+				continue
+			}
+			endpoint = adapterconfig.EndpointWithModelDBMetadata(endpoint, route, catalog)
+		}
+		providerAPI := route.ProviderAPI
+		if providerAPI == "" {
+			providerAPI = endpoint.APIKind
+		}
+		nativeModel := route.NativeModel
+		if nativeModel == "" && route.DynamicModels {
+			nativeModel = model
+		}
+		if nativeModel == "" {
+			nativeModel = provider.Model
+		}
+		resolutions = append(resolutions, resolutionInfo{
+			Input:          model,
+			MatchedAs:      matchedAs,
+			SourceAPI:      route.SourceAPI,
+			PublicModel:    route.Model,
+			NativeModel:    nativeModel,
+			Provider:       route.Provider,
+			ProviderType:   provider.Type,
+			ProviderAPI:    providerAPI,
+			Family:         endpoint.Family,
+			Weight:         route.Weight,
+			Priority:       provider.Priority,
+			ModelDBService: endpoint.Tags[adapterconfig.TagModelDBServiceID],
+			Capabilities:   endpoint.Capabilities,
+		})
+	}
+	if len(resolutions) == 0 {
+		return nil, fmt.Errorf("no route found for model %q", model)
+	}
+	sort.Slice(resolutions, func(i, j int) bool {
+		if pi := resolveCandidatePriority(resolutions[i]); pi != resolveCandidatePriority(resolutions[j]) {
+			return pi < resolveCandidatePriority(resolutions[j])
+		}
+		if resolutions[i].Weight != resolutions[j].Weight {
+			return resolutions[i].Weight > resolutions[j].Weight
+		}
+		if resolutions[i].Priority != resolutions[j].Priority {
+			return resolutions[i].Priority > resolutions[j].Priority
+		}
+		if resolutions[i].ProviderType != resolutions[j].ProviderType {
+			return resolutions[i].ProviderType < resolutions[j].ProviderType
+		}
+		return resolutions[i].Provider < resolutions[j].Provider
+	})
+	return resolutions, nil
+}
+
+func resolveCandidatePriority(resolution resolutionInfo) int {
+	return resolveSourceAPIPriority(resolution.SourceAPI)*1000 + resolveProviderTypePriority(resolution.ProviderType)
+}
+
+func resolveSourceAPIPriority(sourceAPI adapt.ApiKind) int {
+	switch sourceAPI {
+	case adapt.ApiAnthropicMessages:
+		return 0
+	case adapt.ApiOpenAIResponses:
+		return 1
+	case adapt.ApiOpenAIChatCompletions:
+		return 2
+	default:
+		return 10
+	}
+}
+
+func resolveProviderTypePriority(providerType string) int {
+	switch providerType {
+	case "claude_messages":
+		return 0
+	case "anthropic":
+		return 1
+	case "openrouter_messages", "openrouter_chat", "openrouter_responses":
+		return 4
+	default:
+		return 5
+	}
 }
 
 func runSmokeRequest(ctx context.Context, w io.Writer, client unified.Client, model, prompt string, timeout time.Duration, maxTokens int) error {

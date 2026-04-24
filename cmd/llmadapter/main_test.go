@@ -161,7 +161,7 @@ func TestResolveCommandJSONWithConfig(t *testing.T) {
 	path := writeTestConfig(t)
 	var out, errOut bytes.Buffer
 	cmd := newRootCommand(&out, &errOut)
-	cmd.SetArgs([]string{"resolve", "gpt-test", "--config", path, "--json"})
+	cmd.SetArgs([]string{"resolve", "gpt-test", "--config", path, "--source-api", "openai.responses", "--json"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -170,6 +170,30 @@ func TestResolveCommandJSONWithConfig(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestResolveCommandShowsRankedCandidates(t *testing.T) {
+	path := writeTestResolveCandidateConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"resolve", "haiku", "--config", path})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{"Matches: 3 candidates", "[01]", "Provider type: claude_messages", "Provider type: anthropic", "Provider type: openrouter_responses"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+	claudeIdx := strings.Index(got, "Provider type: claude_messages")
+	anthropicIdx := strings.Index(got, "Provider type: anthropic")
+	if claudeIdx == -1 || anthropicIdx == -1 {
+		t.Fatalf("missing expected provider ranking in output:\n%s", got)
+	}
+	if claudeIdx >= anthropicIdx {
+		t.Fatalf("candidate ranking order is wrong:\n%s", got)
 	}
 }
 
@@ -288,6 +312,28 @@ func writeTestDynamicConfig(t *testing.T) string {
 	data := []byte(`{
 		"providers":[{"name":"openai","type":"openai_responses","api_key":"test","model":"gpt-test"}],
 		"routes":[{"source_api":"openai.responses","provider":"openai","dynamic_models":true,"weight":1}]
+	}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func writeTestResolveCandidateConfig(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "llmadapter.json")
+	data := []byte(`{
+		"providers":[
+			{"name":"openai","type":"openai_responses","api_key":"test","model":"provider-default"},
+			{"name":"anthropic","type":"anthropic","api_key":"test","modeldb_service_id":"anthropic","model":"anthropic/claude-haiku-4-5-20251001"},
+			{"name":"claude","type":"claude_messages"},
+			{"name":"openrouter","type":"openrouter_responses","api_key":"test","modeldb_service_id":"openrouter","model":"openai/gpt-haiku-test"}
+		],
+		"routes":[
+			{"source_api":"anthropic.messages","model":"haiku","provider":"anthropic","weight":100},
+			{"source_api":"anthropic.messages","model":"haiku","provider":"claude","weight":100},
+			{"source_api":"openai.responses","model":"haiku","provider":"openrouter","weight":100}
+		]
 	}`)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
