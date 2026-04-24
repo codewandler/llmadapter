@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-04-24
+
 ### Added
 
 - Added `adapterconfig` for public llmadapter JSON config loading/defaulting/validation and config-driven mux client construction.
