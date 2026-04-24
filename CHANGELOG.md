@@ -6,21 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions below are backfilled from the repository's implementation milestones. Tags
-can be created to match these entries as the project starts publishing releases.
+match these entries as the project starts publishing releases.
 
 ## [Unreleased]
+
+### Added
+
+- **Endpoint decode warnings** - OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages endpoint codecs now store best-effort decode warnings on `adapt.Request` when unsupported inbound fields are dropped.
+
+## [0.15.0] - 2026-04-24
+
+### Added
+
+- **OpenAI-family mapping warnings** - OpenAI Chat, OpenRouter Chat, and OpenRouter Responses provider mappings now emit canonical warnings when non-text content or unsupported tool kinds are dropped.
+
+## [0.14.0] - 2026-04-24
+
+### Added
+
+- **Best-effort mapping warnings** - Anthropic-family provider request mapping now emits canonical warnings when unsupported fields are dropped in best-effort mode.
+
+## [0.13.0] - 2026-04-24
+
+### Added
+
+- **Capability-aware routing** - Static routing now skips endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input.
+
+## [0.12.0] - 2026-04-24
+
+### Added
+
+- **OpenAI Responses endpoint** - Added a downstream `/v1/responses` gateway codec for text and function-tool requests.
+- **OpenAI Responses gateway route** - Wired `/v1/responses` into the gateway command and default route set.
+- **OpenAI Responses gateway smokes** - Added live gateway smoke coverage against OpenRouter Responses.
+
+## [0.11.0] - 2026-04-24
 
 ### Added
 
 - **Anthropic Messages endpoint** - Added a downstream `/v1/messages` gateway codec for Anthropic-compatible requests and responses.
 - **Anthropic Messages gateway route** - Wired `/v1/messages` into the gateway command and default Anthropic route set.
 - **Anthropic Messages gateway smokes** - Added live gateway smoke coverage for Anthropic, OpenRouter Messages, and MiniMax Messages upstreams.
-- **OpenAI Responses endpoint** - Added a downstream `/v1/responses` gateway codec for text and function-tool requests.
-- **OpenAI Responses gateway route** - Wired `/v1/responses` into the gateway command and default route set.
-- **OpenAI Responses gateway smokes** - Added live gateway smoke coverage against OpenRouter Responses.
-- **Capability-aware routing** - Static routing now skips endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input.
-- **Best-effort mapping warnings** - Anthropic-family provider request mapping now emits canonical warnings when unsupported fields are dropped in best-effort mode.
-- **OpenAI-family mapping warnings** - OpenAI Chat, OpenRouter Chat, and OpenRouter Responses provider mappings now emit canonical warnings when non-text content or unsupported tool kinds are dropped.
 
 ## [0.10.1] - 2026-04-24
 
@@ -153,7 +179,12 @@ can be created to match these entries as the project starts publishing releases.
 
 - **Design review amendments** - Refined the architecture with provider endpoint modeling, canonical lossiness expectations, extension handling, and routing considerations.
 
-[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/codewandler/llmadapter/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/codewandler/llmadapter/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/codewandler/llmadapter/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/codewandler/llmadapter/compare/v0.12.0...v0.13.0
+[0.12.0]: https://github.com/codewandler/llmadapter/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/codewandler/llmadapter/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/codewandler/llmadapter/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/codewandler/llmadapter/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/codewandler/llmadapter/compare/v0.8.0...v0.9.0

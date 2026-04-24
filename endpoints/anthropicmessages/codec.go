@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/codewandler/llmadapter/adapt"
@@ -29,7 +30,7 @@ func (Codec) DecodeHTTP(ctx context.Context, r *http.Request) (adapt.Request, er
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return adapt.Request{}, statusError(http.StatusBadRequest, "invalid_json", err.Error())
 	}
-	ureq, err := decodeRequest(wire)
+	ureq, warnings, err := decodeRequest(wire)
 	if err != nil {
 		return adapt.Request{}, err
 	}
@@ -46,6 +47,7 @@ func (Codec) DecodeHTTP(ctx context.Context, r *http.Request) (adapt.Request, er
 		Raw:         wire,
 		Unified:     ureq,
 		MappingMode: adapt.MappingModeBestEffort,
+		Warnings:    warnings,
 	}, nil
 }
 
@@ -93,12 +95,12 @@ func (Codec) WriteError(ctx context.Context, w http.ResponseWriter, err error) e
 	})
 }
 
-func decodeRequest(wire anthropic.MessageRequest) (unified.Request, error) {
+func decodeRequest(wire anthropic.MessageRequest) (unified.Request, []adapt.Warning, error) {
 	if wire.Model == "" {
-		return unified.Request{}, statusError(http.StatusBadRequest, "missing_model", "model is required")
+		return unified.Request{}, nil, statusError(http.StatusBadRequest, "missing_model", "model is required")
 	}
 	if wire.MaxTokens == 0 {
-		return unified.Request{}, statusError(http.StatusBadRequest, "missing_max_tokens", "max_tokens is required")
+		return unified.Request{}, nil, statusError(http.StatusBadRequest, "missing_max_tokens", "max_tokens is required")
 	}
 	maxTokens := wire.MaxTokens
 	out := unified.Request{
@@ -116,8 +118,11 @@ func decodeRequest(wire anthropic.MessageRequest) (unified.Request, error) {
 			Content: []unified.ContentPart{unified.TextPart{Text: wire.System}},
 		})
 	}
-	for _, msg := range wire.Messages {
-		out.Messages = append(out.Messages, decodeMessage(msg)...)
+	var warnings []adapt.Warning
+	for i, msg := range wire.Messages {
+		messages, msgWarnings := decodeMessage(msg, "messages."+strconv.Itoa(i))
+		out.Messages = append(out.Messages, messages...)
+		warnings = append(warnings, msgWarnings...)
 	}
 	for _, tool := range wire.Tools {
 		out.Tools = append(out.Tools, unified.Tool{
@@ -128,16 +133,20 @@ func decodeRequest(wire anthropic.MessageRequest) (unified.Request, error) {
 		})
 	}
 	if wire.ToolChoice != nil {
-		out.ToolChoice = decodeToolChoice(*wire.ToolChoice)
+		toolChoice, toolChoiceWarnings := decodeToolChoice(*wire.ToolChoice, "tool_choice")
+		out.ToolChoice = toolChoice
+		warnings = append(warnings, toolChoiceWarnings...)
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
-func decodeMessage(msg anthropic.InputMessage) []unified.Message {
+func decodeMessage(msg anthropic.InputMessage, field string) ([]unified.Message, []adapt.Warning) {
 	var content []unified.ContentPart
 	var toolCalls []unified.ToolCall
 	var toolResults []unified.ToolResult
+	var warnings []adapt.Warning
 	for i, block := range msg.Content {
+		blockField := field + ".content." + strconv.Itoa(i)
 		switch block.Type {
 		case "text":
 			content = append(content, unified.TextPart{Text: block.Text})
@@ -150,52 +159,69 @@ func decodeMessage(msg anthropic.InputMessage) []unified.Message {
 			}
 			toolCalls = append(toolCalls, unified.ToolCall{ID: block.ID, Name: block.Name, Arguments: input, Index: i})
 		case "tool_result":
+			text, textWarnings := contentBlockText(block.Content, blockField+".content")
 			toolResults = append(toolResults, unified.ToolResult{
 				ToolCallID: block.ToolUseID,
-				Content:    []unified.ContentPart{unified.TextPart{Text: contentBlockText(block.Content)}},
+				Content:    []unified.ContentPart{unified.TextPart{Text: text}},
 				IsError:    block.IsError,
 			})
+			warnings = append(warnings, textWarnings...)
+		default:
+			warnings = append(warnings, decodeWarning(blockField+".type", fmt.Sprintf("unsupported content block type %q was dropped", block.Type)))
 		}
 	}
 	if len(toolResults) > 0 && msg.Role == "user" {
-		return []unified.Message{{Role: unified.RoleTool, ToolResults: toolResults}}
+		return []unified.Message{{Role: unified.RoleTool, ToolResults: toolResults}}, warnings
 	}
 	return []unified.Message{{
 		Role:      unified.Role(msg.Role),
 		Content:   content,
 		ToolCalls: toolCalls,
-	}}
+	}}, warnings
 }
 
-func contentBlockText(value any) string {
+func contentBlockText(value any, field string) (string, []adapt.Warning) {
 	switch v := value.(type) {
 	case string:
-		return v
+		return v, nil
 	case []any:
 		var parts []string
-		for _, item := range v {
+		var warnings []adapt.Warning
+		for i, item := range v {
 			if m, ok := item.(map[string]any); ok && m["type"] == "text" {
 				if text, ok := m["text"].(string); ok {
 					parts = append(parts, text)
+					continue
 				}
 			}
+			warnings = append(warnings, decodeWarning(field+"."+strconv.Itoa(i), "unsupported tool_result content item was dropped"))
 		}
-		return strings.Join(parts, "\n")
+		return strings.Join(parts, "\n"), warnings
+	case nil:
+		return "", nil
 	default:
-		return ""
+		return "", []adapt.Warning{decodeWarning(field, "unsupported tool_result content value was dropped")}
 	}
 }
 
-func decodeToolChoice(choice anthropic.ToolChoiceWire) *unified.ToolChoice {
+func decodeToolChoice(choice anthropic.ToolChoiceWire, field string) (*unified.ToolChoice, []adapt.Warning) {
 	switch choice.Type {
 	case "auto", "":
-		return &unified.ToolChoice{Mode: unified.ToolChoiceAuto}
+		return &unified.ToolChoice{Mode: unified.ToolChoiceAuto}, nil
 	case "any":
-		return &unified.ToolChoice{Mode: unified.ToolChoiceAny}
+		return &unified.ToolChoice{Mode: unified.ToolChoiceAny}, nil
 	case "tool":
-		return &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: choice.Name}
+		return &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: choice.Name}, nil
 	default:
-		return nil
+		return nil, []adapt.Warning{decodeWarning(field+".type", fmt.Sprintf("unsupported tool_choice type %q was dropped", choice.Type))}
+	}
+}
+
+func decodeWarning(field, message string) adapt.Warning {
+	return adapt.Warning{
+		Code:    "unsupported_field_dropped",
+		Field:   field,
+		Message: message,
 	}
 }
 

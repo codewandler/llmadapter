@@ -56,6 +56,27 @@ func TestDecodeHTTPFunctionCallOutput(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPWarnings(t *testing.T) {
+	body := `{
+		"model":"gpt-test",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"},{"type":"input_image","image_url":"x"}]},
+			{"type":"web_search_call"}
+		],
+		"tools":[{"type":"web_search","name":"ignored"}],
+		"tool_choice":{"type":"unknown"}
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertWarning(t, req.Warnings, "input.0.content.1.type")
+	assertWarning(t, req.Warnings, "input.1.type")
+	assertWarning(t, req.Warnings, "tools.0.type")
+	assertWarning(t, req.Warnings, "tool_choice")
+}
+
 func TestWriteEventsNonStreaming(t *testing.T) {
 	events := make(chan unified.Event, 8)
 	events <- unified.MessageStartEvent{ID: "resp", Model: "model"}
@@ -121,4 +142,14 @@ func TestWriteEventsStreamingToolCall(t *testing.T) {
 
 func decodedReq(stream bool) adapt.Request {
 	return adapt.Request{Unified: unified.Request{Stream: stream}}
+}
+
+func assertWarning(t *testing.T, warnings []adapt.Warning, field string) {
+	t.Helper()
+	for _, warning := range warnings {
+		if warning.Code == "unsupported_field_dropped" && warning.Field == field {
+			return
+		}
+	}
+	t.Fatalf("missing warning for %s: %+v", field, warnings)
 }

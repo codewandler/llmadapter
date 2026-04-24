@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,7 +30,7 @@ func (Codec) DecodeHTTP(ctx context.Context, r *http.Request) (adapt.Request, er
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return adapt.Request{}, statusError(http.StatusBadRequest, "invalid_json", err.Error())
 	}
-	ureq, err := decodeRequest(wire)
+	ureq, warnings, err := decodeRequest(wire)
 	if err != nil {
 		return adapt.Request{}, err
 	}
@@ -46,6 +47,7 @@ func (Codec) DecodeHTTP(ctx context.Context, r *http.Request) (adapt.Request, er
 		Raw:         wire,
 		Unified:     ureq,
 		MappingMode: adapt.MappingModeBestEffort,
+		Warnings:    warnings,
 	}, nil
 }
 
@@ -93,35 +95,39 @@ func (Codec) WriteError(ctx context.Context, w http.ResponseWriter, err error) e
 	})
 }
 
-func decodeRequest(wire Request) (unified.Request, error) {
+func decodeRequest(wire Request) (unified.Request, []adapt.Warning, error) {
 	if wire.Model == "" {
-		return unified.Request{}, statusError(http.StatusBadRequest, "missing_model", "model is required")
+		return unified.Request{}, nil, statusError(http.StatusBadRequest, "missing_model", "model is required")
 	}
 	maxTokens := wire.MaxCompletionTokens
 	if maxTokens == nil {
 		maxTokens = wire.MaxTokens
 	}
+	stop, warnings := decodeStop(wire.Stop, "stop")
 	out := unified.Request{
 		Model:           wire.Model,
 		MaxOutputTokens: maxTokens,
 		Temperature:     wire.Temperature,
 		TopP:            wire.TopP,
-		Stop:            decodeStop(wire.Stop),
+		Stop:            stop,
 		Stream:          wire.Stream,
 		User:            wire.User,
 	}
-	for _, msg := range wire.Messages {
-		umsg, instructions, err := decodeMessage(msg)
+	for i, msg := range wire.Messages {
+		field := "messages." + strconv.Itoa(i)
+		umsg, instructions, msgWarnings, err := decodeMessage(msg, field)
 		if err != nil {
-			return unified.Request{}, err
+			return unified.Request{}, nil, err
 		}
+		warnings = append(warnings, msgWarnings...)
 		out.Instructions = append(out.Instructions, instructions...)
 		if umsg.Role != "" {
 			out.Messages = append(out.Messages, umsg)
 		}
 	}
-	for _, tool := range wire.Tools {
+	for i, tool := range wire.Tools {
 		if tool.Type != "function" {
+			warnings = append(warnings, decodeWarning("tools."+strconv.Itoa(i)+".type", fmt.Sprintf("unsupported tool type %q was dropped", tool.Type)))
 			continue
 		}
 		out.Tools = append(out.Tools, unified.Tool{
@@ -132,15 +138,17 @@ func decodeRequest(wire Request) (unified.Request, error) {
 		})
 	}
 	if len(wire.ToolChoice) > 0 {
-		out.ToolChoice = decodeToolChoice(wire.ToolChoice)
+		toolChoice, toolChoiceWarnings := decodeToolChoice(wire.ToolChoice, "tool_choice")
+		out.ToolChoice = toolChoice
+		warnings = append(warnings, toolChoiceWarnings...)
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
-func decodeMessage(msg Message) (unified.Message, []unified.Instruction, error) {
-	content, err := decodeContent(msg.Content)
+func decodeMessage(msg Message, field string) (unified.Message, []unified.Instruction, []adapt.Warning, error) {
+	content, warnings, err := decodeContent(msg.Content, field+".content")
 	if err != nil {
-		return unified.Message{}, nil, err
+		return unified.Message{}, nil, nil, err
 	}
 	switch msg.Role {
 	case "system", "developer":
@@ -148,7 +156,7 @@ func decodeMessage(msg Message) (unified.Message, []unified.Instruction, error) 
 		if msg.Role == "developer" {
 			kind = unified.InstructionDeveloper
 		}
-		return unified.Message{}, []unified.Instruction{{Kind: kind, Content: content, Name: msg.Name}}, nil
+		return unified.Message{}, []unified.Instruction{{Kind: kind, Content: content, Name: msg.Name}}, warnings, nil
 	case "user", "assistant":
 		out := unified.Message{Role: unified.Role(msg.Role), Name: msg.Name, Content: content}
 		for i, call := range msg.ToolCalls {
@@ -159,7 +167,7 @@ func decodeMessage(msg Message) (unified.Message, []unified.Instruction, error) 
 				Index:     i,
 			})
 		}
-		return out, nil, nil
+		return out, nil, warnings, nil
 	case "tool":
 		return unified.Message{
 			Role: unified.RoleTool,
@@ -168,64 +176,73 @@ func decodeMessage(msg Message) (unified.Message, []unified.Instruction, error) 
 				Name:       msg.Name,
 				Content:    content,
 			}},
-		}, nil, nil
+		}, nil, warnings, nil
 	default:
-		return unified.Message{}, nil, statusError(http.StatusBadRequest, "unsupported_role", fmt.Sprintf("unsupported role %q", msg.Role))
+		return unified.Message{}, nil, nil, statusError(http.StatusBadRequest, "unsupported_role", fmt.Sprintf("unsupported role %q", msg.Role))
 	}
 }
 
-func decodeContent(raw json.RawMessage) ([]unified.ContentPart, error) {
+func decodeContent(raw json.RawMessage, field string) ([]unified.ContentPart, []adapt.Warning, error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var text string
 	if err := json.Unmarshal(raw, &text); err == nil {
-		return []unified.ContentPart{unified.TextPart{Text: text}}, nil
+		return []unified.ContentPart{unified.TextPart{Text: text}}, nil, nil
 	}
 	var parts []struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	}
 	if err := json.Unmarshal(raw, &parts); err != nil {
-		return nil, statusError(http.StatusBadRequest, "unsupported_content", "content must be a string or text-part array")
+		return nil, nil, statusError(http.StatusBadRequest, "unsupported_content", "content must be a string or text-part array")
 	}
 	out := make([]unified.ContentPart, 0, len(parts))
-	for _, part := range parts {
+	var warnings []adapt.Warning
+	for i, part := range parts {
 		if part.Type == "text" {
 			out = append(out, unified.TextPart{Text: part.Text})
+			continue
 		}
+		warnings = append(warnings, decodeWarning(field+"."+strconv.Itoa(i)+".type", fmt.Sprintf("unsupported content part type %q was dropped", part.Type)))
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
-func decodeStop(value any) []string {
+func decodeStop(value any, field string) ([]string, []adapt.Warning) {
 	switch v := value.(type) {
 	case string:
-		return []string{v}
+		return []string{v}, nil
 	case []any:
 		var out []string
-		for _, item := range v {
+		var warnings []adapt.Warning
+		for i, item := range v {
 			if s, ok := item.(string); ok {
 				out = append(out, s)
+				continue
 			}
+			warnings = append(warnings, decodeWarning(field+"."+strconv.Itoa(i), "non-string stop sequence was dropped"))
 		}
-		return out
+		return out, warnings
+	case nil:
+		return nil, nil
 	default:
-		return nil
+		return nil, []adapt.Warning{decodeWarning(field, "unsupported stop value was dropped")}
 	}
 }
 
-func decodeToolChoice(raw json.RawMessage) *unified.ToolChoice {
+func decodeToolChoice(raw json.RawMessage, field string) (*unified.ToolChoice, []adapt.Warning) {
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
 		switch s {
 		case "auto":
-			return &unified.ToolChoice{Mode: unified.ToolChoiceAuto}
+			return &unified.ToolChoice{Mode: unified.ToolChoiceAuto}, nil
 		case "required":
-			return &unified.ToolChoice{Mode: unified.ToolChoiceRequired}
+			return &unified.ToolChoice{Mode: unified.ToolChoiceRequired}, nil
 		case "none":
-			return &unified.ToolChoice{Mode: unified.ToolChoiceNone}
+			return &unified.ToolChoice{Mode: unified.ToolChoiceNone}, nil
 		}
+		return nil, []adapt.Warning{decodeWarning(field, fmt.Sprintf("unsupported tool_choice value %q was dropped", s))}
 	}
 	var obj struct {
 		Type     string `json:"type"`
@@ -234,9 +251,17 @@ func decodeToolChoice(raw json.RawMessage) *unified.ToolChoice {
 		} `json:"function"`
 	}
 	if err := json.Unmarshal(raw, &obj); err == nil && obj.Type == "function" {
-		return &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: obj.Function.Name}
+		return &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: obj.Function.Name}, nil
 	}
-	return nil
+	return nil, []adapt.Warning{decodeWarning(field, "unsupported tool_choice object was dropped")}
+}
+
+func decodeWarning(field, message string) adapt.Warning {
+	return adapt.Warning{
+		Code:    "unsupported_field_dropped",
+		Field:   field,
+		Message: message,
+	}
 }
 
 func writeStream(ctx context.Context, w http.ResponseWriter, events <-chan unified.Event) error {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/codewandler/llmadapter/adapt"
@@ -28,7 +29,7 @@ func (Codec) DecodeHTTP(ctx context.Context, r *http.Request) (adapt.Request, er
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return adapt.Request{}, statusError(http.StatusBadRequest, "invalid_json", err.Error())
 	}
-	ureq, err := decodeRequest(wire)
+	ureq, warnings, err := decodeRequest(wire)
 	if err != nil {
 		return adapt.Request{}, err
 	}
@@ -45,6 +46,7 @@ func (Codec) DecodeHTTP(ctx context.Context, r *http.Request) (adapt.Request, er
 		Raw:         wire,
 		Unified:     ureq,
 		MappingMode: adapt.MappingModeBestEffort,
+		Warnings:    warnings,
 	}, nil
 }
 
@@ -88,9 +90,9 @@ func (Codec) WriteError(ctx context.Context, w http.ResponseWriter, err error) e
 	})
 }
 
-func decodeRequest(wire Request) (unified.Request, error) {
+func decodeRequest(wire Request) (unified.Request, []adapt.Warning, error) {
 	if wire.Model == "" {
-		return unified.Request{}, statusError(http.StatusBadRequest, "missing_model", "model is required")
+		return unified.Request{}, nil, statusError(http.StatusBadRequest, "missing_model", "model is required")
 	}
 	out := unified.Request{
 		Model:           wire.Model,
@@ -106,11 +108,15 @@ func decodeRequest(wire Request) (unified.Request, error) {
 			Content: []unified.ContentPart{unified.TextPart{Text: wire.Instructions}},
 		})
 	}
-	for _, item := range wire.Input {
-		out.Messages = append(out.Messages, decodeInputItem(item)...)
+	var warnings []adapt.Warning
+	for i, item := range wire.Input {
+		messages, itemWarnings := decodeInputItem(item, "input."+strconv.Itoa(i))
+		out.Messages = append(out.Messages, messages...)
+		warnings = append(warnings, itemWarnings...)
 	}
-	for _, tool := range wire.Tools {
+	for i, tool := range wire.Tools {
 		if tool.Type != "function" {
+			warnings = append(warnings, decodeWarning("tools."+strconv.Itoa(i)+".type", fmt.Sprintf("unsupported tool type %q was dropped", tool.Type)))
 			continue
 		}
 		out.Tools = append(out.Tools, unified.Tool{
@@ -121,19 +127,22 @@ func decodeRequest(wire Request) (unified.Request, error) {
 		})
 	}
 	if len(wire.ToolChoice) > 0 {
-		out.ToolChoice = decodeToolChoice(wire.ToolChoice)
+		toolChoice, toolChoiceWarnings := decodeToolChoice(wire.ToolChoice, "tool_choice")
+		out.ToolChoice = toolChoice
+		warnings = append(warnings, toolChoiceWarnings...)
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
-func decodeInputItem(item InputItem) []unified.Message {
+func decodeInputItem(item InputItem, field string) ([]unified.Message, []adapt.Warning) {
 	switch item.Type {
 	case "message":
+		content, warnings := decodeContent(item.Content, field+".content")
 		return []unified.Message{{
 			ID:      item.ID,
 			Role:    unified.Role(item.Role),
-			Content: decodeContent(item.Content),
-		}}
+			Content: content,
+		}}, warnings
 	case "function_call":
 		args := json.RawMessage(item.Arguments)
 		if len(args) == 0 {
@@ -146,7 +155,7 @@ func decodeInputItem(item InputItem) []unified.Message {
 				Name:      item.Name,
 				Arguments: args,
 			}},
-		}}
+		}}, nil
 	case "function_call_output":
 		return []unified.Message{{
 			Role: unified.RoleTool,
@@ -154,43 +163,55 @@ func decodeInputItem(item InputItem) []unified.Message {
 				ToolCallID: item.CallID,
 				Content:    []unified.ContentPart{unified.TextPart{Text: item.Output}},
 			}},
-		}}
+		}}, nil
 	default:
-		return nil
+		return nil, []adapt.Warning{decodeWarning(field+".type", fmt.Sprintf("unsupported input item type %q was dropped", item.Type))}
 	}
 }
 
-func decodeContent(parts []ContentPart) []unified.ContentPart {
+func decodeContent(parts []ContentPart, field string) ([]unified.ContentPart, []adapt.Warning) {
 	var out []unified.ContentPart
-	for _, part := range parts {
+	var warnings []adapt.Warning
+	for i, part := range parts {
 		switch part.Type {
 		case "input_text", "output_text", "text":
 			out = append(out, unified.TextPart{Text: part.Text})
+		default:
+			warnings = append(warnings, decodeWarning(field+"."+strconv.Itoa(i)+".type", fmt.Sprintf("unsupported content part type %q was dropped", part.Type)))
 		}
 	}
-	return out
+	return out, warnings
 }
 
-func decodeToolChoice(raw json.RawMessage) *unified.ToolChoice {
+func decodeToolChoice(raw json.RawMessage, field string) (*unified.ToolChoice, []adapt.Warning) {
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
 		switch s {
 		case "auto":
-			return &unified.ToolChoice{Mode: unified.ToolChoiceAuto}
+			return &unified.ToolChoice{Mode: unified.ToolChoiceAuto}, nil
 		case "none":
-			return &unified.ToolChoice{Mode: unified.ToolChoiceNone}
+			return &unified.ToolChoice{Mode: unified.ToolChoiceNone}, nil
 		case "required":
-			return &unified.ToolChoice{Mode: unified.ToolChoiceRequired}
+			return &unified.ToolChoice{Mode: unified.ToolChoiceRequired}, nil
 		}
+		return nil, []adapt.Warning{decodeWarning(field, fmt.Sprintf("unsupported tool_choice value %q was dropped", s))}
 	}
 	var obj struct {
 		Type string `json:"type"`
 		Name string `json:"name"`
 	}
 	if err := json.Unmarshal(raw, &obj); err == nil && obj.Type == "function" {
-		return &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: obj.Name}
+		return &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: obj.Name}, nil
 	}
-	return nil
+	return nil, []adapt.Warning{decodeWarning(field, "unsupported tool_choice object was dropped")}
+}
+
+func decodeWarning(field, message string) adapt.Warning {
+	return adapt.Warning{
+		Code:    "unsupported_field_dropped",
+		Field:   field,
+		Message: message,
+	}
 }
 
 func responseFromUnified(resp unified.Response) Response {
