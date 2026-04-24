@@ -62,7 +62,7 @@ func runProviders(args []string) error {
 
 func runSmoke(args []string) error {
 	fs := flag.NewFlagSet("smoke", flag.ContinueOnError)
-	mode := fs.String("mode", "direct", "smoke mode: direct or mux")
+	mode := fs.String("mode", "direct", "smoke mode: direct, mux, or auto")
 	configPath := fs.String("config", "", "llmadapter JSON config path for mux mode")
 	sourceAPI := fs.String("source-api", string(adapt.ApiOpenAIResponses), "source API for mux mode")
 	providerType := fs.String("type", "openai_responses", "provider endpoint type")
@@ -94,6 +94,24 @@ func runSmoke(args []string) error {
 			return err
 		}
 		return runSmokeRequest(client, requestModel, *prompt, *timeout, *maxTokens)
+	}
+	if *mode == "auto" {
+		result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
+			EnableEnv:         true,
+			EnableLocalClaude: true,
+			UseModelDB:        true,
+			SourceAPI:         adapt.ApiKind(*sourceAPI),
+		})
+		if err != nil {
+			return err
+		}
+		if requestModel == "" {
+			requestModel = defaultModelFromRoutes(result.Config.Routes, adapt.ApiKind(*sourceAPI))
+		}
+		if requestModel == "" {
+			return fmt.Errorf("model is required when auto detection produced no route for %s", *sourceAPI)
+		}
+		return runSmokeRequest(result.Client, requestModel, *prompt, *timeout, *maxTokens)
 	}
 	descriptor, ok := providerregistry.Lookup(*providerType)
 	if !ok {
@@ -177,12 +195,16 @@ func defaultModelFromConfig(path string, sourceAPI adapt.ApiKind) string {
 	if err != nil {
 		return ""
 	}
-	for _, route := range cfg.Routes {
+	return defaultModelFromRoutes(cfg.Routes, sourceAPI)
+}
+
+func defaultModelFromRoutes(routes []adapterconfig.RouteConfig, sourceAPI adapt.ApiKind) string {
+	for _, route := range routes {
 		if route.SourceAPI == sourceAPI && route.Model != "" {
 			return route.Model
 		}
 	}
-	for _, route := range cfg.Routes {
+	for _, route := range routes {
 		if route.Model != "" {
 			return route.Model
 		}

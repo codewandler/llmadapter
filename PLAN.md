@@ -61,6 +61,7 @@ Provider registry slice: shared `providerregistry` package lists endpoint types 
 Mux client slice: `muxclient` provides a stateless unified.Client over router/provider endpoints with native model rewrite and pre-stream fallback
 Adapter config slice: `adapterconfig` exposes JSON config loading/defaulting/validation plus config-driven muxclient construction with modeldb alias resolution, capability metadata, and pricing processors
 CLI slice: `cmd/llmadapter` can list provider endpoint types and run minimal direct, manual mux-routed, or config-driven mux text smoke requests
+Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
 Claude compatibility slice: `claude_messages` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, and Anthropic modeldb service identity
@@ -281,7 +282,7 @@ Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
 Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
 CLI surface: add a first-class llmadapter CLI similar in spirit to ../llmproviders/llmcli, but centered on this repo's adapter/gateway model.
-Mux client layer: stateless router-backed unified.Client and config/modeldb-backed construction are in place; next consolidate gateway command internals onto adapterconfig and add route/model inspection commands.
+Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; next consolidate gateway command internals onto adapterconfig and add route/model inspection commands.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
 ```
 

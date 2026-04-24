@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-04-24
+
+### Added
+
+- Added `adapterconfig.AutoMuxClient` for constructing a stateless mux client from detected environment credentials and local Claude Code OAuth credentials.
+- Added `llmadapter smoke -mode auto` to exercise the auto-detected mux path from the CLI.
+
 ## [0.32.0] - 2026-04-24
 
 ### Added
