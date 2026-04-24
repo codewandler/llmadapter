@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-04-24
+
+### Added
+
+- Added `llmadapter models --catalog` for modeldb-backed catalog inspection with service/API/parameter/model filters and optional per-offering output.
+
 ## [0.39.0] - 2026-04-24
 
 ### Added

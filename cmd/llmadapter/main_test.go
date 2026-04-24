@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/codewandler/modeldb"
 )
 
 func TestProvidersJSONCommand(t *testing.T) {
@@ -102,6 +105,22 @@ func TestModelsCommandWithConfigAndQuery(t *testing.T) {
 	}
 }
 
+func TestModelsCommandCatalogWithConfig(t *testing.T) {
+	path := writeTestCatalogConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"models", "--catalog", "--config", path, "--service", "openai", "--api-type", "openai-responses", "--query", "gpt"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{"MODEL", "openai/gpt/test", "openai", "openai-responses", "gpt-test"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestResolveCommandWithConfig(t *testing.T) {
 	path := writeTestConfig(t)
 	var out, errOut bytes.Buffer
@@ -164,4 +183,31 @@ func writeTestConfig(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func writeTestCatalogConfig(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	catalogPath := filepath.Join(dir, "catalog.json")
+	catalog := modeldb.NewCatalog()
+	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "test"}
+	catalog.Services["openai"] = modeldb.Service{ID: "openai", Name: "OpenAI"}
+	catalog.Models[key] = modeldb.ModelRecord{Key: key, Name: "GPT Test", Aliases: []string{"gpt-test"}}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "openai", WireModelID: "gpt-test"}] = modeldb.Offering{
+		ServiceID:   "openai",
+		WireModelID: "gpt-test",
+		ModelKey:    key,
+		Exposures: []modeldb.OfferingExposure{{
+			APIType: modeldb.APITypeOpenAIResponses,
+		}},
+	}
+	if err := modeldb.SaveJSON(catalogPath, catalog); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(dir, "llmadapter.json")
+	data := []byte(`{"modeldb":{"catalog_path":` + strconv.Quote(catalogPath) + `}}`)
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return configPath
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/codewandler/llmadapter/providerregistry"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
+	"github.com/codewandler/modeldb"
 	"github.com/spf13/cobra"
 )
 
@@ -122,10 +124,24 @@ func newModelsCommand() *cobra.Command {
 	var sourceAPI string
 	var query string
 	var jsonOut bool
+	var catalogMode bool
+	var catalogFlags catalogModelFlags
 	cmd := &cobra.Command{
 		Use:   "models",
-		Short: "List public/native models from configured or auto-detected routes",
+		Short: "List route models or modeldb catalog models",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if catalogMode {
+				catalog, err := loadCLICatalog(configPath)
+				if err != nil {
+					return err
+				}
+				catalogFlags.Query = query
+				models := catalogModelInfos(catalog, catalogFlags)
+				if jsonOut {
+					return writeJSON(cmd.OutOrStdout(), map[string]any{"models": models})
+				}
+				return printCatalogModelInfos(cmd.OutOrStdout(), models, catalogFlags.Offerings || catalogFlags.Service != "")
+			}
 			cfg, err := loadCLIConfig(configPath, adapt.ApiKind(sourceAPI))
 			if err != nil {
 				return err
@@ -146,6 +162,18 @@ func newModelsCommand() *cobra.Command {
 	cmd.Flags().StringVar(&sourceAPI, "source-api", "", "filter by source API")
 	cmd.Flags().StringVarP(&query, "query", "q", "", "filter models by substring")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print models as JSON")
+	cmd.Flags().BoolVar(&catalogMode, "catalog", false, "list modeldb catalog models instead of configured routes")
+	cmd.Flags().StringVar(&catalogFlags.ID, "id", "", "filter catalog models by exact canonical model ID")
+	cmd.Flags().StringVar(&catalogFlags.Name, "name", "", "filter catalog models by logical model name or alias")
+	cmd.Flags().StringVar(&catalogFlags.Creator, "creator", "", "filter catalog models by creator")
+	cmd.Flags().StringVar(&catalogFlags.Service, "service", "", "filter catalog offerings by service ID")
+	cmd.Flags().StringVar(&catalogFlags.APIType, "api-type", "", "filter catalog offerings by modeldb API type")
+	cmd.Flags().StringVar(&catalogFlags.Parameter, "parameter", "", "filter catalog offerings by normalized parameter")
+	cmd.Flags().StringVar(&catalogFlags.Family, "family", "", "filter catalog models by family")
+	cmd.Flags().StringVar(&catalogFlags.Series, "series", "", "filter catalog models by series")
+	cmd.Flags().StringVar(&catalogFlags.Version, "version", "", "filter catalog models by version")
+	cmd.Flags().StringVar(&catalogFlags.ReleaseDate, "release-date", "", "filter catalog models by release date")
+	cmd.Flags().BoolVar(&catalogFlags.Offerings, "offerings", false, "expand catalog models to per-service offerings")
 	return cmd
 }
 
@@ -396,6 +424,36 @@ type serveRouteInspection struct {
 	Weight             int           `json:"weight,omitempty"`
 }
 
+type catalogModelFlags struct {
+	ID          string
+	Query       string
+	Name        string
+	Creator     string
+	Service     string
+	APIType     string
+	Parameter   string
+	Family      string
+	Series      string
+	Version     string
+	ReleaseDate string
+	Offerings   bool
+}
+
+type catalogModelInfo struct {
+	ID        string                `json:"id"`
+	Name      string                `json:"name,omitempty"`
+	Model     modeldb.ModelRecord   `json:"model,omitempty"`
+	Services  []string              `json:"services,omitempty"`
+	Offerings []catalogOfferingInfo `json:"offerings,omitempty"`
+}
+
+type catalogOfferingInfo struct {
+	ServiceID   string            `json:"service_id"`
+	ServiceName string            `json:"service_name,omitempty"`
+	WireModelID string            `json:"wire_model_id"`
+	APITypes    []modeldb.APIType `json:"api_types,omitempty"`
+}
+
 func runProvidersAuto(w io.Writer, jsonOut bool) error {
 	result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
 		EnableEnv:         true,
@@ -643,6 +701,179 @@ func modelInfos(cfg adapterconfig.Config, sourceAPI adapt.ApiKind, query string)
 		out = append(out, info)
 	}
 	return out
+}
+
+func loadCLICatalog(configPath string) (modeldb.Catalog, error) {
+	if configPath == "" {
+		return adapterconfig.LoadModelDBCatalog(adapterconfig.ModelDBConfig{})
+	}
+	cfg, err := adapterconfig.Load(configPath)
+	if err != nil {
+		return modeldb.Catalog{}, err
+	}
+	return adapterconfig.LoadModelDBCatalog(cfg.ModelDB)
+}
+
+func catalogModelInfos(catalog modeldb.Catalog, flags catalogModelFlags) []catalogModelInfo {
+	matches := catalog.FindModels(modeldb.ModelSelector{
+		ID:          flags.ID,
+		Name:        flags.Name,
+		Creator:     flags.Creator,
+		ServiceID:   flags.Service,
+		APIType:     modeldb.APIType(flags.APIType),
+		Parameter:   modeldb.NormalizedParameter(flags.Parameter),
+		Family:      flags.Family,
+		Series:      flags.Series,
+		Version:     flags.Version,
+		ReleaseDate: flags.ReleaseDate,
+	})
+	matches = filterCatalogMatchesByQuery(matches, flags.Query)
+	matches = filterCatalogMatchesWithOfferings(matches)
+
+	out := make([]catalogModelInfo, 0, len(matches))
+	for _, match := range matches {
+		info := catalogModelInfo{
+			ID:        catalogModelID(match.Model),
+			Name:      match.Model.Name,
+			Model:     match.Model,
+			Services:  catalogServiceIDs(match.Offerings),
+			Offerings: make([]catalogOfferingInfo, 0, len(match.Offerings)),
+		}
+		for _, offering := range match.Offerings {
+			info.Offerings = append(info.Offerings, catalogOfferingInfo{
+				ServiceID:   offering.Service.ID,
+				ServiceName: offering.Service.Name,
+				WireModelID: offering.Offering.WireModelID,
+				APITypes:    catalogAPITypes(offering.Offering.Exposures),
+			})
+		}
+		out = append(out, info)
+	}
+	return out
+}
+
+func printCatalogModelInfos(w io.Writer, models []catalogModelInfo, includeOfferings bool) error {
+	if len(models) == 0 {
+		_, err := fmt.Fprintln(w, "No models found.")
+		return err
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	if includeOfferings {
+		fmt.Fprintln(tw, "MODEL\tSERVICE\tAPI_TYPES\tWIRE_MODEL")
+		for _, model := range models {
+			for _, offering := range model.Offerings {
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", model.ID, offering.ServiceID, joinAPITypes(offering.APITypes), offering.WireModelID)
+			}
+		}
+		return tw.Flush()
+	}
+	fmt.Fprintln(tw, "MODEL\tSERVICES")
+	for _, model := range models {
+		fmt.Fprintf(tw, "%s\t%s\n", model.ID, strings.Join(model.Services, ","))
+	}
+	return tw.Flush()
+}
+
+func filterCatalogMatchesByQuery(matches []modeldb.ModelMatch, query string) []modeldb.ModelMatch {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return matches
+	}
+	filtered := make([]modeldb.ModelMatch, 0, len(matches))
+	for _, match := range matches {
+		if catalogMatchQuery(match, query) {
+			filtered = append(filtered, match)
+		}
+	}
+	return filtered
+}
+
+func filterCatalogMatchesWithOfferings(matches []modeldb.ModelMatch) []modeldb.ModelMatch {
+	filtered := make([]modeldb.ModelMatch, 0, len(matches))
+	for _, match := range matches {
+		if len(match.Offerings) != 0 {
+			filtered = append(filtered, match)
+		}
+	}
+	return filtered
+}
+
+func catalogMatchQuery(match modeldb.ModelMatch, query string) bool {
+	key := modeldb.NormalizeKey(match.Model.Key)
+	values := []string{
+		catalogModelID(match.Model),
+		match.Model.Name,
+		key.Creator,
+		key.Family,
+		key.Series,
+		key.Version,
+		key.ReleaseDate,
+	}
+	values = append(values, match.Model.Aliases...)
+	for _, offering := range match.Offerings {
+		values = append(values, offering.Service.ID, offering.Service.Name, offering.Offering.WireModelID)
+		values = append(values, offering.Offering.Aliases...)
+		for _, exposure := range offering.Offering.Exposures {
+			values = append(values, string(exposure.APIType))
+			for _, parameter := range exposure.SupportedParameters {
+				values = append(values, string(parameter))
+			}
+			for _, mapping := range exposure.ParameterMappings {
+				values = append(values, string(mapping.Normalized), mapping.WireName)
+			}
+		}
+	}
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(value), query) {
+			return true
+		}
+	}
+	return false
+}
+
+func catalogModelID(model modeldb.ModelRecord) string {
+	if releaseID := modeldb.ReleaseID(model.Key); releaseID != "" {
+		return releaseID
+	}
+	return modeldb.LineID(model.Key)
+}
+
+func catalogServiceIDs(offerings []modeldb.ServiceOffering) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(offerings))
+	for _, offering := range offerings {
+		if offering.Service.ID == "" || seen[offering.Service.ID] {
+			continue
+		}
+		seen[offering.Service.ID] = true
+		out = append(out, offering.Service.ID)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func catalogAPITypes(exposures []modeldb.OfferingExposure) []modeldb.APIType {
+	seen := map[modeldb.APIType]bool{}
+	out := make([]modeldb.APIType, 0, len(exposures))
+	for _, exposure := range exposures {
+		if exposure.APIType == "" || seen[exposure.APIType] {
+			continue
+		}
+		seen[exposure.APIType] = true
+		out = append(out, exposure.APIType)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i] < out[j]
+	})
+	return out
+}
+
+func joinAPITypes(types []modeldb.APIType) string {
+	out := make([]string, 0, len(types))
+	for _, apiType := range types {
+		out = append(out, string(apiType))
+	}
+	return strings.Join(out, ",")
 }
 
 func resolveModel(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKind) (resolutionInfo, error) {

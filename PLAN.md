@@ -283,6 +283,7 @@ Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
 Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
 CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, serve, and smoke requests; `cmd/llmadapter-gateway` remains as a compatibility binary over the same gateway server path.
+Catalog CLI slice: `llmadapter models --catalog` inspects the built-in or configured modeldb catalog with filters for service, API type, parameter, identity, and query text.
 Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; gateway serving now uses the same adapterconfig router construction in the Cobra CLI path.
 Provider parity backlog: continue MiniMax Chat tool validation and expand endpoint conformance after the metadata/accounting boundaries are in place.
 ```
@@ -338,7 +339,7 @@ Initial commands:
 5. smoke
    - run a minimal outside-in request against one provider endpoint for text streaming (implemented for direct provider endpoints, single-route mux mode, config-driven mux mode, and auto-detected mux mode)
 6. catalog
-   - wrap modeldb catalog inspection once modeldb is an explicit dependency
+   - wrap modeldb catalog inspection once modeldb is an explicit dependency (implemented through `llmadapter models --catalog`)
 
 Non-goals for the first CLI slice:
 - provider auto-detection from local credentials
