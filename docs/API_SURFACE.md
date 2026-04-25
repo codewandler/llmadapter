@@ -1,6 +1,6 @@
 # Public API Surface
 
-This document records the pre-v1 package-boundary decision for llmadapter. It is intended to prevent accidental public API expansion before `v1.0.0`.
+This document records the v1 package-boundary decision for llmadapter. It is intended to prevent accidental public API expansion after the release-candidate baseline.
 
 ## Stable Consumer Packages
 
@@ -42,9 +42,9 @@ Keep new cross-package helpers internal unless there is a clear external impleme
 - Prefer adding provider endpoints through `providerregistry.Descriptor` instead of adding central switch statements.
 - Treat `cmd/*`, `tests/e2e`, and `.agents/*` as repository tooling, not Go library API.
 
-## Pre-v1 Review Result
+## V1 Review Result
 
-No pre-v1 renames are required from the current surface. The potentially confusing pieces have explicit boundaries:
+No exported renames are required from the current surface before v1.0.0 promotion. The potentially confusing pieces have explicit boundaries:
 
 - Provider identity is `ProviderName`/configured provider instance plus provider `Type`; OpenRouter, MiniMax, Claude, and Codex endpoint variants are modeled as provider endpoint types with concrete API kinds/families.
 - Model resolution lives in `adapterconfig` and modeldb overlays; CLI, gateway, mux, and auto construction use that path.

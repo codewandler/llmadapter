@@ -2,7 +2,9 @@
 
 ## Status
 
-Final draft for the core design of `llmadapter`.
+Target architecture for `llmadapter`.
+
+This document intentionally describes both implemented v1 behavior and future provider/API-family targets. For the current supported provider matrix, use `docs/PROVIDER_MATRIX.md`. For the current package architecture, use `docs/ARCHITECTURE.md`.
 
 This document describes the core interfaces, canonical request/event model, provider routing model, stream pipeline, transport abstraction, option pattern, unmapped-event handling, and testing strategy.
 
@@ -14,7 +16,7 @@ The design intentionally excludes true realtime bidirectional APIs for now. A We
 
 `llmadapter` provides a unified Go client and gateway layer for multiple upstream LLM API families.
 
-Known target API families include:
+Known implemented and future target API families include:
 
 - OpenAI Responses
 - OpenAI Chat Completions

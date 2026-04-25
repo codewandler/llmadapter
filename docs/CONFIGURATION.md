@@ -1,0 +1,231 @@
+# Configuration
+
+`llmadapter` JSON config defines provider instances, routes, modeldb catalog/overlays, health behavior, and fallback limits.
+
+The same config path is used by:
+
+- `llmadapter serve`
+- `llmadapter infer --config`
+- `llmadapter routes --config`
+- `llmadapter models --config`
+- `llmadapter resolve --config`
+- `adapterconfig.Load`
+- `adapterconfig.NewMuxClient`
+
+## Minimal Config
+
+```json
+{
+  "providers": [
+    {
+      "name": "anthropic",
+      "type": "anthropic",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "model": "claude-haiku-4-5-20251001"
+    }
+  ],
+  "routes": [
+    {
+      "source_api": "anthropic.messages",
+      "model": "haiku",
+      "provider": "anthropic",
+      "provider_api": "anthropic.messages",
+      "native_model": "claude-haiku-4-5-20251001",
+      "weight": 100
+    }
+  ]
+}
+```
+
+Inspect:
+
+```sh
+go run ./cmd/llmadapter serve --config llmadapter.json --inspect-config
+```
+
+## Top-Level Fields
+
+| Field | Purpose |
+| --- | --- |
+| `addr` | Gateway listen address, for example `:8080`. |
+| `health_cooldown` | Go duration for temporarily deprioritizing failed provider/API/model pairs. |
+| `max_attempts` | Maximum ranked route attempts before returning the combined route-attempt error. `0` means all compatible candidates. |
+| `modeldb` | Catalog path, overlays, and local aliases. |
+| `providers` | Provider instances. |
+| `routes` | Source API/model to provider endpoint routing. |
+
+## Providers
+
+Provider fields:
+
+| Field | Purpose |
+| --- | --- |
+| `name` | Provider instance name used by routes. |
+| `type` | Provider endpoint implementation type. |
+| `api_key_env` | Env var containing an API key. |
+| `api_key` | Inline API key; useful for tests, not recommended for committed configs. |
+| `base_url` | Provider base URL override. |
+| `model` | Default native model for fixed routes without `native_model`. |
+| `priority` | Tie-breaker after route weight. |
+| `modeldb_service_id` | Service identity for modeldb metadata/pricing. |
+| `capabilities` | Optional override of provider descriptor defaults. |
+
+Supported provider endpoint types are documented in [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md).
+
+## Routes
+
+Route fields:
+
+| Field | Purpose |
+| --- | --- |
+| `source_api` | Incoming API kind, for example `openai.responses`. |
+| `model` | Public model name accepted by this route. |
+| `provider` | Provider instance name. |
+| `provider_api` | Exact provider API kind when a provider has multiple endpoints. |
+| `native_model` | Provider wire model ID. |
+| `modeldb_model` | Model/alias resolved through modeldb for this provider/API. |
+| `modeldb_wire_model_id` | Explicit modeldb wire model ID for pricing/metadata. |
+| `dynamic_models` | Resolve/pass requested model names dynamically. |
+| `weight` | Primary route ranking value. |
+
+Routes select provider endpoints, not just provider names. If a provider exposes multiple API kinds, set `provider_api` to avoid ambiguity.
+
+## Weighted Routing And Fallback
+
+Compatible routes are ranked by:
+
+1. Route `weight`.
+2. Provider endpoint `priority`.
+3. Source-family preference in auto-source mode.
+4. Declaration order.
+
+Fallback only happens before streaming/response bytes start. Request-shape validation errors and 400/422 provider API errors are non-retryable.
+
+Use `max_attempts` to bound fallback:
+
+```json
+{
+  "max_attempts": 2
+}
+```
+
+## Dynamic Models
+
+Dynamic routes let callers request provider/catalog models without predeclaring every model:
+
+```json
+{
+  "source_api": "openai.responses",
+  "provider": "openai",
+  "provider_api": "openai.responses",
+  "dynamic_models": true,
+  "weight": 5
+}
+```
+
+When modeldb is enabled for the provider endpoint, unknown dynamic models are rejected instead of silently falling back to provider defaults.
+
+## Modeldb
+
+Modeldb supplies:
+
+- Alias resolution.
+- Service/wire-model offerings.
+- Capability narrowing.
+- Token limits.
+- Pricing metadata.
+
+Example:
+
+```json
+{
+  "modeldb": {
+    "catalog_path": "./catalog.json",
+    "overlay_paths": ["./local-modeldb.json"],
+    "aliases": [
+      {
+        "name": "fast",
+        "service_id": "openrouter",
+        "wire_model_id": "openai/gpt-4.1-mini"
+      }
+    ]
+  }
+}
+```
+
+If `catalog_path` is omitted, the built-in modeldb catalog is used. Overlays are merged after the base catalog.
+
+## Capability Overrides
+
+Provider descriptor capabilities are endpoint-family defaults. Override them when a configured model is narrower than the descriptor:
+
+```json
+{
+  "name": "openrouter",
+  "type": "openrouter_responses",
+  "api_key_env": "OPENROUTER_API_KEY",
+  "capabilities": {
+    "streaming": true,
+    "tools": true,
+    "vision": false,
+    "json_mode": true,
+    "json_schema": true,
+    "reasoning": false
+  }
+}
+```
+
+`resolve` and `serve --inspect-config` report capability provenance:
+
+- `provider_descriptor`: static endpoint-family/provider defaults.
+- `config_override`: explicit config override.
+- `modeldb_exposure`: modeldb offering exposure metadata.
+
+## Pricing
+
+Pricing enrichment is optional and absent-safe. It is enabled when a route can identify:
+
+- provider `modeldb_service_id`
+- selected wire model
+- modeldb offering with pricing
+
+Fixed route:
+
+```json
+{
+  "source_api": "openai.responses",
+  "model": "fast",
+  "provider": "openrouter",
+  "provider_api": "openrouter.responses",
+  "modeldb_model": "fast",
+  "weight": 100
+}
+```
+
+Dynamic route:
+
+```json
+{
+  "source_api": "openai.responses",
+  "provider": "openrouter",
+  "provider_api": "openrouter.responses",
+  "dynamic_models": true,
+  "weight": 1
+}
+```
+
+## Example Config
+
+The repository ships:
+
+- `examples/llmadapter.example.json`
+- `examples/modeldb.overlay.example.json`
+
+Validate and inspect:
+
+```sh
+go run ./cmd/llmadapter serve --config examples/llmadapter.example.json --inspect-config
+go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json fast
+```
+
+The example covers provider endpoints, dynamic routes, modeldb overlays, aliases, capability overrides, pricing metadata, and route attempt limits.

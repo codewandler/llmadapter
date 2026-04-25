@@ -1,6 +1,6 @@
 # llmadapter Implementation Plan
 
-Current execution plan for stabilizing the implemented `DESIGN.md` foundation.
+Implementation history and release-candidate roadmap for stabilizing the implemented `DESIGN.md` foundation.
 
 Primary goal: keep the adapter buildable and incrementally useful while hardening provider routing, endpoint compatibility, gateway behavior, live smoke coverage, and documentation.
 
@@ -8,9 +8,9 @@ Primary goal: keep the adapter buildable and incrementally useful while hardenin
 
 ## Current Status
 
-Status date: 2026-04-25.
+Status date: 2026-04-26.
 
-Phases 1-3 are implemented as a first working vertical slice.
+`v1.0.0-rc.1` has been cut. The current remaining v1 work is release-candidate validation and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
 
 Completed:
 
@@ -100,7 +100,7 @@ V1 phase 3 routing/fallback policy slice: shared route-attempt policy classifies
 V1 phase 4 capability/model policy slice: config inspection and model resolution expose capability provenance as provider descriptor defaults, config overrides, or modeldb exposure metadata; dynamic modeldb routes still reject catalog-missing models without provider-default substitution
 V1 phase 5 CLI/config/examples slice: README usage examples cover auto mux, config mux, direct infer, gateway serve, Docker, model resolution, and provider identity inspection; `examples/llmadapter.example.json` plus a modeldb overlay are load-tested
 V1 phase 6 provider matrix slice: `docs/PROVIDER_MATRIX.md` documents the v1 provider endpoints, feature coverage, credential triggers, live smoke commands, skip behavior, and latest full matrix result
-V1 phase 7 public API freeze slice: primary public packages have package docs, `docs/API_SURFACE.md` records stable consumer/extension/internal boundaries, and no pre-v1 exported renames are required
+V1 phase 7 public API freeze slice: primary public packages have package docs, `docs/API_SURFACE.md` records stable consumer/extension/internal boundaries, and no exported renames are required before v1.0.0 promotion
 V1 phase 8 release-candidate slice: CHANGELOG documents the v1 stable surface, stale blocker wording is removed, non-secret CLI examples plus Docker build are verified, and v1.0.0-rc.1 is ready to cut
 ```
 
@@ -272,12 +272,12 @@ CODEX_AUTH_PATH overrides the Codex local auth file path, otherwise ~/.codex/aut
 CODEX_MODEL overrides the default codex_responses smoke-test model
 ```
 
-Known follow-up gaps before v1:
+Known stable limitations and post-v1 follow-up:
 
 ```text
-V1 non-blocker: OpenAI Chat, OpenAI Responses, Anthropic Messages, OpenRouter, MiniMax, Claude-compatible access, and Codex provider paths are stream-first compatibility surfaces, not full clones of every upstream provider field.
-V1 non-blocker: OpenRouter extension passthrough is centralized through typed raw helpers with shape and focused semantic validation for mature routing/provider/plugin/session controls; broader provider-specific controls should stay namespaced until their semantics are stable.
-V1 non-blocker: prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter. Codex uses the session/window cache key path and the live smoke checks follow-up cache-read accounting.
+Stable limitation: OpenAI Chat, OpenAI Responses, Anthropic Messages, OpenRouter, MiniMax, Claude-compatible access, and Codex provider paths are stream-first compatibility surfaces, not full clones of every upstream provider field.
+Stable limitation: OpenRouter extension passthrough is centralized through typed raw helpers with shape and focused semantic validation for mature routing/provider/plugin/session controls; broader provider-specific controls should stay namespaced until their semantics are stable.
+Stable limitation: prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter. Codex uses the session/window cache key path and the live smoke checks follow-up cache-read accounting.
 Post-v1: broad audio/video/file/document/built-in-tool provider support, plugin-style external provider loading, probabilistic load balancing, broad provider-specific extension semantics, and additional provider families such as Ollama/Bedrock/Vertex/Azure/Gemini.
 ```
 

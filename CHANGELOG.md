@@ -10,6 +10,17 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-04-26
+
+### Added
+
+- Reworked adoption documentation with a product-focused README and new guides for getting started, CLI usage, configuration, library usage, and provider development.
+- Added `examples/README.md` to explain the shipped example config and overlay.
+
+### Changed
+
+- Reframed DESIGN, PLAN, API surface, provider matrix, AGENTS, and provider-extension skill wording for the v1 release-candidate state.
+
 ## [1.0.0-rc.1] - 2026-04-25
 
 ### Added

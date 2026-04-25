@@ -21,9 +21,9 @@ Inspect similar code before creating new code:
 - OpenAI-compatible provider: `providers/openai/chatcompletions/`
 - Anthropic-compatible provider: `providers/anthropic/messages/`
 - OpenRouter multi-endpoint wrappers: `providers/openrouter/`
-- Provider descriptors and CLI construction: `providerregistry/`
+- Provider descriptors and client construction: `providerregistry/`
 - Config and auto-detected mux construction: `adapterconfig/`
-- Gateway registration: `cmd/llmadapter-gateway/main.go`
+- Gateway serving/wiring: `gatewayserver/`
 - Shared live smokes: `tests/e2e/smoke_test.go` and `tests/e2e/gateway_smoke_test.go`
 
 ## Provider Endpoint Rule
@@ -45,13 +45,13 @@ Do not model a multi-surface provider as one API kind. Add one endpoint per wire
 2. Add provider package under `providers/<provider>/<api-shape>/`.
 3. Prefer wrapping an existing compatibility provider only when the upstream wire protocol is actually compatible.
 4. Implement focused request encoding and stream decoding tests with fake transport.
-5. Register provider type and endpoint metadata in `providerregistry/` and `cmd/llmadapter-gateway/main.go`.
+5. Register provider type, endpoint metadata, and client factory in `providerregistry/`.
    - Default capabilities are endpoint-family defaults, not proof that every model supports the feature.
    - Document or test model-specific support before enabling broad capabilities; gateway config can override capabilities per configured provider/model.
-6. Add config validation tests in `cmd/llmadapter-gateway/config_test.go`.
+6. Add config, metadata, and auto-detection tests in `adapterconfig/` when provider config behavior changes.
 7. Add or verify `adapterconfig.AutoMuxClient` detection behavior when the provider has common env credentials or modeldb service identity.
 8. Add shared e2e matrix entries gated by provider-specific env vars.
-9. Update `PLAN.md`; update `README.md` for new env vars or provider types.
+9. Update `docs/PROVIDER_MATRIX.md`, `docs/CONFIGURATION.md`, and `README.md` for new env vars, provider types, or feature coverage.
 
 ## Provider Test Matrix
 

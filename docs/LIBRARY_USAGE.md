@@ -1,0 +1,240 @@
+# Library Usage
+
+Use `llmadapter` as a Go library when you want a stateless `unified.Client` over one or more provider endpoints.
+
+## Core Client Interface
+
+All provider clients and mux clients implement:
+
+```go
+type Client interface {
+	Request(ctx context.Context, req unified.Request) (<-chan unified.Event, error)
+}
+```
+
+Most consumers send a `unified.Request` and collect the event stream:
+
+```go
+resp, err := unified.Collect(ctx, events)
+```
+
+Advanced consumers can process events incrementally for streaming UI, usage accounting, reasoning display, tool loops, or raw provider metadata.
+
+## Auto-Detected Mux Client
+
+`adapterconfig.AutoMuxClient` detects env/local credentials and builds a mux client:
+
+```go
+result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
+	UseModelDB:    true,
+	DynamicModels: true,
+	Intents: []adapterconfig.AutoIntent{
+		{Name: "haiku"},
+		{Name: "openai/gpt-5.5"},
+	},
+})
+if err != nil {
+	return err
+}
+
+client := result.Client
+```
+
+Useful options:
+
+- `EnableEnv`: detect API-key env vars.
+- `EnableLocalClaude`: detect local Claude Code OAuth credentials.
+- `EnableLocalCodex`: detect local Codex/ChatGPT OAuth credentials.
+- `UseModelDB`: use modeldb catalog/aliases for model resolution.
+- `DynamicModels`: add dynamic model routes for enabled providers.
+- `SourceAPI`: pin an incoming API kind.
+- `Intents`: add routes for specific model names.
+- `ModelDBAliases`: inject or override aliases from the host application.
+
+## Config-Driven Mux Client
+
+Load JSON config and build a client:
+
+```go
+cfg, err := adapterconfig.Load("examples/llmadapter.example.json")
+if err != nil {
+	return err
+}
+
+client, err := adapterconfig.NewMuxClient(cfg)
+if err != nil {
+	return err
+}
+```
+
+Pin a source API when needed:
+
+```go
+client, err := adapterconfig.NewMuxClient(
+	cfg,
+	adapterconfig.WithSourceAPI(adapt.ApiOpenAIResponses),
+)
+```
+
+Disable pre-stream fallback:
+
+```go
+client, err := adapterconfig.NewMuxClient(
+	cfg,
+	adapterconfig.WithFallback(false),
+)
+```
+
+## Sending A Text Request
+
+```go
+maxTokens := 512
+events, err := client.Request(ctx, unified.Request{
+	Model:           "haiku",
+	MaxOutputTokens: &maxTokens,
+	Stream:          true,
+	Messages: []unified.Message{{
+		Role: unified.RoleUser,
+		Content: []unified.ContentPart{
+			unified.TextPart{Text: "Explain Go channels briefly."},
+		},
+	}},
+})
+if err != nil {
+	return err
+}
+
+resp, err := unified.Collect(ctx, events)
+if err != nil {
+	return err
+}
+```
+
+Extract text:
+
+```go
+var text strings.Builder
+for _, part := range resp.Content {
+	if part, ok := part.(unified.TextPart); ok {
+		text.WriteString(part.Text)
+	}
+}
+```
+
+## Reasoning
+
+Request visible reasoning where supported:
+
+```go
+budget := 1024
+req.Reasoning = &unified.ReasoningConfig{
+	Effort:    unified.ReasoningEffortHigh,
+	MaxTokens: &budget,
+	Expose:    true,
+}
+```
+
+Reasoning support is provider/API-kind specific. Check [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md) before depending on it.
+
+## Tools
+
+Declare function tools:
+
+```go
+req.Tools = []unified.Tool{{
+	Kind:        unified.ToolKindFunction,
+	Name:        "lookup_city",
+	Description: "Looks up a city by name.",
+	InputSchema: json.RawMessage(`{
+		"type":"object",
+		"properties":{"city":{"type":"string"}},
+		"required":["city"],
+		"additionalProperties":false
+	}`),
+}}
+```
+
+Force a tool:
+
+```go
+req.ToolChoice = &unified.ToolChoice{
+	Mode: unified.ToolChoiceTool,
+	Name: "lookup_city",
+}
+```
+
+Tool-loop orchestration is intentionally above llmadapter. llmadapter maps tool calls/results and preserves streamed arguments; your runtime decides how to execute tools and commit conversation state.
+
+## Prompt Caching
+
+Request-level cache intent:
+
+```go
+req.CachePolicy = unified.CachePolicyOn
+req.CacheKey = "session-123"
+req.CacheTTL = "1h"
+```
+
+Explicit block cache boundary:
+
+```go
+req.Instructions = []unified.Instruction{{
+	Kind: unified.InstructionSystem,
+	Content: []unified.ContentPart{unified.TextPart{
+		Text:         "stable system prefix",
+		CacheControl: unified.EphemeralCache("1h"),
+	}},
+}}
+```
+
+Provider mappings are best-effort. Anthropic/Claude/Codex prompt-cache accounting is live smoke-tested; other compatible mappings may not report provider cache counters.
+
+## Extensions
+
+Provider-specific controls belong in `unified.Request.Extensions` until they are stable enough to become canonical fields.
+
+Typed helpers exist for mature extension groups:
+
+- `unified.OpenAIResponsesExtensions`
+- `unified.OpenRouterExtensions`
+- `unified.AnthropicExtensions`
+- `unified.CodexExtensions`
+
+Use namespaced extensions instead of adding provider-specific fields to `unified.Request`.
+
+## Usage And Cost
+
+Providers emit `unified.UsageEvent` where usage is available. `unified.Collect` accumulates usage into `unified.Response.Usage`.
+
+Token categories include:
+
+- `input.new`
+- `input.cache_read`
+- `input.cache_write`
+- `output`
+- `output.reasoning`
+
+When modeldb pricing metadata is available, adapterconfig can wrap routes with pricing enrichment so usage events include cost items.
+
+## Direct Provider Clients
+
+You can instantiate provider clients directly:
+
+```go
+client, err := responses.NewClient(
+	responses.WithAPIKey(os.Getenv("OPENAI_API_KEY")),
+)
+```
+
+Prefer `adapterconfig.NewMuxClient` or `adapterconfig.AutoMuxClient` when you want routing, modeldb metadata, pricing, and fallback.
+
+## What Stays Above llmadapter
+
+Keep these in your application or agent SDK:
+
+- Conversation/session storage.
+- Tool execution and commit policy.
+- Context-window pruning.
+- Long-term memory.
+- Retry policy after streamed output starts.
+- Provider selection policy that depends on user/account/business state.

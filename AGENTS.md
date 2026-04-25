@@ -33,5 +33,6 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 
 - Update `PLAN.md` when status, gaps, or verification commands change.
 - Update `README.md` when public setup, env vars, or gateway config changes.
+- Update the focused docs in `docs/` when CLI, config, library usage, provider matrix, API surface, or provider development behavior changes.
 - Add focused unit tests for codecs/decoders and shared e2e smoke coverage for new provider clients.
 - Keep dependencies minimal; prefer stdlib unless there is a clear reason.

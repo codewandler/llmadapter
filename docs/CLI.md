@@ -1,0 +1,261 @@
+# CLI
+
+The `llmadapter` CLI is the fastest way to inspect providers, debug model routing, run direct inference, start the gateway, and smoke-test provider endpoints.
+
+Run commands through source:
+
+```sh
+go run ./cmd/llmadapter <command>
+```
+
+Or build a binary:
+
+```sh
+go build -o llmadapter ./cmd/llmadapter
+./llmadapter <command>
+```
+
+## Command Overview
+
+| Command | Purpose |
+| --- | --- |
+| `providers` | List provider endpoint types or credential status. |
+| `routes` | List configured or auto-detected routes. |
+| `models` | List route models or modeldb catalog models. |
+| `resolve` | Explain how a model routes to a provider endpoint. |
+| `infer` | Send a prompt through the mux client and stream output. |
+| `serve` | Run the HTTP compatibility gateway. |
+| `smoke` | Run minimal direct, mux, config, or auto provider smoke calls. |
+
+## providers
+
+List registered provider endpoint types:
+
+```sh
+go run ./cmd/llmadapter providers
+```
+
+Show auto-detected provider status:
+
+```sh
+go run ./cmd/llmadapter providers --auto
+```
+
+Show configured provider status:
+
+```sh
+go run ./cmd/llmadapter providers --status --config examples/llmadapter.example.json
+```
+
+Use JSON for automation:
+
+```sh
+go run ./cmd/llmadapter providers --json
+```
+
+Credential values are not printed.
+
+## routes
+
+List auto-detected routes:
+
+```sh
+go run ./cmd/llmadapter routes
+```
+
+List routes from config:
+
+```sh
+go run ./cmd/llmadapter routes --config examples/llmadapter.example.json
+```
+
+Filter by source API:
+
+```sh
+go run ./cmd/llmadapter routes --source-api openai.responses
+```
+
+## models
+
+List configured route models:
+
+```sh
+go run ./cmd/llmadapter models --config examples/llmadapter.example.json
+```
+
+Query the modeldb catalog:
+
+```sh
+go run ./cmd/llmadapter models --catalog --service openai --query gpt
+go run ./cmd/llmadapter models --catalog --service anthropic --query claude
+```
+
+Expand catalog offerings:
+
+```sh
+go run ./cmd/llmadapter models --catalog --offerings --service openrouter --query claude
+```
+
+## resolve
+
+Explain the selected route:
+
+```sh
+go run ./cmd/llmadapter resolve haiku
+```
+
+Resolve from a config:
+
+```sh
+go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json fast
+```
+
+Pin the incoming API shape:
+
+```sh
+go run ./cmd/llmadapter resolve --source-api anthropic.messages haiku
+go run ./cmd/llmadapter resolve --source-api openai.responses openai/gpt-5.5
+```
+
+Important output fields:
+
+- `Provider`: configured provider instance.
+- `Provider type`: implementation type.
+- `Provider API`: exact upstream API kind.
+- `Family`: compatibility family.
+- `ModelDB svc`: modeldb service identity for metadata/pricing.
+- `Capability source`: `provider_descriptor`, `config_override`, or `modeldb_exposure`.
+
+Use JSON for automation:
+
+```sh
+go run ./cmd/llmadapter resolve haiku --json
+```
+
+## infer
+
+Run one prompt:
+
+```sh
+go run ./cmd/llmadapter infer "what is 2+2?"
+```
+
+Choose a model:
+
+```sh
+go run ./cmd/llmadapter infer -m haiku "summarize this project"
+go run ./cmd/llmadapter infer -m openai/gpt-5.5 "write a haiku"
+```
+
+Use reasoning controls:
+
+```sh
+go run ./cmd/llmadapter infer -m sonnet --thinking on --effort high "explain channels"
+```
+
+Disable cache policy for a request:
+
+```sh
+go run ./cmd/llmadapter infer -m haiku --no-cache "short answer only"
+```
+
+Use a config:
+
+```sh
+go run ./cmd/llmadapter infer --config examples/llmadapter.example.json -m fast "what is 2+2?"
+```
+
+`infer` prints resolved model/route information before streaming output. This is intentional: consumers should know which provider endpoint was selected.
+
+## serve
+
+Run the gateway from auto-detected env/local credentials:
+
+```sh
+go run ./cmd/llmadapter serve
+```
+
+Run the gateway from config:
+
+```sh
+go run ./cmd/llmadapter serve --config examples/llmadapter.example.json
+```
+
+Set address:
+
+```sh
+go run ./cmd/llmadapter serve --addr :9090
+```
+
+Inspect config and exit:
+
+```sh
+go run ./cmd/llmadapter serve --config examples/llmadapter.example.json --inspect-config
+```
+
+The compatibility binary is still available:
+
+```sh
+go run ./cmd/llmadapter-gateway -inspect-config
+```
+
+`cmd/llmadapter-gateway` is a compatibility entry point over the same `gatewayserver` path as `llmadapter serve`.
+
+## smoke
+
+Run a direct provider endpoint smoke:
+
+```sh
+go run ./cmd/llmadapter smoke -type openai_responses
+```
+
+Run through mux routing:
+
+```sh
+go run ./cmd/llmadapter smoke -mode mux -type openai_responses
+```
+
+Run through a config:
+
+```sh
+go run ./cmd/llmadapter smoke -mode mux -config examples/llmadapter.example.json -model fast
+```
+
+Run through auto detection:
+
+```sh
+go run ./cmd/llmadapter smoke -mode auto
+```
+
+## Environment Variables
+
+Provider credentials:
+
+- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY` or `OPENAI_KEY`
+- `OPENROUTER_API_KEY` or `OPENROUTER_KEY`
+- `MINIMAX_API_KEY` or `MINIMAX_KEY`
+- `CODEX_ACCESS_TOKEN` or `CODEX_CODE_OAUTH_TOKEN`
+
+Local credential paths:
+
+- `CLAUDE_CONFIG_DIR`
+- `CODEX_AUTH_PATH`
+
+Gateway:
+
+- `LLMADAPTER_CONFIG`
+- `LLMADAPTER_ADDR`
+
+Model overrides:
+
+- `ANTHROPIC_MODEL`
+- `CLAUDE_MODEL`
+- `CODEX_MODEL`
+- `OPENAI_MODEL`
+- `OPENAI_RESPONSES_MODEL`
+- `OPENROUTER_MODEL`
+- `OPENROUTER_RESPONSES_MODEL`
+- `OPENROUTER_MESSAGES_MODEL`
+- `MINIMAX_MODEL`
+- `MINIMAX_MESSAGES_MODEL`
