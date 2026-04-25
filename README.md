@@ -276,6 +276,8 @@ The `pricing` package can enrich `unified.UsageEvent` values with `CostItems` us
 
 Codex is modeled as provider endpoint type `codex_responses` with API kind `codex.responses` and family `openai.responses`. It uses Codex/ChatGPT OAuth credentials and `https://chatgpt.com/backend-api/codex/responses`, not the normal OpenAI platform API URL. Its default modeldb service ID is `codex`.
 
+Codex-specific session/window controls are namespaced extensions. Use `unified.SetCodexExtensions` to set advanced headers such as session ID, window ID, turn state, turn metadata, parent thread ID, subagent markers, memgen markers, and timing metrics. Normal `CacheKey` behavior still derives Codex session/window cache headers automatically.
+
 The `claude` provider type is an Anthropic Messages-compatible endpoint variant for Claude Code-style access. It uses bearer/OAuth auth instead of `x-api-key`, adds Claude CLI compatibility headers and `beta=true`, reads local Claude OAuth credentials when no bearer token env var is configured, applies Claude Code request preflight system blocks with cache control, and maps canonical reasoning requests to Anthropic extended thinking. Extended-thinking stream smoke coverage is live-verified for Anthropic, Claude Code-compatible access, MiniMax Messages, and OpenRouter Messages.
 
 The default HTTP byte-stream transport advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression. Custom HTTP clients can preserve that behavior by starting from `transport.CloneDefaultHTTPClient()`.

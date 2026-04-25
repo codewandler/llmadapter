@@ -55,7 +55,8 @@ func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unifi
 			"Authorization": []string{"Bearer " + c.apiKey},
 			"Content-Type":  []string{"application/json"},
 		},
-		Body: bytes.NewReader(body),
+		Body:       bytes.NewReader(body),
+		Extensions: req.Extensions.TransportValues(),
 	})
 	if err != nil {
 		return nil, err

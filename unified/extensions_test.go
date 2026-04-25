@@ -68,3 +68,38 @@ func TestOpenRouterRawExtensionsRoundtrip(t *testing.T) {
 		t.Fatalf("unexpected OpenRouter extensions: %+v", raw)
 	}
 }
+
+func TestCodexExtensionsRoundtrip(t *testing.T) {
+	var e Extensions
+	err := SetCodexExtensions(&e, CodexExtensions{
+		SessionID:            "sess",
+		WindowID:             "sess:2",
+		TurnState:            "sticky",
+		TurnMetadata:         `{"turn":1}`,
+		ParentThreadID:       "thread",
+		Subagent:             true,
+		MemgenRequest:        true,
+		IncludeTimingMetrics: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, warnings := CodexExtensionsFrom(e)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if got.SessionID != "sess" || got.WindowID != "sess:2" || got.TurnState != "sticky" || got.TurnMetadata != `{"turn":1}` || got.ParentThreadID != "thread" || !got.Subagent || !got.MemgenRequest || !got.IncludeTimingMetrics {
+		t.Fatalf("codex extensions = %+v", got)
+	}
+}
+
+func TestCodexExtensionsWarnings(t *testing.T) {
+	var e Extensions
+	if err := e.Set(ExtCodexSubagent, "not-bool"); err != nil {
+		t.Fatal(err)
+	}
+	_, warnings := CodexExtensionsFrom(e)
+	if len(warnings) != 1 || warnings[0].Code != "invalid_extension_dropped" {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}

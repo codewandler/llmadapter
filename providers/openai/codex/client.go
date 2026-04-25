@@ -83,6 +83,10 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 	if err != nil {
 		return nil, err
 	}
+	codexExt, warnings := codexExtensionsFromTransport(req.Extensions)
+	if len(warnings) > 0 {
+		return nil, fmt.Errorf("codex: invalid extensions: %s", warnings[0].Message)
+	}
 	header := req.Header.Clone()
 	header.Set("Content-Type", "application/json")
 	if err := t.auth.SetHeaders(ctx, header); err != nil {
@@ -94,9 +98,34 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 	if t.betaFeatures != "" {
 		header.Set(HeaderCodexBetaFeatures, t.betaFeatures)
 	}
-	if promptCacheKey != "" {
-		header.Set(HeaderSessionID, promptCacheKey)
-		header.Set(HeaderCodexWindowID, promptCacheKey+":"+defaultWindowGeneration)
+	sessionID := firstNonEmpty(codexExt.SessionID, promptCacheKey)
+	if sessionID != "" {
+		header.Set(HeaderSessionID, sessionID)
+	}
+	windowID := codexExt.WindowID
+	if windowID == "" && sessionID != "" {
+		windowID = sessionID + ":" + defaultWindowGeneration
+	}
+	if windowID != "" {
+		header.Set(HeaderCodexWindowID, windowID)
+	}
+	if codexExt.TurnState != "" {
+		header.Set(HeaderCodexTurnState, codexExt.TurnState)
+	}
+	if codexExt.TurnMetadata != "" {
+		header.Set(HeaderCodexTurnMetadata, codexExt.TurnMetadata)
+	}
+	if codexExt.ParentThreadID != "" {
+		header.Set(HeaderCodexParentThreadID, codexExt.ParentThreadID)
+	}
+	if codexExt.Subagent {
+		header.Set(HeaderOpenAISubagent, "true")
+	}
+	if codexExt.MemgenRequest {
+		header.Set(HeaderOpenAIMemgenRequest, "true")
+	}
+	if codexExt.IncludeTimingMetrics {
+		header.Set(HeaderTimingMetrics, "true")
 	}
 	return t.base.Open(ctx, &transport.Request{
 		Method:     req.Method,
@@ -105,6 +134,18 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 		Body:       bytes.NewReader(mutated),
 		Extensions: req.Extensions,
 	})
+}
+
+func codexExtensionsFromTransport(values map[string]any) (unified.CodexExtensions, []unified.WarningEvent) {
+	var e unified.Extensions
+	for key, value := range values {
+		raw, ok := value.(json.RawMessage)
+		if !ok {
+			continue
+		}
+		_ = e.SetRaw(key, raw)
+	}
+	return unified.CodexExtensionsFrom(e)
 }
 
 func mutateCodexBody(body io.Reader) ([]byte, string, error) {
@@ -161,4 +202,13 @@ func randomInstallationID() string {
 		return ""
 	}
 	return hex.EncodeToString(b[:])
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

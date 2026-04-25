@@ -56,6 +56,8 @@ Current provider endpoint families include:
 
 Provider endpoint packages own provider-specific wire request encoding, streaming response decoding, auth behavior, and provider-specific request extensions.
 
+Shared wire structs that are used on both sides of the adapter live outside provider implementation packages. Anthropic Messages wire types are in `anthropicwire`; the upstream Anthropic provider keeps aliases for compatibility, while the downstream `/v1/messages` endpoint imports the neutral wire package.
+
 ### Endpoint Codecs
 
 `endpoints/*` packages implement downstream HTTP compatibility surfaces:
@@ -284,7 +286,7 @@ This can still remain static and deterministic. A plugin-style registry is not r
 
 ### 2. Normalize Shared Wire Packages Where Needed
 
-Only extract shared wire packages when there is real duplication or cross-boundary coupling. Anthropic is the first candidate because both downstream `/v1/messages` and upstream Anthropic-compatible providers use the same wire shape.
+Only extract shared wire packages when there is real duplication or cross-boundary coupling. Anthropic Messages has been extracted to `anthropicwire` because both downstream `/v1/messages` and upstream Anthropic-compatible providers use the same wire shape.
 
 ### 3. Align Gateway And Mux Fallback Policy
 
@@ -294,9 +296,8 @@ Keep the HTTP-specific response-start behavior in `gateway`, but factor shared r
 
 Add focused fixture tests and live tests for:
 
-- Codex text/tool/gateway behavior.
-- Invalid credentials/models.
-- Parallel tools.
+- Invalid credentials and invalid models.
+- Parallel tool calls.
 - Provider-specific error decoding.
 - Reasoning and citation variants.
 - Prompt cache accounting where providers expose explicit counters.
@@ -308,7 +309,7 @@ Keep extension data namespaced, but add typed helper structs and validation for 
 
 - OpenRouter provider/routing/plugin/debug controls.
 - OpenAI Responses continuation/cache controls.
-- Codex-specific session and reasoning controls.
+- Codex-specific session/window/turn controls. Initial typed helpers are implemented through `unified.CodexExtensions`.
 - Anthropic-family beta/thinking/cache controls.
 
 ### 6. Keep Conversation State Out Of Core

@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/codewandler/llmadapter/adapt"
-	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	anthropic "github.com/codewandler/llmadapter/anthropicwire"
 	"github.com/codewandler/llmadapter/unified"
 )
 

@@ -3,6 +3,7 @@ package responses
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/codewandler/llmadapter/transport"
@@ -13,6 +14,30 @@ func TestNewClientRequiresAPIKey(t *testing.T) {
 	_, err := NewClient()
 	if err == nil {
 		t.Fatalf("expected missing API key error")
+	}
+}
+
+func TestDecodeMidStreamError(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"openai/test","status":"in_progress"}}`),
+		[]byte(`data: {"type":"error","error":{"type":"server_error","code":"upstream_failed","message":"upstream failed"}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), unified.Request{Model: "openai/test", Stream: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = unified.Collect(context.Background(), events)
+	var apiErr *unified.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T, want APIError", err)
+	}
+	if apiErr.Type != "server_error" || apiErr.Code != "upstream_failed" || apiErr.Message != "upstream failed" {
+		t.Fatalf("unexpected API error: %+v", apiErr)
 	}
 }
 

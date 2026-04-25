@@ -76,6 +76,9 @@ OpenAI Responses provider slice: native OpenAI Responses provider endpoint is re
 Architecture cleanup slice: `cmd/llmadapter-gateway` is now a thin compatibility binary over shared `adapterconfig` inspection/config validation and `gatewayserver` serving; duplicated command-local config, provider construction, modeldb, pricing, and inspection code was removed
 Reasoning signature slice: canonical reasoning content/events now preserve provider signatures; Anthropic-family providers and endpoints decode/encode thinking signatures for Anthropic, Claude Code-compatible access, OpenRouter Messages, and MiniMax Messages continuations
 Codex parity hardening slice: Codex Responses is included in the shared text, reasoning, tool, tool-continuation, prompt-cache, and `/v1/responses` gateway smoke matrices; prompt-cache smoke uses the Codex session/window cache key path and a larger stable prefix while allowing the warmup request to omit write counters
+Codex extension validation slice: `unified.CodexExtensions` provides typed namespaced controls for Codex session/window/turn metadata headers, and the Codex transport validates and applies them without changing default cache-key behavior
+Conformance fixture slice: focused tests cover Responses mid-stream provider errors and dynamic model resolver rejection for unavailable catalog models
+Anthropic wire cleanup slice: shared Anthropic Messages wire structs live in neutral `anthropicwire`, while the provider package keeps type aliases for compatibility; downstream `/v1/messages` no longer imports upstream provider implementation types
 ```
 
 Verified:
@@ -300,7 +303,7 @@ Mux client layer: stateless router-backed unified.Client, config/modeldb-backed 
 Dynamic model access slice: routes can opt into `dynamic_models` to resolve requested model IDs against modeldb for that provider endpoint while fixed weighted routes remain deterministic.
 Dynamic model capability slice: modeldb-backed dynamic routes narrow route capabilities for the selected provider offering before route selection; unknown dynamic model IDs are rejected rather than treated as provider defaults.
 Provider parity backlog: MiniMax Chat tool validation is complete; continue expanding endpoint conformance after the metadata/accounting boundaries are in place.
-Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, and text/tool/tool-continuation/reasoning/prompt-cache/gateway smoke entries are in place.
+Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, text/tool/tool-continuation/reasoning/prompt-cache/gateway smoke entries, and typed session/window/turn extension controls are in place.
 Reasoning signature preservation is now part of the canonical stream surface for providers that emit signed thinking blocks; raw chain-of-thought still remains provider-controlled, while signed reasoning summaries/blocks can round-trip when the upstream API exposes them.
 ```
 
@@ -493,7 +496,7 @@ Implemented behavior:
 - modeldb service identity is codex so catalog metadata/pricing stays separate from normal OpenAI platform offerings
 
 Open hardening:
-- Codex-specific prompt-cache/session headers should remain namespaced extensions when they need caller control
+- broader provider-specific extension groups should get typed helpers once they have stable semantics
 ```
 
 Caching, usage, pricing, and agentsdk conversation integration plan:

@@ -342,3 +342,31 @@ func TestStaticRouterRejectsJSONModeMismatch(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestStaticRouterRejectsUnavailableDynamicModel(t *testing.T) {
+	client := noopClient{}
+	r := NewStaticRouter(StaticRoute{
+		SourceAPI:     adapt.ApiOpenAIResponses,
+		DynamicModels: true,
+		Endpoint: ProviderEndpoint{
+			ProviderName: "openai",
+			APIKind:      adapt.ApiOpenAIResponses,
+			Family:       adapt.FamilyOpenAIResponses,
+			Client:       client,
+			Capabilities: CapabilitySet{Streaming: true},
+		},
+		ModelResolver: func(context.Context, adapt.Request, ProviderEndpoint) (ModelResolution, bool) {
+			return ModelResolution{}, false
+		},
+	})
+	_, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified:   unified.Request{Model: "not-in-catalog"},
+	})
+	if err == nil {
+		t.Fatalf("expected unavailable model error")
+	}
+	if !strings.Contains(err.Error(), "model unavailable") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

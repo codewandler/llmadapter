@@ -21,6 +21,14 @@ const (
 	ExtOpenRouterDebug            = "openrouter.debug"
 	ExtOpenRouterTrace            = "openrouter.trace"
 	ExtOpenRouterSessionID        = "openrouter.session_id"
+	ExtCodexSessionID             = "codex.session_id"
+	ExtCodexWindowID              = "codex.window_id"
+	ExtCodexTurnState             = "codex.turn_state"
+	ExtCodexTurnMetadata          = "codex.turn_metadata"
+	ExtCodexParentThreadID        = "codex.parent_thread_id"
+	ExtCodexSubagent              = "codex.subagent"
+	ExtCodexMemgenRequest         = "codex.memgen_request"
+	ExtCodexIncludeTimingMetrics  = "codex.include_timing_metrics"
 	ExtOllamaOptions              = "ollama.options"
 )
 
@@ -37,6 +45,17 @@ type OpenRouterRawExtensions struct {
 	Debug         json.RawMessage
 	Trace         json.RawMessage
 	SessionID     json.RawMessage
+}
+
+type CodexExtensions struct {
+	SessionID            string
+	WindowID             string
+	TurnState            string
+	TurnMetadata         string
+	ParentThreadID       string
+	Subagent             bool
+	MemgenRequest        bool
+	IncludeTimingMetrics bool
 }
 
 func (e *Extensions) Set(key string, value any) error {
@@ -136,4 +155,102 @@ func SetOpenRouterRawExtensions(e *Extensions, raw OpenRouterRawExtensions) erro
 		return err
 	}
 	return e.SetRaw(ExtOpenRouterSessionID, raw.SessionID)
+}
+
+func CodexExtensionsFrom(e Extensions) (CodexExtensions, []WarningEvent) {
+	var out CodexExtensions
+	var warnings []WarningEvent
+	setString := func(key string, dest *string) {
+		value, ok, err := GetExtension[string](e, key)
+		if err != nil {
+			warnings = append(warnings, extensionWarning(key, err))
+			return
+		}
+		if ok {
+			*dest = value
+		}
+	}
+	setBool := func(key string, dest *bool) {
+		value, ok, err := GetExtension[bool](e, key)
+		if err != nil {
+			warnings = append(warnings, extensionWarning(key, err))
+			return
+		}
+		if ok {
+			*dest = value
+		}
+	}
+	setString(ExtCodexSessionID, &out.SessionID)
+	setString(ExtCodexWindowID, &out.WindowID)
+	setString(ExtCodexTurnState, &out.TurnState)
+	setString(ExtCodexTurnMetadata, &out.TurnMetadata)
+	setString(ExtCodexParentThreadID, &out.ParentThreadID)
+	setBool(ExtCodexSubagent, &out.Subagent)
+	setBool(ExtCodexMemgenRequest, &out.MemgenRequest)
+	setBool(ExtCodexIncludeTimingMetrics, &out.IncludeTimingMetrics)
+	return out, warnings
+}
+
+func SetCodexExtensions(e *Extensions, value CodexExtensions) error {
+	if value.SessionID != "" {
+		if err := e.Set(ExtCodexSessionID, value.SessionID); err != nil {
+			return err
+		}
+	}
+	if value.WindowID != "" {
+		if err := e.Set(ExtCodexWindowID, value.WindowID); err != nil {
+			return err
+		}
+	}
+	if value.TurnState != "" {
+		if err := e.Set(ExtCodexTurnState, value.TurnState); err != nil {
+			return err
+		}
+	}
+	if value.TurnMetadata != "" {
+		if err := e.Set(ExtCodexTurnMetadata, value.TurnMetadata); err != nil {
+			return err
+		}
+	}
+	if value.ParentThreadID != "" {
+		if err := e.Set(ExtCodexParentThreadID, value.ParentThreadID); err != nil {
+			return err
+		}
+	}
+	if value.Subagent {
+		if err := e.Set(ExtCodexSubagent, true); err != nil {
+			return err
+		}
+	}
+	if value.MemgenRequest {
+		if err := e.Set(ExtCodexMemgenRequest, true); err != nil {
+			return err
+		}
+	}
+	if value.IncludeTimingMetrics {
+		if err := e.Set(ExtCodexIncludeTimingMetrics, true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e Extensions) TransportValues() map[string]any {
+	if len(e.values) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(e.values))
+	for key, raw := range e.values {
+		out[key] = append(json.RawMessage(nil), raw...)
+	}
+	return out
+}
+
+func extensionWarning(key string, err error) WarningEvent {
+	return WarningEvent{
+		Code:    "invalid_extension_dropped",
+		Message: "invalid extension " + key + " was dropped: " + err.Error(),
+		Source:  "unified.extensions",
+		Meta:    map[string]any{"key": key},
+	}
 }

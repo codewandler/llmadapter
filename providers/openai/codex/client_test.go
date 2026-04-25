@@ -92,3 +92,59 @@ func TestClientMutatesCodexRequest(t *testing.T) {
 		t.Fatalf("max_output_tokens was not removed: %#v", body)
 	}
 }
+
+func TestClientAppliesCodexExtensions(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5.4","status":"in_progress"}}`),
+		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"gpt-5.4","status":"completed"}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(
+		WithAccessToken("token"),
+		WithBaseURL("https://example.invalid/backend-api"),
+		WithInstallationID("install-1"),
+		WithTransport(fake),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := unified.Request{Model: "codex", Stream: true}
+	if err := unified.SetCodexExtensions(&req.Extensions, unified.CodexExtensions{
+		SessionID:            "sess",
+		WindowID:             "sess:3",
+		TurnState:            "sticky",
+		TurnMetadata:         `{"turn":1}`,
+		ParentThreadID:       "thread",
+		Subagent:             true,
+		MemgenRequest:        true,
+		IncludeTimingMetrics: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unified.Collect(context.Background(), events); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(fake.Seen) != 1 {
+		t.Fatalf("seen requests = %d", len(fake.Seen))
+	}
+	header := fake.Seen[0].Header
+	checkHeader := func(key, want string) {
+		t.Helper()
+		if got := header.Get(key); got != want {
+			t.Fatalf("%s = %q, want %q", key, got, want)
+		}
+	}
+	checkHeader(HeaderSessionID, "sess")
+	checkHeader(HeaderCodexWindowID, "sess:3")
+	checkHeader(HeaderCodexTurnState, "sticky")
+	checkHeader(HeaderCodexTurnMetadata, `{"turn":1}`)
+	checkHeader(HeaderCodexParentThreadID, "thread")
+	checkHeader(HeaderOpenAISubagent, "true")
+	checkHeader(HeaderOpenAIMemgenRequest, "true")
+	checkHeader(HeaderTimingMetrics, "true")
+}
