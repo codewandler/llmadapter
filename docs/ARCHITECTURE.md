@@ -216,6 +216,7 @@ unified.Request
 - Library mux clients can leave source API unset to let routing choose the best provider endpoint for a model alias; compatibility gateways still route from an explicit inbound API kind.
 - Modeldb integration is explicit: fixed routes can resolve aliases, narrow capabilities, attach limits, and enrich costs; known dynamic model requests can narrow capabilities and price per requested native model.
 - Shared HTTP transport normalizes non-2xx provider responses into `unified.APIError`, including status, JSON error fields, raw provider body, and `Retry-After` hints.
+- Mid-stream provider errors are projected as `unified.ErrorEvent` carrying `unified.APIError` where the provider exposes structured error fields. Gateway/mux fallback remains pre-stream/pre-response only; once streaming output begins, errors surface to the caller instead of retrying another provider.
 - Prompt-cache primitives are explicit on `unified.Request`: policy/key/TTL intent is mapped by provider codecs, while session-level cache strategy and stable-prefix projection stay in agentsdk.
 - Provider-specific controls are carried through namespaced `unified.Request.Extensions` instead of being added as core fields too early.
 - Reasoning stream projection is fixture-tested across Anthropic-family Messages surfaces, OpenAI Responses-compatible surfaces, and Codex Responses. `unified.Collect` preserves reasoning signatures, citations, and raw provider events for higher layers that need continuation or provider-specific metadata.

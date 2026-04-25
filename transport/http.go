@@ -73,33 +73,49 @@ func apiErrorFromHTTP(statusCode int, header http.Header, body []byte) *unified.
 		ProviderRaw: append([]byte(nil), body...),
 	}
 	apiErr.RetryAfter = retryAfter(header.Get("Retry-After"))
-	var openAI struct {
+	var generic struct {
 		Error struct {
-			Type    string `json:"type"`
-			Code    string `json:"code"`
-			Message string `json:"message"`
-			Param   string `json:"param"`
+			Type    string          `json:"type"`
+			Code    json.RawMessage `json:"code"`
+			Message string          `json:"message"`
+			Param   string          `json:"param"`
 		} `json:"error"`
 	}
-	if err := json.Unmarshal(body, &openAI); err == nil && openAI.Error.Message != "" {
-		apiErr.Type = openAI.Error.Type
-		apiErr.Code = openAI.Error.Code
-		apiErr.Message = openAI.Error.Message
-		apiErr.Param = openAI.Error.Param
+	if err := json.Unmarshal(body, &generic); err == nil && generic.Error.Message != "" {
+		apiErr.Type = generic.Error.Type
+		apiErr.Code = jsonScalarString(generic.Error.Code)
+		apiErr.Message = generic.Error.Message
+		apiErr.Param = generic.Error.Param
 		return apiErr
 	}
-	var anthropic struct {
-		Error struct {
-			Type    string `json:"type"`
-			Message string `json:"message"`
-		} `json:"error"`
+	var miniMax struct {
+		BaseResp struct {
+			StatusCode json.RawMessage `json:"status_code"`
+			StatusMsg  string          `json:"status_msg"`
+		} `json:"base_resp"`
 	}
-	if err := json.Unmarshal(body, &anthropic); err == nil && anthropic.Error.Message != "" {
-		apiErr.Type = anthropic.Error.Type
-		apiErr.Message = anthropic.Error.Message
+	if err := json.Unmarshal(body, &miniMax); err == nil && miniMax.BaseResp.StatusMsg != "" {
+		apiErr.Type = "minimax_error"
+		apiErr.Code = jsonScalarString(miniMax.BaseResp.StatusCode)
+		apiErr.Message = miniMax.BaseResp.StatusMsg
 		return apiErr
 	}
 	return apiErr
+}
+
+func jsonScalarString(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text
+	}
+	var number json.Number
+	if err := json.Unmarshal(raw, &number); err == nil {
+		return number.String()
+	}
+	return strings.TrimSpace(string(raw))
 }
 
 func retryAfter(value string) time.Duration {

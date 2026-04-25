@@ -106,6 +106,52 @@ func TestHTTPByteStreamTransportNon2xxAnthropicShape(t *testing.T) {
 	}
 }
 
+func TestHTTPByteStreamTransportNon2xxNumericErrorCode(t *testing.T) {
+	rt := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","code":400,"message":"bad request"}}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	tr := NewHTTPByteStreamTransport(HTTPTransportConfig{Client: &http.Client{Transport: rt}})
+	_, err := tr.Open(context.Background(), &Request{Method: "GET", URL: "https://example.test"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	var apiErr *unified.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T, want APIError", err)
+	}
+	if apiErr.StatusCode != http.StatusBadRequest || apiErr.Type != "invalid_request_error" || apiErr.Code != "400" || apiErr.Message != "bad request" {
+		t.Fatalf("unexpected API error: %+v", apiErr)
+	}
+}
+
+func TestHTTPByteStreamTransportNon2xxMiniMaxShape(t *testing.T) {
+	rt := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusUnauthorized,
+			Body:       io.NopCloser(strings.NewReader(`{"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	tr := NewHTTPByteStreamTransport(HTTPTransportConfig{Client: &http.Client{Transport: rt}})
+	_, err := tr.Open(context.Background(), &Request{Method: "GET", URL: "https://example.test"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	var apiErr *unified.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T, want APIError", err)
+	}
+	if apiErr.StatusCode != http.StatusUnauthorized || apiErr.Type != "minimax_error" || apiErr.Code != "1004" || apiErr.Message != "invalid api key" {
+		t.Fatalf("unexpected API error: %+v", apiErr)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {

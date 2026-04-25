@@ -142,6 +142,51 @@ func TestClientFallbackDisabledReturnsRouteAttemptError(t *testing.T) {
 	}
 }
 
+func TestClientDoesNotFallBackAfterStreamStarts(t *testing.T) {
+	primary := &fakeClient{events: []unified.Event{
+		unified.TextDeltaEvent{Text: "partial"},
+		unified.ErrorEvent{Err: errors.New("stream failed")},
+	}}
+	fallback := &fakeClient{events: []unified.Event{
+		unified.TextDeltaEvent{Text: "fallback"},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	client := New(router.NewStaticRouter(
+		router.StaticRoute{
+			SourceAPI: adapt.ApiOpenAIResponses,
+			Weight:    100,
+			Endpoint: router.ProviderEndpoint{
+				ProviderName: "primary",
+				APIKind:      adapt.ApiOpenAIResponses,
+				Family:       adapt.FamilyOpenAIResponses,
+				Client:       primary,
+			},
+		},
+		router.StaticRoute{
+			SourceAPI: adapt.ApiOpenAIResponses,
+			Weight:    10,
+			Endpoint: router.ProviderEndpoint{
+				ProviderName: "fallback",
+				APIKind:      adapt.ApiOpenAIResponses,
+				Family:       adapt.FamilyOpenAIResponses,
+				Client:       fallback,
+			},
+		},
+	))
+
+	events, err := client.Request(context.Background(), unified.Request{Model: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = unified.Collect(context.Background(), events)
+	if err == nil || !strings.Contains(err.Error(), "stream failed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if primary.calls != 1 || fallback.calls != 0 {
+		t.Fatalf("unexpected calls: primary=%d fallback=%d", primary.calls, fallback.calls)
+	}
+}
+
 func TestClientNoRoute(t *testing.T) {
 	client := New(router.NewStaticRouter())
 	_, err := client.Request(context.Background(), unified.Request{Model: "missing"})

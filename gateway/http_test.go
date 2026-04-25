@@ -84,6 +84,7 @@ func TestHandlerFallsBackWhenClientRequestFailsBeforeResponseStarts(t *testing.T
 				APIKind:      adapt.ApiOpenAIChatCompletions,
 				Family:       adapt.FamilyOpenAIChatCompletions,
 				Client:       primary,
+				Capabilities: router.CapabilitySet{Streaming: true},
 			},
 		},
 		router.StaticRoute{
@@ -95,6 +96,7 @@ func TestHandlerFallsBackWhenClientRequestFailsBeforeResponseStarts(t *testing.T
 				APIKind:      adapt.ApiOpenAIChatCompletions,
 				Family:       adapt.FamilyOpenAIChatCompletions,
 				Client:       fallback,
+				Capabilities: router.CapabilitySet{Streaming: true},
 			},
 		},
 	)}
@@ -138,6 +140,7 @@ func TestHandlerFallsBackWhenEndpointReturnsErrorBeforeResponseStarts(t *testing
 				APIKind:      adapt.ApiOpenAIChatCompletions,
 				Family:       adapt.FamilyOpenAIChatCompletions,
 				Client:       primary,
+				Capabilities: router.CapabilitySet{Streaming: true},
 			},
 		},
 		router.StaticRoute{
@@ -148,6 +151,7 @@ func TestHandlerFallsBackWhenEndpointReturnsErrorBeforeResponseStarts(t *testing
 				APIKind:      adapt.ApiOpenAIChatCompletions,
 				Family:       adapt.FamilyOpenAIChatCompletions,
 				Client:       fallback,
+				Capabilities: router.CapabilitySet{Streaming: true},
 			},
 		},
 	)}
@@ -166,6 +170,59 @@ func TestHandlerFallsBackWhenEndpointReturnsErrorBeforeResponseStarts(t *testing
 		t.Fatalf("calls primary=%d fallback=%d", primary.calls, fallback.calls)
 	}
 	if !strings.Contains(w.Body.String(), `"content":"fallback"`) {
+		t.Fatalf("unexpected response body: %s", w.Body.String())
+	}
+}
+
+func TestHandlerDoesNotFallBackAfterResponseStarts(t *testing.T) {
+	primary := &staticClient{events: []unified.Event{
+		unified.MessageStartEvent{ID: "msg", Model: "primary-model"},
+		unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindText},
+		unified.TextDeltaEvent{Index: 0, Text: "partial"},
+		unified.ErrorEvent{Err: errors.New("primary stream failed")},
+	}}
+	fallback := &staticClient{events: []unified.Event{
+		unified.MessageStartEvent{ID: "msg", Model: "fallback-model"},
+		unified.TextDeltaEvent{Index: 0, Text: "fallback"},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	handler := Handler{Endpoint: chat.Codec{}, Router: router.NewStaticRouter(
+		router.StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Weight:    100,
+			Endpoint: router.ProviderEndpoint{
+				ProviderName: "primary",
+				APIKind:      adapt.ApiOpenAIChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       primary,
+				Capabilities: router.CapabilitySet{Streaming: true},
+			},
+		},
+		router.StaticRoute{
+			SourceAPI: adapt.ApiOpenAIChatCompletions,
+			Weight:    10,
+			Endpoint: router.ProviderEndpoint{
+				ProviderName: "fallback",
+				APIKind:      adapt.ApiOpenAIChatCompletions,
+				Family:       adapt.FamilyOpenAIChatCompletions,
+				Client:       fallback,
+				Capabilities: router.CapabilitySet{Streaming: true},
+			},
+		},
+	)}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
+		"model":"model",
+		"messages":[{"role":"user","content":"ping"}],
+		"stream":true
+	}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if fallback.calls != 0 {
+		t.Fatalf("fallback should not be called after response starts")
+	}
+	if !strings.Contains(w.Body.String(), `"content":"partial"`) {
 		t.Fatalf("unexpected response body: %s", w.Body.String())
 	}
 }
