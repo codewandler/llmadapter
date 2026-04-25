@@ -259,11 +259,17 @@ Live tests are strong smoke coverage, not full protocol conformance. Known gaps 
 - Reasoning/citation variants.
 - Provider-specific error body and mid-stream error variants.
 - Audio, video, file, document, and built-in tool conformance.
-- Provider-specific extension schemas and validation.
+- Provider-specific extension semantic validation beyond the typed helper shape checks that already exist.
 
 ### Raw Event Preservation
 
 Raw/unmapped event preservation exists for provider usage payloads and selected unmapped provider stream events. More provider-specific events should be preserved before broadening to APIs with richer event streams.
+
+### Current Stable State
+
+The current stable state is a stateless, stream-first adapter with shared `adapterconfig` construction for CLI, gateway, and mux client paths. Model resolution is centralized through modeldb catalog loading plus alias overlays when modeldb-backed routing is enabled. Provider support spans Anthropic Messages-compatible, OpenAI Chat-compatible, and OpenAI Responses-compatible endpoint families across Anthropic, Claude Code-compatible access, OpenAI, OpenRouter, MiniMax, and Codex endpoint variants.
+
+Usage/cost accounting is canonical and structured, provider raw usage payloads are retained where exposed, prompt-cache controls are explicit request hints, and stateful conversation/session behavior remains outside llmadapter.
 
 ### Stateful Conversation Policy
 

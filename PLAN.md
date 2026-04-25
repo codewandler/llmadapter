@@ -265,10 +265,10 @@ Provider mappings and endpoint codecs now cover common unsupported dropped field
 Anthropic request mapping covers the phase-3 vertical slice, not the full Messages API
 non-streaming Anthropic response bodies are not yet modeled separately from stream events
 SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
-Raw/unmapped event preservation is minimal and should be expanded before gateway work
-router is static and now includes capability checks plus deterministic weighted ranking; gateway retries pre-response provider failures and temporarily deprioritizes failed endpoints, but there is no probabilistic load balancing or capability conversion policy yet
+Raw/unmapped event preservation now covers provider raw usage payloads and selected unmapped provider stream events; richer provider-specific events still need focused fixtures as new APIs expose them
+router is static and now includes capability checks plus deterministic weighted ranking; gateway retries pre-response provider failures and temporarily deprioritizes failed endpoints, but there is no probabilistic load balancing, configurable retry policy, or capability conversion policy yet
 capability defaults are endpoint-family guesses; configured provider capability overrides are available for model-specific routing, but there is no model capability registry yet
-gateway config is intentionally minimal; routes can disambiguate same-provider endpoints with provider_api, but there is no full registry yet
+gateway config is intentionally explicit; routes can disambiguate same-provider endpoints with provider_api, but there is no plugin-style provider registry or external provider module loading yet
 OpenAI Chat provider is stream-first and covers smoke-tested text and tool-use paths
 OpenAI Responses provider is stream-first and covers the canonical Responses-family request/event shape, including previous_response_id/store/prompt-cache extension encoding and live-verified previous_response_id continuation
 OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
@@ -279,23 +279,34 @@ MiniMax Messages provider reuses the Anthropic-compatible stream path against Mi
 OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
 OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
 Provider support is currently strong for text + function-tool loops, OpenAI-family structured-output requests, and basic image input passthrough; broad multimodal/media conformance is not complete
-OpenRouter extension passthrough is centralized raw JSON preservation; extension schemas and validation are intentionally deferred
+OpenRouter extension passthrough is centralized through typed raw helpers with basic shape validation; deeper provider-specific semantic validation is still intentionally deferred
 streaming provider errors after response start need a final policy; current behavior marks the route unhealthy and returns because the endpoint-shaped response has already started
-runnable gateway uses one Anthropic route and can optionally override upstream model via env
-modeldb metadata is integrated only for fixed-route enrichment; provider endpoint base capabilities still come from hardcoded family defaults plus manual config overrides
+runnable gateway supports configured and auto-detected provider routes through shared adapterconfig/gatewayserver construction; the no-config path remains a small Anthropic default
+modeldb metadata is integrated for fixed-route enrichment and dynamic model routes; provider endpoint base capabilities still come from hardcoded family defaults plus manual config overrides
 usage now carries structured token and cost item fields as the canonical accounting surface; modeldb-backed pricing enrichment is wired for configured fixed-model gateway routes and dynamic per-request models when catalog pricing exists
 stateful conversations are intentionally absent from llmadapter core; conversation/session belongs in agentsdk or another wrapper above unified.Client
 Prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter. Codex uses the session/window cache key path and the live smoke checks follow-up cache-read accounting.
 ```
 
+Current stable state:
+
+```text
+llmadapter is a stateless, stream-first adapter with a shared canonical request/event model, provider endpoint routing, HTTP gateway endpoints, a Cobra CLI, and an in-process mux client.
+Model resolution is centralized through adapterconfig/modeldb catalog loading plus alias overlays; CLI resolve/infer, auto mux, gateway, and muxclient use the same catalog-backed route/native-model decision path when modeldb is enabled.
+Supported provider endpoint families cover Anthropic Messages-compatible, OpenAI Chat-compatible, and OpenAI Responses-compatible surfaces, including Anthropic, Claude Code-compatible access, OpenAI, OpenRouter, MiniMax, and Codex endpoint variants.
+Usage/cost accounting is canonical and structured; provider raw usage payloads are retained when available, and modeldb-backed pricing is absent-safe.
+Prompt caching primitives are explicit request hints only; session-level cache policy and stateful conversation projection remain agentsdk responsibilities.
+Conformance coverage now includes text, tools, parallel tool-call decoding, tool continuation, reasoning signatures, prompt caching, error normalization, dynamic model rejection, multimodal image/unsupported-media behavior, typed extension validation, raw provider usage, and selected raw provider events.
+```
+
 Implementation assessment:
 
 ```text
-Foundation is solid for a vertical-slice adapter: canonical request/event model, stream-first provider clients, deterministic weighted routing, pre-response gateway fallback, fake transport unit tests, shared CLI/gateway config construction, and live outside-in e2e tests are all working.
-Main intentional shortcuts are stream-first provider paths, a growing static provider registry factory, and minimal warning/raw-event preservation.
+Foundation is solid for a stateless adapter: canonical request/event model, stream-first provider clients, deterministic weighted routing, pre-response gateway fallback, fake transport unit tests, shared CLI/gateway config construction, in-process mux routing, modeldb-backed resolution/pricing, and live outside-in e2e tests are all working.
+Main intentional shortcuts are stream-first provider paths, family-level default capabilities, explicit static provider descriptors, and partial protocol coverage for provider-specific advanced fields.
 Current live tests are good smoke coverage, not full conformance coverage.
-Important remaining test gaps: invalid credentials/models, probabilistic load balancing, parallel tool calls, deeper endpoint-codec conformance, broader reasoning/citations conformance, full audio/video/file provider conformance, and provider-specific extension schema validation.
-Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation but is still missing provider registry auto-detection and a broader integration matrix. Stateful conversation ownership has moved to agentsdk.
+Important remaining test gaps: deeper endpoint-codec conformance, broader citation variants, provider-specific error variants, full audio/video/file/document/built-in-tool provider conformance, and deeper provider-specific extension semantic validation.
+Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation and now covers provider auto-detection for env/local credentials. Stateful conversation ownership has moved to agentsdk.
 ```
 
 Next planned phase:

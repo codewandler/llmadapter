@@ -294,7 +294,7 @@ See `DESIGN.md` for the target architecture, `docs/ARCHITECTURE.md` for the curr
 
 - Capability defaults are endpoint-family guesses. Use provider `capabilities` overrides for model-specific support before routing production traffic.
 - Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
-- OpenRouter extension passthrough preserves raw JSON controls but does not yet validate provider-specific extension schemas.
+- OpenRouter extension passthrough uses typed raw helpers with basic shape validation; deeper provider-specific semantic validation is still intentionally limited.
 - Native OpenAI Responses has live smoke coverage for `previous_response_id` continuation. OpenRouter Responses encodes the same fields, but live context preservation is not advertised because the current backend smoke did not preserve prior-turn context.
 - Modeldb-backed metadata narrows configured fixed-model routes and dynamic model requests. Pricing works for fixed routes and dynamic routes when the selected native model has catalog pricing. Dynamic model IDs missing from the catalog are rejected instead of using provider endpoint defaults.
 - Prompt cache request hints currently map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions; higher-level session cache policy belongs above llmadapter. OpenRouter and MiniMax caching depend on the selected endpoint: use Messages surfaces for Anthropic block cache controls, or Responses-compatible surfaces for prompt-cache-key style controls. Codex maps the prompt cache key into Codex session/window headers.
