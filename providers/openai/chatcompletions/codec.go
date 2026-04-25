@@ -233,8 +233,9 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	if err := json.Unmarshal(frame.Data, &chunk); err != nil {
 		return nil, err
 	}
+	chunk.Raw = append(json.RawMessage(nil), frame.Data...)
 	if chunk.Error != nil {
-		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: chunk.Error.Type, Code: chunk.Error.Code, Message: chunk.Error.Message}}}, nil
+		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: chunk.Error.Type, Code: chunk.Error.Code, Message: chunk.Error.Message, ProviderRaw: chunk.Raw}}}, nil
 	}
 	if chunk.ID != "" {
 		d.id = chunk.ID

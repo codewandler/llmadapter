@@ -134,6 +134,59 @@ func TestProviderMidStreamErrorConformance(t *testing.T) {
 			if apiErr.Type != tc.wantType || apiErr.Code != tc.wantCode || apiErr.Message != tc.wantMsg {
 				t.Fatalf("unexpected APIError: %+v", apiErr)
 			}
+			if len(apiErr.ProviderRaw) == 0 {
+				t.Fatalf("missing provider raw error payload: %+v", apiErr)
+			}
+		})
+	}
+}
+
+func TestProviderResponseObjectErrorConformance(t *testing.T) {
+	cases := []struct {
+		name      string
+		newClient func(transport.ByteStreamTransport) (unified.Client, error)
+	}{
+		{
+			name: "openai_responses",
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openairesponses.NewClient(openairesponses.WithAPIKey("key"), openairesponses.WithTransport(t))
+			},
+		},
+		{
+			name: "openrouter_responses",
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey("key"), openrouterresponses.WithTransport(t))
+			},
+		},
+		{
+			name: "codex_responses",
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return codex.NewClient(codex.WithAccessToken("token"), codex.WithTransport(t))
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := tc.newClient(&transport.FakeByteStreamTransport{Frames: responsesObjectErrorFrames()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events, err := client.Request(context.Background(), errorSmokeRequest())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = unified.Collect(context.Background(), events)
+			var apiErr *unified.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("error = %T %v, want APIError", err, err)
+			}
+			if apiErr.Type != "invalid_request_error" || apiErr.Code != "bad_model" || apiErr.Message != "unknown model" {
+				t.Fatalf("unexpected APIError: %+v", apiErr)
+			}
+			if len(apiErr.ProviderRaw) == 0 {
+				t.Fatalf("missing provider raw error payload: %+v", apiErr)
+			}
 		})
 	}
 }
@@ -158,5 +211,12 @@ func responsesErrorFrames() [][]byte {
 	return [][]byte{
 		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","status":"in_progress"}}`),
 		[]byte(`data: {"type":"error","error":{"type":"server_error","code":"upstream_failed","message":"upstream failed"}}`),
+	}
+}
+
+func responsesObjectErrorFrames() [][]byte {
+	return [][]byte{
+		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","status":"in_progress"}}`),
+		[]byte(`data: {"type":"response.failed","response":{"id":"resp_1","model":"gpt-test","status":"failed","error":{"type":"invalid_request_error","code":"bad_model","message":"unknown model"}}}`),
 	}
 }

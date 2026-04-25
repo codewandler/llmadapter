@@ -152,6 +152,66 @@ func TestHTTPByteStreamTransportNon2xxMiniMaxShape(t *testing.T) {
 	}
 }
 
+func TestHTTPByteStreamTransportProviderErrorBodyVariants(t *testing.T) {
+	cases := []struct {
+		name       string
+		statusCode int
+		body       string
+		wantType   string
+		wantCode   string
+		wantMsg    string
+	}{
+		{
+			name:       "top_level_message",
+			statusCode: http.StatusBadRequest,
+			body:       `{"type":"invalid_request_error","code":"bad_model","message":"unknown model","param":"model"}`,
+			wantType:   "invalid_request_error",
+			wantCode:   "bad_model",
+			wantMsg:    "unknown model",
+		},
+		{
+			name:       "detail_message",
+			statusCode: http.StatusUnauthorized,
+			body:       `{"detail":"authorization failed"}`,
+			wantMsg:    "authorization failed",
+		},
+		{
+			name:       "string_error",
+			statusCode: http.StatusServiceUnavailable,
+			body:       `{"error":"temporarily unavailable"}`,
+			wantMsg:    "temporarily unavailable",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: tc.statusCode,
+					Body:       io.NopCloser(strings.NewReader(tc.body)),
+					Header:     make(http.Header),
+				}, nil
+			})
+
+			tr := NewHTTPByteStreamTransport(HTTPTransportConfig{Client: &http.Client{Transport: rt}})
+			_, err := tr.Open(context.Background(), &Request{Method: "GET", URL: "https://example.test"})
+			if err == nil {
+				t.Fatalf("expected error")
+			}
+			var apiErr *unified.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("error = %T, want APIError", err)
+			}
+			if apiErr.StatusCode != tc.statusCode || apiErr.Type != tc.wantType || apiErr.Code != tc.wantCode || apiErr.Message != tc.wantMsg {
+				t.Fatalf("unexpected API error: %+v", apiErr)
+			}
+			if string(apiErr.ProviderRaw) != tc.body {
+				t.Fatalf("provider raw = %s, want %s", apiErr.ProviderRaw, tc.body)
+			}
+		})
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {

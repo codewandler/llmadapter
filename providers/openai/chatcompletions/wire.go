@@ -71,11 +71,12 @@ type toolCallFunctionWire struct {
 }
 
 type chunkWire struct {
-	ID      string       `json:"id,omitempty"`
-	Model   string       `json:"model,omitempty"`
-	Choices []choiceWire `json:"choices,omitempty"`
-	Usage   *usageWire   `json:"usage,omitempty"`
-	Error   *errorWire   `json:"error,omitempty"`
+	ID      string          `json:"id,omitempty"`
+	Model   string          `json:"model,omitempty"`
+	Choices []choiceWire    `json:"choices,omitempty"`
+	Usage   *usageWire      `json:"usage,omitempty"`
+	Error   *errorWire      `json:"error,omitempty"`
+	Raw     json.RawMessage `json:"-"`
 }
 
 type choiceWire struct {

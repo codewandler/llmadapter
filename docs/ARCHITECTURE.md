@@ -217,6 +217,7 @@ unified.Request
 - Modeldb integration is explicit: fixed routes can resolve aliases, narrow capabilities, attach limits, and enrich costs; known dynamic model requests can narrow capabilities and price per requested native model.
 - Shared HTTP transport normalizes non-2xx provider responses into `unified.APIError`, including status, JSON error fields, raw provider body, and `Retry-After` hints.
 - Mid-stream provider errors are projected as `unified.ErrorEvent` carrying `unified.APIError` where the provider exposes structured error fields. Gateway/mux fallback remains pre-stream/pre-response only; once streaming output begins, errors surface to the caller instead of retrying another provider.
+- Provider raw error payloads are preserved for normalized non-2xx errors and covered mid-stream error events, including Responses response-object failures.
 - Multimodal support is explicit and warning-driven: supported image URL/base64 inputs encode through compatible provider surfaces, while unsupported audio/file/video parts are either rejected in strict mode or dropped with `unsupported_field_dropped` warnings in best-effort mode.
 - Prompt-cache primitives are explicit on `unified.Request`: policy/key/TTL intent is mapped by provider codecs, while session-level cache strategy and stable-prefix projection stay in agentsdk.
 - Provider-specific controls are carried through namespaced `unified.Request.Extensions` instead of being added as core fields too early.
@@ -257,7 +258,7 @@ Live tests are strong smoke coverage, not full protocol conformance. Known gaps 
 - Parallel tool calls.
 - More complete endpoint codec fixtures.
 - Reasoning/citation variants.
-- Provider-specific error body and mid-stream error variants.
+- Additional provider-specific error body and mid-stream error variants as new providers expose them.
 - Audio, video, file, document, and built-in tool conformance.
 - Provider-specific extension semantic validation beyond the typed helper shape checks that already exist.
 
@@ -269,7 +270,7 @@ Raw/unmapped event preservation exists for provider usage payloads and selected 
 
 The current stable state is a stateless, stream-first adapter with shared `adapterconfig` construction for CLI, gateway, and mux client paths. Model resolution is centralized through modeldb catalog loading plus alias overlays when modeldb-backed routing is enabled. Provider support spans Anthropic Messages-compatible, OpenAI Chat-compatible, and OpenAI Responses-compatible endpoint families across Anthropic, Claude Code-compatible access, OpenAI, OpenRouter, MiniMax, and Codex endpoint variants.
 
-Usage/cost accounting is canonical and structured, provider raw usage payloads are retained where exposed, prompt-cache controls are explicit request hints, and stateful conversation/session behavior remains outside llmadapter.
+Usage/cost accounting is canonical and structured, provider raw usage/error payloads are retained where exposed, prompt-cache controls are explicit request hints, and stateful conversation/session behavior remains outside llmadapter.
 
 ### Stateful Conversation Policy
 

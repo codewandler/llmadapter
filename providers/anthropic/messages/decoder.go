@@ -44,7 +44,7 @@ func (d *EventDecoder) Push(ctx context.Context, ev Event) ([]unified.Event, err
 	case PingEvent:
 		return nil, nil
 	case ErrorEventWire:
-		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: e.Error.Type, Message: e.Error.Message}}}, nil
+		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: e.Error.Type, Message: e.Error.Message, ProviderRaw: providerRawJSON(e)}}}, nil
 	default:
 		return nil, fmt.Errorf("unsupported anthropic event %T", ev)
 	}

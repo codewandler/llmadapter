@@ -300,10 +300,10 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	}
 	ev.Raw = append(json.RawMessage(nil), frame.Data...)
 	if ev.Error != nil {
-		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: ev.Error.Type, Code: ev.Error.Code, Message: ev.Error.Message}}}, nil
+		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: ev.Error.Type, Code: ev.Error.Code, Message: ev.Error.Message, ProviderRaw: ev.Raw}}}, nil
 	}
 	if ev.Response != nil && ev.Response.Error != nil {
-		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: ev.Response.Error.Type, Code: ev.Response.Error.Code, Message: ev.Response.Error.Message}}}, nil
+		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: ev.Response.Error.Type, Code: ev.Response.Error.Code, Message: ev.Response.Error.Message, ProviderRaw: ev.Raw}}}, nil
 	}
 	if ev.Response != nil {
 		if ev.Response.ID != "" {

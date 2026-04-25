@@ -88,6 +88,32 @@ func apiErrorFromHTTP(statusCode int, header http.Header, body []byte) *unified.
 		apiErr.Param = generic.Error.Param
 		return apiErr
 	}
+	var topLevel struct {
+		Type    string          `json:"type"`
+		Code    json.RawMessage `json:"code"`
+		Message string          `json:"message"`
+		Param   string          `json:"param"`
+		Detail  string          `json:"detail"`
+		Error   json.RawMessage `json:"error"`
+	}
+	if err := json.Unmarshal(body, &topLevel); err == nil {
+		switch {
+		case topLevel.Message != "":
+			apiErr.Type = topLevel.Type
+			apiErr.Code = jsonScalarString(topLevel.Code)
+			apiErr.Message = topLevel.Message
+			apiErr.Param = topLevel.Param
+			return apiErr
+		case topLevel.Detail != "":
+			apiErr.Message = topLevel.Detail
+			return apiErr
+		case len(topLevel.Error) > 0:
+			if msg := jsonScalarString(topLevel.Error); msg != "" {
+				apiErr.Message = msg
+				return apiErr
+			}
+		}
+	}
 	var miniMax struct {
 		BaseResp struct {
 			StatusCode json.RawMessage `json:"status_code"`
