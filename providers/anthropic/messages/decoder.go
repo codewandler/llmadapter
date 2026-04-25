@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/codewandler/llmadapter/internal/citations"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -62,7 +63,9 @@ func (d *EventDecoder) contentBlockStart(e ContentBlockStartEvent) []unified.Eve
 	d.blockTypes[e.Index] = block.Type
 	switch block.Type {
 	case "text":
-		return []unified.Event{unified.ContentBlockStartEvent{Index: e.Index, Kind: unified.ContentKindText}}
+		out := []unified.Event{unified.ContentBlockStartEvent{Index: e.Index, Kind: unified.ContentKindText}}
+		out = append(out, citationEventsFromAnthropic(e.Index, block.Citations)...)
+		return out
 	case "thinking":
 		out := []unified.Event{unified.ContentBlockStartEvent{Index: e.Index, Kind: unified.ContentKindReasoning}}
 		if block.Thinking != "" || block.Signature != "" {
@@ -154,6 +157,34 @@ func providerRawJSON(value any) json.RawMessage {
 		return nil
 	}
 	return raw
+}
+
+func citationEventsFromAnthropic(index int, raw []any) []unified.Event {
+	out := make([]unified.Event, 0, len(raw))
+	for _, value := range raw {
+		values, ok := value.(map[string]any)
+		if !ok {
+			out = append(out, unified.RawEvent{APIKind: "anthropic.messages", Type: "citation", Value: value})
+			continue
+		}
+		citation := citationFromAnthropicMap(values)
+		if citation.Type == "" {
+			out = append(out, unified.RawEvent{APIKind: "anthropic.messages", Type: "citation", JSON: providerRawJSON(values), Value: value})
+			continue
+		}
+		out = append(out, unified.CitationEvent{Index: index, Citation: citation})
+	}
+	return out
+}
+
+func citationFromAnthropicMap(values map[string]any) unified.Citation {
+	return citations.FromMap(values, citations.Spec{
+		TextKeys:       []string{"cited_text", "text", "quote"},
+		TitleKeys:      []string{"title", "document_title"},
+		DocumentIDKeys: []string{"document_id", "file_id"},
+		StartKeys:      []string{"start_char_index", "start_offset", "start_index"},
+		EndKeys:        []string{"end_char_index", "end_offset", "end_index"},
+	})
 }
 
 func mapStopReason(reason string) unified.FinishReason {

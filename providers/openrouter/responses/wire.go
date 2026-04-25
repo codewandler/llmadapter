@@ -75,6 +75,7 @@ type eventWire struct {
 	Response     *responseWire    `json:"response,omitempty"`
 	Item         *outputItemWire  `json:"item,omitempty"`
 	Part         *contentPartWire `json:"part,omitempty"`
+	Annotation   json.RawMessage  `json:"annotation,omitempty"`
 	Arguments    string           `json:"arguments,omitempty"`
 	Error        *errorWire       `json:"error,omitempty"`
 	Raw          json.RawMessage  `json:"-"`

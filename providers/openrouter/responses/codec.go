@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/codewandler/llmadapter/internal/citations"
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -343,6 +344,12 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 		out = append(out, d.start()...)
 		out = append(out, unified.ReasoningDeltaEvent{Index: ev.OutputIndex, Text: ev.Delta})
 	case "response.reasoning_summary_text.done", "response.reasoning_text.done":
+	case "response.output_text.annotation.added":
+		if citation, ok := citationFromAnnotation(ev.Annotation); ok {
+			out = append(out, unified.CitationEvent{Index: ev.OutputIndex, Citation: citation})
+		} else {
+			out = append(out, unified.RawEvent{APIKind: d.rawAPIKind(), Type: ev.Type, JSON: ev.Raw})
+		}
 	case "response.content_part.done":
 		if d.startedBlock {
 			out = append(out, unified.ContentBlockDoneEvent{Index: d.blockIndex, Kind: unified.ContentKindText})
@@ -486,6 +493,31 @@ func providerRawUsage(usage *usageWire, fallback json.RawMessage) json.RawMessag
 		return append(json.RawMessage(nil), fallback...)
 	}
 	return raw
+}
+
+func citationFromAnnotation(raw json.RawMessage) (unified.Citation, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return unified.Citation{}, false
+	}
+	var values map[string]any
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return unified.Citation{}, false
+	}
+	citation := citationFromMap(values)
+	if citation.Type == "" {
+		return unified.Citation{}, false
+	}
+	return citation, true
+}
+
+func citationFromMap(values map[string]any) unified.Citation {
+	return citations.FromMap(values, citations.Spec{
+		TextKeys:       []string{"text", "quote", "snippet"},
+		TitleKeys:      []string{"title", "filename"},
+		DocumentIDKeys: []string{"document_id", "file_id"},
+		StartKeys:      []string{"start_offset", "start_index"},
+		EndKeys:        []string{"end_offset", "end_index"},
+	})
 }
 
 func tokenItemsFromUsage(usage *usageWire) unified.TokenItems {
