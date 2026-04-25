@@ -229,7 +229,7 @@ unified.Request
 - Endpoint codecs preserve HTTP/raw decode metadata for diagnostics, and compatible endpoints project canonical citations back into provider-shaped response annotation/citation fields.
 - Provider metadata preservation is fixture-tested for raw usage payloads and unmapped provider stream events across OpenAI Chat, Responses-family, Codex Responses, and Anthropic-family Messages surfaces.
 - `cmd/llmadapter-gateway` is now a thin compatibility binary over the shared `adapterconfig` and `gatewayserver` path.
-- Live smoke tests cover text, tools, tool-result continuation, reasoning streams, prompt caching, and gateway paths across supported providers.
+- Live smoke tests cover text, tools, tool-result continuation, reasoning streams, prompt-cache accounting where providers report cache counters, and gateway paths across supported providers. `docs/PROVIDER_MATRIX.md` records the exact v1 provider endpoint matrix and latest live result.
 
 ## Known Shortcomings
 

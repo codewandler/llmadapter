@@ -75,6 +75,8 @@ Provider model override env vars:
 - `MINIMAX_MODEL`
 - `MINIMAX_MESSAGES_MODEL`
 
+See [docs/PROVIDER_MATRIX.md](docs/PROVIDER_MATRIX.md) for the v1 provider endpoint matrix, feature coverage, live smoke commands, and latest recorded smoke result.
+
 ## Common Usage
 
 Auto-detected mux inference from env/local credentials:
@@ -286,7 +288,7 @@ Built-in modeldb aliases are centralized in `adapterconfig.DefaultModelDBAliases
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 
-Canonical requests can carry `CachePolicy`, `CacheKey`, and `CacheTTL` as provider-neutral prompt-cache intent. Responses-family providers use `CacheKey` as `prompt_cache_key` with best-effort retention, and Codex maps that key into Codex session/window headers. Anthropic-family providers, including OpenRouter Messages and MiniMax Messages, map `CachePolicy` to block-level `cache_control` on the last cacheable system/tool block; explicit `TextPart.CacheControl` hints are still encoded directly. The shared prompt-cache smoke verifies provider-reported cache write/read accounting for Anthropic-family entries and Codex where credentials are available.
+Canonical requests can carry `CachePolicy`, `CacheKey`, and `CacheTTL` as provider-neutral prompt-cache intent. Responses-family providers use `CacheKey` as `prompt_cache_key` with best-effort retention, and Codex maps that key into Codex session/window headers. Anthropic-family providers, including OpenRouter Messages and MiniMax Messages, map `CachePolicy` to block-level `cache_control` on the last cacheable system/tool block; explicit `TextPart.CacheControl` hints are still encoded directly. The shared prompt-cache smoke verifies provider-reported cache write/read accounting for Anthropic, Claude Code-compatible access, and Codex where credentials are available. Other provider cache mappings remain best-effort unless the provider reports cache usage counters that the matrix can assert.
 
 ## Prompt Caching
 
@@ -320,6 +322,7 @@ Provider mappings are best-effort:
 - Anthropic-family Messages providers encode explicit block/tool `CacheControl` as native `cache_control`; `CachePolicy` can also derive cache control for the last cacheable system/tool block.
 - OpenAI/OpenRouter Responses-style providers use `CacheKey` as `prompt_cache_key` with best-effort retention.
 - Codex maps `CacheKey` into Codex session/window cache headers; live cache smoke uses a larger stable prefix and accepts that Codex may report cache read only on follow-up requests.
+- MiniMax Messages and OpenRouter Messages receive Anthropic-style cache controls, but v1 live smoke does not mark their provider-reported cache accounting as verified.
 - `CachePolicyOff` disables llmadapter's policy-derived cache mapping, but explicit provider extensions remain expert overrides.
 
 Session-level cache strategy belongs above llmadapter. Higher layers such as `agentsdk` should decide which conversation prefix is stable, derive stable cache keys, and attach explicit block controls before sending a stateless `unified.Request`.
@@ -342,7 +345,7 @@ See `DESIGN.md` for the target architecture, `docs/ARCHITECTURE.md` for the curr
 
 - Stable behavior: capability decisions are inspectable. Modeldb narrows configured fixed-model routes and dynamic model requests where exposure metadata exists; routes that report `provider_descriptor` still rely on endpoint-family/provider defaults rather than model-specific proof.
 - Stable behavior: gateway/mux fallback is deterministic, can be bounded with `max_attempts` or `muxclient.WithMaxAttempts`, and treats request-shape validation failures as non-retryable. Gateway fallback only retries before response bytes are written; mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
-- V1 blocker: provider and endpoint codecs cover smoke-tested text, tools, structured output, reasoning, caching, usage, citations, raw events, and basic image inputs; they are not full conformance implementations for every provider field.
+- V1 blocker: provider and endpoint codecs cover smoke-tested text, tools, structured output, reasoning, cache-control mapping, usage, citations, raw events, and basic image inputs; they are not full conformance implementations for every provider field.
 - V1 non-blocker: OpenRouter extension passthrough uses typed raw helpers with focused shape/semantic validation for mature controls; broader provider-specific controls remain intentionally raw until their semantics are stable.
 - V1 non-blocker: Native OpenAI Responses has live smoke coverage for `previous_response_id` continuation. OpenRouter Responses encodes the same fields, but live context preservation is not advertised because the current backend smoke did not preserve prior-turn context.
 - V1 non-blocker: Prompt cache request hints map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions. Higher-level session cache policy belongs above llmadapter. OpenRouter and MiniMax caching depend on the selected endpoint: use Messages surfaces for Anthropic block cache controls, or Responses-compatible surfaces for prompt-cache-key style controls. Codex maps the prompt cache key into Codex session/window headers.

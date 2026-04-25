@@ -10,6 +10,18 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.30] - 2026-04-25
+
+### Added
+
+- Added `docs/PROVIDER_MATRIX.md` documenting the v1 provider endpoints, credential triggers, feature coverage, live smoke commands, skip behavior, and latest full matrix result.
+- Recorded the full live e2e matrix command in `PLAN.md` and linked the provider matrix from README.
+
+### Changed
+
+- MiniMax Messages cache controls remain mapped, but provider-reported prompt-cache accounting is no longer advertised as v1 live-smoke verified because the provider response did not report cache write/read counters in the full matrix run.
+- Narrowed the v1 provider-matrix gap to the remaining public API/package-boundary freeze.
+
 ## [0.48.29] - 2026-04-25
 
 ### Added

@@ -99,6 +99,7 @@ V1 phase 2 conformance fixture slice: endpoint decode edge cases, additional rea
 V1 phase 3 routing/fallback policy slice: shared route-attempt policy classifies non-retryable request validation failures, gateway config supports `max_attempts`, muxclient exposes `WithMaxAttempts`, and gateway/mux tests pin retry-limit exhaustion plus response-start boundaries
 V1 phase 4 capability/model policy slice: config inspection and model resolution expose capability provenance as provider descriptor defaults, config overrides, or modeldb exposure metadata; dynamic modeldb routes still reject catalog-missing models without provider-default substitution
 V1 phase 5 CLI/config/examples slice: README usage examples cover auto mux, config mux, direct infer, gateway serve, Docker, model resolution, and provider identity inspection; `examples/llmadapter.example.json` plus a modeldb overlay are load-tested
+V1 phase 6 provider matrix slice: `docs/PROVIDER_MATRIX.md` documents the v1 provider endpoints, feature coverage, credential triggers, live smoke commands, skip behavior, and latest full matrix result
 ```
 
 Verified:
@@ -131,6 +132,7 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestAnthr
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestResponsesGatewaySmoke' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokePromptCache/(anthropic|claude)' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke(TextStream|ToolUse|ToolResultContinuation|ResponsesContinuation)/openai_responses|TestResponsesGatewaySmoke(NonStreaming|Streaming)/openai_responses' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -v
 env GOCACHE=/tmp/go-cache go test ./...
 ```
 
@@ -271,7 +273,6 @@ CODEX_MODEL overrides the default codex_responses smoke-test model
 Known follow-up gaps before v1:
 
 ```text
-V1 blocker: the supported provider matrix needs a final documented live-smoke pass with exact commands and explicit skip reasons for missing credentials.
 V1 blocker: exported public APIs need a final package-boundary/doc-comment review before v1.
 V1 non-blocker: OpenAI Chat, OpenAI Responses, Anthropic Messages, OpenRouter, MiniMax, Claude-compatible access, and Codex provider paths are stream-first compatibility surfaces, not full clones of every upstream provider field.
 V1 non-blocker: OpenRouter extension passthrough is centralized through typed raw helpers with shape and focused semantic validation for mature routing/provider/plugin/session controls; broader provider-specific controls should stay namespaced until their semantics are stable.
@@ -288,7 +289,7 @@ Capability provenance is inspectable as provider descriptor defaults, explicit c
 Supported provider endpoint families cover Anthropic Messages-compatible, OpenAI Chat-compatible, and OpenAI Responses-compatible surfaces, including Anthropic, Claude Code-compatible access, OpenAI, OpenRouter, MiniMax, and Codex endpoint variants.
 Usage/cost accounting is canonical and structured; provider raw usage payloads are retained when available, and modeldb-backed pricing is absent-safe.
 Prompt caching primitives are explicit request hints only; session-level cache policy and stateful conversation projection remain agentsdk responsibilities.
-Conformance coverage now includes text, function tools, parallel tool-call decoding, tool continuation, reasoning signatures, citation variants, endpoint raw decode metadata, endpoint citation projection, prompt caching, error normalization, provider raw error payloads, dynamic model rejection, multimodal image support, unsupported media/built-in-tool warning/drop behavior, typed extension validation, raw provider usage, and selected raw provider events.
+Conformance coverage now includes text, function tools, parallel tool-call decoding, tool continuation, reasoning signatures, citation variants, endpoint raw decode metadata, endpoint citation projection, prompt-cache accounting for Anthropic/Claude/Codex, cache-control mapping for additional compatible surfaces, error normalization, provider raw error payloads, dynamic model rejection, multimodal image support, unsupported media/built-in-tool warning/drop behavior, typed extension validation, raw provider usage, and selected raw provider events.
 ```
 
 Implementation assessment:
@@ -304,7 +305,7 @@ Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stat
 Next planned phase:
 
 ```text
-The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 6: provider smoke matrix finalization, followed by public API freeze and a v1.0.0 release candidate.
+The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 7: public API and package-boundary freeze, followed by a v1.0.0 release candidate.
 ```
 
 V1 completion roadmap:
