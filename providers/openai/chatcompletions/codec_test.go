@@ -278,6 +278,44 @@ func TestClientStreamToolCallWithFakeTransport(t *testing.T) {
 	}
 }
 
+func TestClientStreamParallelToolCallsWithFakeTransport(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"}}]}`),
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_city","type":"function","function":{"name":"lookup_city","arguments":""}},{"index":1,"id":"call_country","type":"function","function":{"name":"lookup_country","arguments":""}}]}}]}`),
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"city\":\"Berlin\"}"}},{"index":1,"function":{"arguments":"{\"country\":\"Germany\"}"}}]}}]}`),
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), unified.Request{
+		Model: "gpt-test",
+		Tools: []unified.Tool{
+			{Kind: unified.ToolKindFunction, Name: "lookup_city"},
+			{Kind: unified.ToolKindFunction, Name: "lookup_country"},
+		},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.FinishReason != unified.FinishReasonToolCall || len(resp.ToolCalls) != 2 {
+		t.Fatalf("response = %+v", resp)
+	}
+	if resp.ToolCalls[0].ID != "call_city" || resp.ToolCalls[0].Name != "lookup_city" || string(resp.ToolCalls[0].Arguments) != `{"city":"Berlin"}` {
+		t.Fatalf("first tool call = %+v", resp.ToolCalls[0])
+	}
+	if resp.ToolCalls[1].ID != "call_country" || resp.ToolCalls[1].Name != "lookup_country" || string(resp.ToolCalls[1].Arguments) != `{"country":"Germany"}` {
+		t.Fatalf("second tool call = %+v", resp.ToolCalls[1])
+	}
+}
+
 func TestClientStreamErrorWithFakeTransport(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`data: {"error":{"type":"server_error","code":"upstream_failed","message":"upstream failed"}}`),

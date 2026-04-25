@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -28,11 +29,13 @@ type smokeProvider struct {
 	modelEnv              string
 	model                 string
 	tools                 bool
+	parallelTools         bool
 	reasoning             bool
 	promptCache           bool
 	cacheWarmupNoUsage    bool
 	cachePrefixRepeat     int
 	responsesContinuation bool
+	skipInvalidModel      bool
 	maxOutputTokens       int
 	newClient             func(apiKey string) (unified.Client, error)
 }
@@ -288,6 +291,68 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 	}
 }
 
+func TestSmokeParallelToolUse(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+
+	for _, provider := range smokeProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			if !provider.parallelTools {
+				t.Skipf("%s does not advertise parallel tool smoke support in this slice", provider.name)
+			}
+			client, model := newSmokeClient(t, provider)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			maxTokens := provider.maxTokens(256)
+			events, err := client.Request(ctx, unified.Request{
+				Model:           model,
+				MaxOutputTokens: &maxTokens,
+				Messages: []unified.Message{{
+					Role: unified.RoleUser,
+					Content: []unified.ContentPart{
+						unified.TextPart{Text: "Call both tools now: lookup_city with city Berlin and lookup_country with country Germany. Do not answer directly."},
+					},
+				}},
+				Tools: []unified.Tool{
+					{
+						Kind:        unified.ToolKindFunction,
+						Name:        "lookup_city",
+						Description: "Looks up a city by name.",
+						InputSchema: json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}},"required":["city"],"additionalProperties":false}`),
+					},
+					{
+						Kind:        unified.ToolKindFunction,
+						Name:        "lookup_country",
+						Description: "Looks up a country by name.",
+						InputSchema: json.RawMessage(`{"type":"object","properties":{"country":{"type":"string"}},"required":["country"],"additionalProperties":false}`),
+					},
+				},
+				Stream: true,
+			})
+			if err != nil {
+				t.Fatalf("request: %v", err)
+			}
+
+			resp, err := unified.Collect(ctx, events)
+			if err != nil {
+				t.Fatalf("collect: %v", err)
+			}
+			if len(resp.ToolCalls) < 2 {
+				t.Fatalf("tool calls = %+v", resp.ToolCalls)
+			}
+			seen := map[string]bool{}
+			for _, call := range resp.ToolCalls {
+				seen[call.Name] = true
+			}
+			if !seen["lookup_city"] || !seen["lookup_country"] {
+				t.Fatalf("tool calls = %+v", resp.ToolCalls)
+			}
+		})
+	}
+}
+
 func TestSmokePromptCache(t *testing.T) {
 	if os.Getenv("TEST_INTEGRATION") == "" {
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
@@ -424,6 +489,41 @@ func TestSmokeResponsesContinuation(t *testing.T) {
 	}
 }
 
+func TestSmokeInvalidCredential(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+
+	for _, provider := range smokeProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			if len(provider.apiKeyEnv) == 0 || provider.localCodexOAuth {
+				t.Skipf("%s does not use direct API-key invalid credential coverage", provider.name)
+			}
+			client, err := provider.newClient("llmadapter-invalid-key")
+			if err != nil {
+				t.Fatalf("new client: %v", err)
+			}
+			assertSmokeAPIError(t, client, provider.model)
+		})
+	}
+}
+
+func TestSmokeInvalidModel(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+
+	for _, provider := range smokeProviders() {
+		t.Run(provider.name, func(t *testing.T) {
+			if provider.skipInvalidModel {
+				t.Skipf("%s does not reject the shared invalid model sentinel", provider.name)
+			}
+			client, _ := newSmokeClient(t, provider)
+			assertSmokeAPIError(t, client, "llmadapter-invalid-model")
+		})
+	}
+}
+
 func smokeProviders() []smokeProvider {
 	return []smokeProvider{
 		{
@@ -450,11 +550,12 @@ func smokeProviders() []smokeProvider {
 			newClient:        newClaudeSmokeClient,
 		},
 		{
-			name:      "openai_chat",
-			apiKeyEnv: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
-			modelEnv:  "OPENAI_MODEL",
-			model:     "gpt-4.1-mini",
-			tools:     true,
+			name:          "openai_chat",
+			apiKeyEnv:     []string{"OPENAI_API_KEY", "OPENAI_KEY"},
+			modelEnv:      "OPENAI_MODEL",
+			model:         "gpt-4.1-mini",
+			tools:         true,
+			parallelTools: true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openai.NewClient(openai.WithAPIKey(apiKey))
 			},
@@ -465,6 +566,7 @@ func smokeProviders() []smokeProvider {
 			modelEnv:              "OPENAI_RESPONSES_MODEL",
 			model:                 "gpt-4.1-mini",
 			tools:                 true,
+			parallelTools:         true,
 			responsesContinuation: true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openairesponses.NewClient(openairesponses.WithAPIKey(apiKey))
@@ -477,6 +579,7 @@ func smokeProviders() []smokeProvider {
 			modelEnv:           codex.EnvModel,
 			model:              codex.DefaultModel,
 			tools:              true,
+			parallelTools:      true,
 			reasoning:          true,
 			promptCache:        true,
 			cacheWarmupNoUsage: true,
@@ -484,11 +587,12 @@ func smokeProviders() []smokeProvider {
 			newClient:          newCodexSmokeClient,
 		},
 		{
-			name:      "openrouter_chat",
-			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
-			modelEnv:  "OPENROUTER_MODEL",
-			model:     "openai/gpt-4.1-mini",
-			tools:     true,
+			name:          "openrouter_chat",
+			apiKeyEnv:     []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:      "OPENROUTER_MODEL",
+			model:         "openai/gpt-4.1-mini",
+			tools:         true,
+			parallelTools: true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openrouter.NewClient(openrouter.WithAPIKey(apiKey))
 			},
@@ -512,17 +616,19 @@ func smokeProviders() []smokeProvider {
 			reasoning:   true,
 			promptCache: true,
 			// MiniMax emits reasoning before final text on the Anthropic-compatible surface.
-			maxOutputTokens: 512,
+			maxOutputTokens:  512,
+			skipInvalidModel: true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return minimaxmessages.NewClient(minimaxmessages.WithAPIKey(apiKey))
 			},
 		},
 		{
-			name:      "openrouter_responses",
-			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
-			modelEnv:  "OPENROUTER_RESPONSES_MODEL",
-			model:     "openai/gpt-4.1-mini",
-			tools:     true,
+			name:          "openrouter_responses",
+			apiKeyEnv:     []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+			modelEnv:      "OPENROUTER_RESPONSES_MODEL",
+			model:         "openai/gpt-4.1-mini",
+			tools:         true,
+			parallelTools: true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey(apiKey))
 			},
@@ -547,6 +653,32 @@ func collectSmokeResponse(ctx context.Context, client unified.Client, req unifie
 		return unified.Response{}, err
 	}
 	return unified.Collect(ctx, events)
+}
+
+func assertSmokeAPIError(t *testing.T, client unified.Client, model string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	maxTokens := 8
+	events, err := client.Request(ctx, unified.Request{
+		Model:           model,
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err == nil {
+		_, err = unified.Collect(ctx, events)
+	}
+	var apiErr *unified.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T %v, want APIError", err, err)
+	}
+	if apiErr.Message == "" && apiErr.StatusCode == 0 {
+		t.Fatalf("APIError lacks useful details: %+v", apiErr)
+	}
 }
 
 func cacheSmokePrefix(repeat int) string {

@@ -17,6 +17,9 @@ func TestLookup(t *testing.T) {
 	if !descriptor.Capabilities.Streaming || !descriptor.Capabilities.Tools || !descriptor.Capabilities.JSONSchema {
 		t.Fatalf("unexpected capabilities: %+v", descriptor.Capabilities)
 	}
+	if descriptor.Factory == nil {
+		t.Fatalf("missing client factory")
+	}
 }
 
 func TestAnthropicFamilyDescriptorsAdvertiseReasoning(t *testing.T) {
@@ -75,6 +78,11 @@ func TestListSorted(t *testing.T) {
 	for i := 1; i < len(list); i++ {
 		if list[i-1].Type > list[i].Type {
 			t.Fatalf("descriptors are not sorted: %+v", list)
+		}
+	}
+	for _, descriptor := range list {
+		if descriptor.Factory == nil {
+			t.Fatalf("%s missing factory", descriptor.Type)
 		}
 	}
 }

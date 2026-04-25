@@ -282,7 +282,7 @@ type Descriptor struct {
 }
 ```
 
-This can still remain static and deterministic. A plugin-style registry is not required yet.
+Provider descriptors now carry static client factories, so client construction lives with descriptor metadata instead of in a growing provider-type switch. This remains static and deterministic; a plugin-style registry is not required yet.
 
 ### 2. Normalize Shared Wire Packages Where Needed
 
@@ -296,8 +296,8 @@ Keep the HTTP-specific response-start behavior in `gateway`, but factor shared r
 
 Add focused fixture tests and live tests for:
 
-- Invalid credentials and invalid models.
-- Parallel tool calls.
+- Invalid credentials and invalid models. Initial live coverage is implemented through shared e2e error normalization smokes.
+- Parallel tool calls. Initial deterministic fixtures cover OpenAI Chat and Responses-family streaming decoders, with live opt-in smokes for providers advertising the capability.
 - Provider-specific error decoding.
 - Reasoning and citation variants.
 - Prompt cache accounting where providers expose explicit counters.
@@ -307,10 +307,10 @@ Add focused fixture tests and live tests for:
 
 Keep extension data namespaced, but add typed helper structs and validation for mature extension groups such as:
 
-- OpenRouter provider/routing/plugin/debug controls.
-- OpenAI Responses continuation/cache controls.
+- OpenRouter provider/routing/plugin/debug controls. Initial typed raw helpers are implemented through `unified.OpenRouterExtensions`.
+- OpenAI Responses continuation/cache controls. Initial typed helpers are implemented through `unified.OpenAIResponsesExtensions`.
 - Codex-specific session/window/turn controls. Initial typed helpers are implemented through `unified.CodexExtensions`.
-- Anthropic-family beta/thinking/cache controls.
+- Anthropic-family beta/thinking/cache controls. Initial beta helpers are implemented through `unified.AnthropicExtensions`.
 
 ### 6. Keep Conversation State Out Of Core
 

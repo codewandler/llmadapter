@@ -451,3 +451,43 @@ func TestClientStreamToolCallWithFakeTransport(t *testing.T) {
 		t.Fatalf("unexpected tool call: %+v", resp.ToolCalls[0])
 	}
 }
+
+func TestClientStreamParallelToolCallsWithFakeTransport(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"openai/test","status":"in_progress"}}`),
+		[]byte(`data: {"type":"response.output_item.added","response_id":"resp_1","output_index":0,"item":{"type":"function_call","id":"fc_city","call_id":"call_city","name":"lookup_city","status":"in_progress"}}`),
+		[]byte(`data: {"type":"response.output_item.added","response_id":"resp_1","output_index":1,"item":{"type":"function_call","id":"fc_country","call_id":"call_country","name":"lookup_country","status":"in_progress"}}`),
+		[]byte(`data: {"type":"response.function_call_arguments.done","response_id":"resp_1","output_index":0,"arguments":"{\"city\":\"Berlin\"}"}`),
+		[]byte(`data: {"type":"response.function_call_arguments.done","response_id":"resp_1","output_index":1,"arguments":"{\"country\":\"Germany\"}"}`),
+		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"openai/test","status":"completed","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), unified.Request{
+		Model: "openai/test",
+		Tools: []unified.Tool{
+			{Kind: unified.ToolKindFunction, Name: "lookup_city"},
+			{Kind: unified.ToolKindFunction, Name: "lookup_country"},
+		},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.FinishReason != unified.FinishReasonToolCall || len(resp.ToolCalls) != 2 {
+		t.Fatalf("response = %+v", resp)
+	}
+	if resp.ToolCalls[0].ID != "call_city" || resp.ToolCalls[0].Name != "lookup_city" || string(resp.ToolCalls[0].Arguments) != `{"city":"Berlin"}` {
+		t.Fatalf("first tool call = %+v", resp.ToolCalls[0])
+	}
+	if resp.ToolCalls[1].ID != "call_country" || resp.ToolCalls[1].Name != "lookup_country" || string(resp.ToolCalls[1].Arguments) != `{"country":"Germany"}` {
+		t.Fatalf("second tool call = %+v", resp.ToolCalls[1])
+	}
+}

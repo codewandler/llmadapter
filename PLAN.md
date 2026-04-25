@@ -79,6 +79,10 @@ Codex parity hardening slice: Codex Responses is included in the shared text, re
 Codex extension validation slice: `unified.CodexExtensions` provides typed namespaced controls for Codex session/window/turn metadata headers, and the Codex transport validates and applies them without changing default cache-key behavior
 Conformance fixture slice: focused tests cover Responses mid-stream provider errors and dynamic model resolver rejection for unavailable catalog models
 Anthropic wire cleanup slice: shared Anthropic Messages wire structs live in neutral `anthropicwire`, while the provider package keeps type aliases for compatibility; downstream `/v1/messages` no longer imports upstream provider implementation types
+Extension helper slice: typed `unified` helpers now cover OpenAI Responses continuation/cache controls, OpenRouter raw routing/provider/plugin/debug controls, Anthropic beta controls, and Codex session/window/turn controls
+Parallel tool conformance slice: OpenAI Chat and Responses-family stream decoders have deterministic parallel tool-call fixtures; live e2e has opt-in parallel tool smoke coverage for providers advertising the capability
+Registry cleanup slice: provider descriptors now carry static client factories, removing the growing central `NewClient` provider-type switch while preserving deterministic construction
+Error conformance slice: live e2e coverage includes invalid API-key and invalid-model normalization checks for configured providers, asserting useful `unified.APIError` details
 ```
 
 Verified:

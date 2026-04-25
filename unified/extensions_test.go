@@ -69,6 +69,59 @@ func TestOpenRouterRawExtensionsRoundtrip(t *testing.T) {
 	}
 }
 
+func TestOpenAIResponsesExtensionsRoundtrip(t *testing.T) {
+	store := true
+	var e Extensions
+	err := SetOpenAIResponsesExtensions(&e, OpenAIResponsesExtensions{
+		PreviousResponseID:   "resp_1",
+		Store:                &store,
+		PromptCacheKey:       "cache",
+		PromptCacheRetention: "24h",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, warnings := OpenAIResponsesExtensionsFrom(e)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if got.PreviousResponseID != "resp_1" || got.Store == nil || *got.Store != true || got.PromptCacheKey != "cache" || got.PromptCacheRetention != "24h" {
+		t.Fatalf("responses extensions = %+v", got)
+	}
+}
+
+func TestOpenRouterExtensionsRoundtrip(t *testing.T) {
+	var e Extensions
+	err := SetOpenRouterExtensions(&e, OpenRouterExtensions{
+		Provider:  json.RawMessage(`{"order":["anthropic"]}`),
+		SessionID: json.RawMessage(`"sess"`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, warnings := OpenRouterExtensionsFrom(e)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if string(got.Provider) != `{"order":["anthropic"]}` || string(got.SessionID) != `"sess"` {
+		t.Fatalf("openrouter extensions = %+v", got)
+	}
+}
+
+func TestAnthropicExtensionsRoundtrip(t *testing.T) {
+	var e Extensions
+	if err := SetAnthropicExtensions(&e, AnthropicExtensions{Betas: []string{"thinking"}}); err != nil {
+		t.Fatal(err)
+	}
+	got, warnings := AnthropicExtensionsFrom(e)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if !reflect.DeepEqual(got.Betas, []string{"thinking"}) {
+		t.Fatalf("anthropic extensions = %+v", got)
+	}
+}
+
 func TestCodexExtensionsRoundtrip(t *testing.T) {
 	var e Extensions
 	err := SetCodexExtensions(&e, CodexExtensions{

@@ -47,6 +47,28 @@ type OpenRouterRawExtensions struct {
 	SessionID     json.RawMessage
 }
 
+type OpenAIResponsesExtensions struct {
+	PreviousResponseID   string
+	Store                *bool
+	PromptCacheKey       string
+	PromptCacheRetention string
+}
+
+type OpenRouterExtensions struct {
+	Models        json.RawMessage
+	Route         json.RawMessage
+	Provider      json.RawMessage
+	ProviderPrefs json.RawMessage
+	Plugins       json.RawMessage
+	Debug         json.RawMessage
+	Trace         json.RawMessage
+	SessionID     json.RawMessage
+}
+
+type AnthropicExtensions struct {
+	Betas []string
+}
+
 type CodexExtensions struct {
 	SessionID            string
 	WindowID             string
@@ -120,16 +142,8 @@ func GetExtension[T any](e Extensions, key string) (T, bool, error) {
 }
 
 func OpenRouterRawExtensionsFrom(e Extensions) OpenRouterRawExtensions {
-	return OpenRouterRawExtensions{
-		Models:        e.Raw(ExtOpenRouterModels),
-		Route:         e.Raw(ExtOpenRouterRoute),
-		Provider:      e.Raw(ExtOpenRouterProvider),
-		ProviderPrefs: e.Raw(ExtOpenRouterProviderPrefs),
-		Plugins:       e.Raw(ExtOpenRouterPlugins),
-		Debug:         e.Raw(ExtOpenRouterDebug),
-		Trace:         e.Raw(ExtOpenRouterTrace),
-		SessionID:     e.Raw(ExtOpenRouterSessionID),
-	}
+	raw, _ := OpenRouterExtensionsFrom(e)
+	return OpenRouterRawExtensions(raw)
 }
 
 func SetOpenRouterRawExtensions(e *Extensions, raw OpenRouterRawExtensions) error {
@@ -155,6 +169,90 @@ func SetOpenRouterRawExtensions(e *Extensions, raw OpenRouterRawExtensions) erro
 		return err
 	}
 	return e.SetRaw(ExtOpenRouterSessionID, raw.SessionID)
+}
+
+func OpenAIResponsesExtensionsFrom(e Extensions) (OpenAIResponsesExtensions, []WarningEvent) {
+	var out OpenAIResponsesExtensions
+	var warnings []WarningEvent
+	setString := func(key string, dest *string) {
+		value, ok, err := GetExtension[string](e, key)
+		if err != nil {
+			warnings = append(warnings, extensionWarning(key, err))
+			return
+		}
+		if ok {
+			*dest = value
+		}
+	}
+	setString(ExtOpenAIPreviousResponseID, &out.PreviousResponseID)
+	setString(ExtOpenAIPromptCacheKey, &out.PromptCacheKey)
+	setString(ExtOpenAIPromptCacheRetention, &out.PromptCacheRetention)
+	value, ok, err := GetExtension[bool](e, ExtOpenAIStore)
+	if err != nil {
+		warnings = append(warnings, extensionWarning(ExtOpenAIStore, err))
+	} else if ok {
+		out.Store = &value
+	}
+	return out, warnings
+}
+
+func SetOpenAIResponsesExtensions(e *Extensions, value OpenAIResponsesExtensions) error {
+	if value.PreviousResponseID != "" {
+		if err := e.Set(ExtOpenAIPreviousResponseID, value.PreviousResponseID); err != nil {
+			return err
+		}
+	}
+	if value.Store != nil {
+		if err := e.Set(ExtOpenAIStore, *value.Store); err != nil {
+			return err
+		}
+	}
+	if value.PromptCacheKey != "" {
+		if err := e.Set(ExtOpenAIPromptCacheKey, value.PromptCacheKey); err != nil {
+			return err
+		}
+	}
+	if value.PromptCacheRetention != "" {
+		if err := e.Set(ExtOpenAIPromptCacheRetention, value.PromptCacheRetention); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func OpenRouterExtensionsFrom(e Extensions) (OpenRouterExtensions, []WarningEvent) {
+	return OpenRouterExtensions{
+		Models:        e.Raw(ExtOpenRouterModels),
+		Route:         e.Raw(ExtOpenRouterRoute),
+		Provider:      e.Raw(ExtOpenRouterProvider),
+		ProviderPrefs: e.Raw(ExtOpenRouterProviderPrefs),
+		Plugins:       e.Raw(ExtOpenRouterPlugins),
+		Debug:         e.Raw(ExtOpenRouterDebug),
+		Trace:         e.Raw(ExtOpenRouterTrace),
+		SessionID:     e.Raw(ExtOpenRouterSessionID),
+	}, nil
+}
+
+func SetOpenRouterExtensions(e *Extensions, value OpenRouterExtensions) error {
+	return SetOpenRouterRawExtensions(e, OpenRouterRawExtensions(value))
+}
+
+func AnthropicExtensionsFrom(e Extensions) (AnthropicExtensions, []WarningEvent) {
+	var out AnthropicExtensions
+	var warnings []WarningEvent
+	if value, ok, err := GetExtension[[]string](e, ExtAnthropicBetas); err != nil {
+		warnings = append(warnings, extensionWarning(ExtAnthropicBetas, err))
+	} else if ok {
+		out.Betas = append([]string(nil), value...)
+	}
+	return out, warnings
+}
+
+func SetAnthropicExtensions(e *Extensions, value AnthropicExtensions) error {
+	if len(value.Betas) == 0 {
+		return nil
+	}
+	return e.Set(ExtAnthropicBetas, append([]string(nil), value.Betas...))
 }
 
 func CodexExtensionsFrom(e Extensions) (CodexExtensions, []WarningEvent) {

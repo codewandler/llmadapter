@@ -177,25 +177,22 @@ func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions) 
 }
 
 func applyOpenAIResponsesExtensions(out *requestWire, extensions unified.Extensions, warnings *[]mappingWarning) {
-	if value, ok, err := unified.GetExtension[string](extensions, unified.ExtOpenAIPreviousResponseID); err != nil {
-		addWarning(warnings, unified.ExtOpenAIPreviousResponseID, "invalid previous_response_id extension was dropped")
-	} else if ok {
-		out.PreviousResponseID = value
+	values, extensionWarnings := unified.OpenAIResponsesExtensionsFrom(extensions)
+	for _, warning := range extensionWarnings {
+		key, _ := warning.Meta["key"].(string)
+		addWarning(warnings, key, warning.Message)
 	}
-	if value, ok, err := unified.GetExtension[bool](extensions, unified.ExtOpenAIStore); err != nil {
-		addWarning(warnings, unified.ExtOpenAIStore, "invalid store extension was dropped")
-	} else if ok {
-		out.Store = &value
+	if values.PreviousResponseID != "" {
+		out.PreviousResponseID = values.PreviousResponseID
 	}
-	if value, ok, err := unified.GetExtension[string](extensions, unified.ExtOpenAIPromptCacheKey); err != nil {
-		addWarning(warnings, unified.ExtOpenAIPromptCacheKey, "invalid prompt_cache_key extension was dropped")
-	} else if ok {
-		out.PromptCacheKey = value
+	if values.Store != nil {
+		out.Store = values.Store
 	}
-	if value, ok, err := unified.GetExtension[string](extensions, unified.ExtOpenAIPromptCacheRetention); err != nil {
-		addWarning(warnings, unified.ExtOpenAIPromptCacheRetention, "invalid prompt_cache_retention extension was dropped")
-	} else if ok {
-		out.PromptCacheRetention = value
+	if values.PromptCacheKey != "" {
+		out.PromptCacheKey = values.PromptCacheKey
+	}
+	if values.PromptCacheRetention != "" {
+		out.PromptCacheRetention = values.PromptCacheRetention
 	}
 }
 
