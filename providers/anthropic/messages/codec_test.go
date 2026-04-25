@@ -224,6 +224,84 @@ func TestCodecEncodeAssistantReasoningSignature(t *testing.T) {
 	}
 }
 
+func TestCodecEncodeImageContent(t *testing.T) {
+	maxTokens := 128
+	req := adapt.Request{Unified: unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role: unified.RoleUser,
+			Content: []unified.ContentPart{
+				unified.TextPart{Text: "describe"},
+				unified.ImagePart{Source: unified.BlobSource{Kind: unified.BlobSourceURL, URL: "https://example.com/image.png"}},
+				unified.ImagePart{Source: unified.BlobSource{Kind: unified.BlobSourceBase64, MIMEType: "image/png", Base64: "aW1hZ2U="}},
+			},
+		}},
+	}}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocks := wire.Messages[0].Content
+	if len(blocks) != 3 || blocks[1].Source.Type != "url" || blocks[1].Source.URL != "https://example.com/image.png" {
+		t.Fatalf("url image block = %+v", blocks)
+	}
+	if blocks[2].Source.Type != "base64" || blocks[2].Source.MediaType != "image/png" || blocks[2].Source.Data != "aW1hZ2U=" {
+		t.Fatalf("base64 image block = %+v", blocks[2])
+	}
+}
+
+func TestCodecStrictUnsupportedMultimodal(t *testing.T) {
+	maxTokens := 128
+	req := adapt.Request{
+		MappingMode: adapt.MappingModeStrict,
+		Unified: unified.Request{
+			Model:           "claude-test",
+			MaxOutputTokens: &maxTokens,
+			Messages: []unified.Message{{
+				Role: unified.RoleUser,
+				Content: []unified.ContentPart{
+					unified.AudioPart{Source: unified.BlobSource{Kind: unified.BlobSourceURL, URL: "https://example.com/audio.wav"}},
+				},
+			}},
+		},
+	}
+	_, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	var unsupported *adapt.UnsupportedFieldError
+	if !errors.As(err, &unsupported) {
+		t.Fatalf("err = %v, want UnsupportedFieldError", err)
+	}
+}
+
+func TestCodecBestEffortUnsupportedMultimodalWarning(t *testing.T) {
+	maxTokens := 128
+	req := adapt.Request{
+		MappingMode: adapt.MappingModeBestEffort,
+		Unified: unified.Request{
+			Model:           "claude-test",
+			MaxOutputTokens: &maxTokens,
+			Messages: []unified.Message{{
+				Role: unified.RoleUser,
+				Content: []unified.ContentPart{
+					unified.TextPart{Text: "describe"},
+					unified.FilePart{Source: unified.BlobSource{Kind: unified.BlobSourceURL, URL: "https://example.com/file.pdf"}},
+				},
+			}},
+		},
+	}
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.Messages[0].Content) != 1 || wire.Messages[0].Content[0].Text != "describe" {
+		t.Fatalf("unexpected encoded content: %+v", wire.Messages[0].Content)
+	}
+	if len(req.Warnings) != 1 || req.Warnings[0].Code != "unsupported_field_dropped" || req.Warnings[0].Field != "content" {
+		t.Fatalf("warnings = %+v", req.Warnings)
+	}
+}
+
 func TestCodecStrictUnsupported(t *testing.T) {
 	maxTokens := 128
 	seed := int64(1)
