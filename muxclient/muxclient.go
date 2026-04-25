@@ -12,9 +12,10 @@ import (
 )
 
 type Client struct {
-	router   router.Router
-	source   adapt.ApiKind
-	fallback bool
+	router      router.Router
+	source      adapt.ApiKind
+	fallback    bool
+	maxAttempts int
 }
 
 type Option func(*Client)
@@ -43,6 +44,14 @@ func WithFallback(enabled bool) Option {
 	}
 }
 
+func WithMaxAttempts(max int) Option {
+	return func(c *Client) {
+		if max > 0 {
+			c.maxAttempts = max
+		}
+	}
+}
+
 func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unified.Event, error) {
 	if c == nil || c.router == nil {
 		return nil, fmt.Errorf("muxclient: router is required")
@@ -56,14 +65,19 @@ func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unifi
 		return nil, err
 	}
 	var failures []error
+	attempts := 0
 	for _, route := range routes {
+		if routeattempt.ReachedMaxAttempts(attempts, c.maxAttempts) {
+			break
+		}
+		attempts++
 		attempt := routeattempt.RequestForRoute(req, route)
 		events, err := route.Client.Request(ctx, attempt)
 		if err == nil {
 			return prependRouteEvent(ctx, route, events), nil
 		}
 		failures = append(failures, routeattempt.Error(route, err))
-		if !c.fallback {
+		if !c.fallback || !routeattempt.Retryable(err) {
 			break
 		}
 	}

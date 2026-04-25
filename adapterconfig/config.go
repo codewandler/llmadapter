@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Addr           string           `json:"addr,omitempty"`
 	HealthCooldown string           `json:"health_cooldown,omitempty"`
+	MaxAttempts    int              `json:"max_attempts,omitempty"`
 	ModelDB        ModelDBConfig    `json:"modeldb,omitempty"`
 	Providers      []ProviderConfig `json:"providers,omitempty"`
 	Routes         []RouteConfig    `json:"routes,omitempty"`
@@ -128,6 +129,9 @@ func Validate(cfg Config) error {
 		if _, err := time.ParseDuration(cfg.HealthCooldown); err != nil {
 			return fmt.Errorf("invalid health_cooldown %q: %w", cfg.HealthCooldown, err)
 		}
+	}
+	if cfg.MaxAttempts < 0 {
+		return fmt.Errorf("max_attempts must be >= 0")
 	}
 	if len(cfg.Providers) == 0 {
 		return fmt.Errorf("at least one provider is required")

@@ -21,6 +21,7 @@ func TestLoadAndValidate(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{
 		"addr":":9090",
 		"health_cooldown":"5s",
+		"max_attempts":2,
 		"providers":[{"name":"openai","type":"openai_responses","api_key":"key","model":"gpt-test"}],
 		"routes":[{"source_api":"openai.responses","model":"public","provider":"openai"}]
 	}`), 0o600); err != nil {
@@ -35,6 +36,20 @@ func TestLoadAndValidate(t *testing.T) {
 	}
 	if cfg.Routes[0].NativeModel != "gpt-test" {
 		t.Fatalf("native model default = %q", cfg.Routes[0].NativeModel)
+	}
+	if cfg.MaxAttempts != 2 {
+		t.Fatalf("max attempts = %d, want 2", cfg.MaxAttempts)
+	}
+}
+
+func TestValidateRejectsNegativeMaxAttempts(t *testing.T) {
+	cfg := Config{
+		MaxAttempts: -1,
+		Providers:   []ProviderConfig{{Name: "openai", Type: "openai_responses", APIKey: "key"}},
+		Routes:      []RouteConfig{{SourceAPI: adapt.ApiOpenAIResponses, Provider: "openai"}},
+	}
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected max_attempts validation error")
 	}
 }
 

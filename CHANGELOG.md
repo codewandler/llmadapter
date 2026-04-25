@@ -10,6 +10,18 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.27] - 2026-04-25
+
+### Added
+
+- Added shared route-attempt retryability classification for unsupported canonical fields and 400/422 provider API errors.
+- Added optional gateway `max_attempts` config and `muxclient.WithMaxAttempts` for deterministic route fallback limits.
+- Added gateway, muxclient, and routeattempt tests for retry limit exhaustion and non-retryable request validation failures.
+
+### Changed
+
+- Gateway and mux fallback now share explicit max-attempt and non-retryable-failure policy while preserving the gateway-only response-start boundary.
+
 ## [0.48.26] - 2026-04-25
 
 ### Added

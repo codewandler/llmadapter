@@ -103,6 +103,7 @@ Configuration:
 - Routes can set `weight`; providers can set `priority`. Compatible routes are ranked by weight first, then endpoint priority, with declaration order as the final tie-breaker.
 - Routes can set `dynamic_models: true` with no fixed `model` or `native_model` to pass arbitrary requested model IDs through to the selected provider endpoint. Use lower weight than fixed routes when mixing deterministic aliases with full provider/catalog access.
 - `health_cooldown` is an optional Go duration string such as `30s`; recently failed provider endpoint/model pairs are deprioritized for that window.
+- `max_attempts` optionally limits how many ranked provider routes the gateway will try before returning the joined route-attempt error. Omit or set `0` to allow all compatible candidates.
 - `modeldb.catalog_path` optionally replaces the built-in modeldb catalog with a JSON catalog file.
 - `modeldb.overlay_paths` optionally merges one or more JSON catalog files after the base catalog.
 - `modeldb.aliases` can bind local intent names to explicit service/wire-model pairs; route `modeldb_model` and auto-detected model intents resolve through the same loaded modeldb catalog plus overlays.
@@ -138,6 +139,7 @@ Example config:
 {
   "addr": ":8080",
   "health_cooldown": "30s",
+  "max_attempts": 2,
   "modeldb": {
     "overlay_paths": ["./local-modeldb.json"],
     "aliases": [
@@ -214,9 +216,9 @@ API family = compatibility family.
 Provider endpoint = provider + API kind + family + client + capabilities.
 ```
 
-Routes skip provider endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input, then rank the remaining candidates by configured weight and endpoint priority. If the selected provider fails before response bytes are written, the gateway retries lower-ranked route candidates.
+Routes skip provider endpoints that cannot satisfy required request capabilities such as streaming, tools, JSON mode, JSON schema, reasoning, vision, or audio input, then rank the remaining candidates by configured weight and endpoint priority. If the selected provider fails before response bytes are written, the gateway retries lower-ranked route candidates up to `max_attempts` when configured.
 
-The gateway command shares an in-memory health tracker across endpoints and temporarily deprioritizes provider endpoints that fail before response completion. Once streaming output has started, provider errors are surfaced to the caller instead of retrying another provider.
+The gateway command shares an in-memory health tracker across endpoints and temporarily deprioritizes provider endpoints that fail before response completion. Request-shape validation failures such as unsupported canonical fields or 400/422 provider API errors are non-retryable. Once streaming output has started, provider errors are surfaced to the caller instead of retrying another provider.
 
 OpenAI Chat-compatible `response_format` requests and OpenAI Responses `text.format` requests are mapped into canonical JSON mode / JSON schema settings. Those settings are encoded back for OpenAI Chat, OpenRouter Chat, and OpenRouter Responses providers.
 
@@ -303,7 +305,7 @@ See `DESIGN.md` for the target architecture, `docs/ARCHITECTURE.md` for the curr
 ## Known Limitations
 
 - V1 blocker: capability decisions must remain inspectable. Modeldb narrows configured fixed-model routes and dynamic model requests, but routes that rely on endpoint-family defaults should be treated as defaults rather than model-specific proof.
-- V1 blocker: gateway/mux fallback policy must stay deterministic. Gateway fallback only retries before response bytes are written; mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
+- Stable behavior: gateway/mux fallback is deterministic, can be bounded with `max_attempts` or `muxclient.WithMaxAttempts`, and treats request-shape validation failures as non-retryable. Gateway fallback only retries before response bytes are written; mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
 - V1 blocker: provider and endpoint codecs cover smoke-tested text, tools, structured output, reasoning, caching, usage, citations, raw events, and basic image inputs; they are not full conformance implementations for every provider field.
 - V1 non-blocker: OpenRouter extension passthrough uses typed raw helpers with focused shape/semantic validation for mature controls; broader provider-specific controls remain intentionally raw until their semantics are stable.
 - V1 non-blocker: Native OpenAI Responses has live smoke coverage for `previous_response_id` continuation. OpenRouter Responses encodes the same fields, but live context preservation is not advertised because the current backend smoke did not preserve prior-turn context.

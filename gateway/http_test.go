@@ -174,6 +174,74 @@ func TestHandlerFallsBackWhenEndpointReturnsErrorBeforeResponseStarts(t *testing
 	}
 }
 
+func TestHandlerRespectsMaxAttempts(t *testing.T) {
+	primary := &staticClient{err: errors.New("primary down")}
+	second := &staticClient{err: errors.New("second down")}
+	third := &staticClient{events: []unified.Event{
+		unified.MessageStartEvent{ID: "msg", Model: "third-model"},
+		unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindText},
+		unified.TextDeltaEvent{Index: 0, Text: "third"},
+		unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	handler := Handler{
+		Endpoint:    chat.Codec{},
+		MaxAttempts: 2,
+		Router: router.NewStaticRouter(
+			staticGatewayRoute("primary", 100, primary),
+			staticGatewayRoute("second", 50, second),
+			staticGatewayRoute("third", 10, third),
+		),
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
+		"model":"model",
+		"messages":[{"role":"user","content":"ping"}]
+	}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	if primary.calls != 1 || second.calls != 1 || third.calls != 0 {
+		t.Fatalf("unexpected calls: primary=%d second=%d third=%d", primary.calls, second.calls, third.calls)
+	}
+	if !strings.Contains(w.Body.String(), "primary down") || !strings.Contains(w.Body.String(), "second down") || strings.Contains(w.Body.String(), "third") {
+		t.Fatalf("unexpected response body: %s", w.Body.String())
+	}
+}
+
+func TestHandlerDoesNotFallbackOnNonRetryableError(t *testing.T) {
+	primary := &staticClient{err: &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "audio", Reason: "not supported"}}
+	fallback := &staticClient{events: []unified.Event{
+		unified.MessageStartEvent{ID: "msg", Model: "fallback-model"},
+		unified.TextDeltaEvent{Index: 0, Text: "fallback"},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	handler := Handler{Endpoint: chat.Codec{}, Router: router.NewStaticRouter(
+		staticGatewayRoute("primary", 100, primary),
+		staticGatewayRoute("fallback", 10, fallback),
+	)}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
+		"model":"model",
+		"messages":[{"role":"user","content":"ping"}]
+	}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	if primary.calls != 1 || fallback.calls != 0 {
+		t.Fatalf("unexpected calls: primary=%d fallback=%d", primary.calls, fallback.calls)
+	}
+	if !strings.Contains(w.Body.String(), "does not support field audio") {
+		t.Fatalf("unexpected response body: %s", w.Body.String())
+	}
+}
+
 func TestHandlerDoesNotFallBackAfterResponseStarts(t *testing.T) {
 	primary := &staticClient{events: []unified.Event{
 		unified.MessageStartEvent{ID: "msg", Model: "primary-model"},
@@ -224,6 +292,20 @@ func TestHandlerDoesNotFallBackAfterResponseStarts(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `"content":"partial"`) {
 		t.Fatalf("unexpected response body: %s", w.Body.String())
+	}
+}
+
+func staticGatewayRoute(provider string, weight int, client unified.Client) router.StaticRoute {
+	return router.StaticRoute{
+		SourceAPI: adapt.ApiOpenAIChatCompletions,
+		Weight:    weight,
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: provider,
+			APIKind:      adapt.ApiOpenAIChatCompletions,
+			Family:       adapt.FamilyOpenAIChatCompletions,
+			Client:       client,
+			Capabilities: router.CapabilitySet{Streaming: true},
+		},
 	}
 }
 

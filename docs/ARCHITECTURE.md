@@ -243,7 +243,7 @@ Shared wire structs that cross endpoint/provider boundaries should live in neutr
 
 Gateway and mux client both implement route candidate fallback. Shared route-attempt mechanics live in `internal/routeattempt`: candidate lookup, native model rewrite, and provider/API error formatting.
 
-The HTTP-specific response-start rule stays in `gateway`: once response bytes are written, the gateway cannot transparently retry another upstream. Future retry policy changes should keep shared route mechanics in `internal/routeattempt` and only keep transport-specific behavior at the boundary.
+The shared policy classifies request-shape validation failures as non-retryable, including `adapt.UnsupportedFieldError` and 400/422 provider API errors. Gateway config can set `max_attempts`; mux library consumers can set `muxclient.WithMaxAttempts`. The HTTP-specific response-start rule stays in `gateway`: once response bytes are written, the gateway cannot transparently retry another upstream.
 
 ### Capability Defaults
 
@@ -286,7 +286,7 @@ Only extract shared wire packages when there is real duplication or cross-bounda
 
 Keep the HTTP-specific response-start behavior in `gateway`, but factor shared route attempt/error metadata where useful so mux and gateway report failures consistently.
 
-Initial shared mechanics are implemented in `internal/routeattempt`; remaining work is policy-level only, such as configurable retry limits, backoff, or richer failure classification.
+Initial shared mechanics are implemented in `internal/routeattempt`: candidate lookup, native model rewrite, error formatting, retryability classification, and max-attempt checks. Remaining policy expansion, if needed, is post-v1 work such as backoff or richer production failure classification.
 
 ### 4. Broaden Codec Conformance
 

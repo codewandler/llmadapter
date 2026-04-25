@@ -19,9 +19,10 @@ type Endpoint interface {
 }
 
 type Handler struct {
-	Endpoint Endpoint
-	Router   router.Router
-	Health   *HealthTracker
+	Endpoint    Endpoint
+	Router      router.Router
+	Health      *HealthTracker
+	MaxAttempts int
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -38,13 +39,21 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var failures []error
+	attempts := 0
 	for _, route := range orderByHealth(routes, h.Health) {
+		if routeattempt.ReachedMaxAttempts(attempts, h.MaxAttempts) {
+			break
+		}
+		attempts++
 		attempt := req
 		attempt.Unified = routeattempt.RequestForRoute(req.Unified, route)
 		events, err := route.Client.Request(ctx, attempt.Unified)
 		if err != nil {
 			h.Health.MarkFailure(route)
 			failures = append(failures, routeattempt.Error(route, err))
+			if !routeattempt.Retryable(err) {
+				break
+			}
 			continue
 		}
 		if err := h.Endpoint.WriteEvents(ctx, tw, attempt, events); err != nil {
@@ -54,6 +63,9 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			h.Health.MarkFailure(route)
 			failures = append(failures, routeattempt.Error(route, err))
+			if !routeattempt.Retryable(err) {
+				break
+			}
 			continue
 		}
 		h.Health.MarkSuccess(route)

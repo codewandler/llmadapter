@@ -29,19 +29,22 @@ func Handler(cfg adapterconfig.Config) (http.Handler, error) {
 	health := gateway.NewHealthTracker(cooldown)
 	mux := http.NewServeMux()
 	mux.Handle("/v1/chat/completions", gateway.Handler{
-		Endpoint: chat.Codec{},
-		Router:   r,
-		Health:   health,
+		Endpoint:    chat.Codec{},
+		Router:      r,
+		Health:      health,
+		MaxAttempts: cfg.MaxAttempts,
 	})
 	mux.Handle("/v1/messages", gateway.Handler{
-		Endpoint: anthropicendpoint.Codec{},
-		Router:   r,
-		Health:   health,
+		Endpoint:    anthropicendpoint.Codec{},
+		Router:      r,
+		Health:      health,
+		MaxAttempts: cfg.MaxAttempts,
 	})
 	mux.Handle("/v1/responses", gateway.Handler{
-		Endpoint: responsesendpoint.Codec{},
-		Router:   r,
-		Health:   health,
+		Endpoint:    responsesendpoint.Codec{},
+		Router:      r,
+		Health:      health,
+		MaxAttempts: cfg.MaxAttempts,
 	})
 	return mux, nil
 }

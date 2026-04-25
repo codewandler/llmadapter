@@ -142,6 +142,54 @@ func TestClientFallbackDisabledReturnsRouteAttemptError(t *testing.T) {
 	}
 }
 
+func TestClientRespectsMaxAttempts(t *testing.T) {
+	primary := &fakeClient{err: errors.New("primary down")}
+	second := &fakeClient{err: errors.New("second down")}
+	third := &fakeClient{events: []unified.Event{
+		unified.TextDeltaEvent{Text: "third"},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	client := New(router.NewStaticRouter(
+		staticMuxRoute("primary", 100, primary),
+		staticMuxRoute("second", 50, second),
+		staticMuxRoute("third", 10, third),
+	), WithMaxAttempts(2))
+
+	_, err := client.Request(context.Background(), unified.Request{Model: "public"})
+	if err == nil {
+		t.Fatalf("expected max-attempt-limited failure")
+	}
+	if primary.calls != 1 || second.calls != 1 || third.calls != 0 {
+		t.Fatalf("unexpected calls: primary=%d second=%d third=%d", primary.calls, second.calls, third.calls)
+	}
+	if !strings.Contains(err.Error(), "primary down") || !strings.Contains(err.Error(), "second down") || strings.Contains(err.Error(), "third") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClientDoesNotFallbackOnNonRetryableError(t *testing.T) {
+	primary := &fakeClient{err: &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "audio", Reason: "not supported"}}
+	fallback := &fakeClient{events: []unified.Event{
+		unified.TextDeltaEvent{Text: "fallback"},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	client := New(router.NewStaticRouter(
+		staticMuxRoute("primary", 100, primary),
+		staticMuxRoute("fallback", 10, fallback),
+	))
+
+	_, err := client.Request(context.Background(), unified.Request{Model: "public"})
+	if err == nil {
+		t.Fatalf("expected non-retryable failure")
+	}
+	if primary.calls != 1 || fallback.calls != 0 {
+		t.Fatalf("unexpected calls: primary=%d fallback=%d", primary.calls, fallback.calls)
+	}
+	if !strings.Contains(err.Error(), "does not support field audio") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestClientDoesNotFallBackAfterStreamStarts(t *testing.T) {
 	primary := &fakeClient{events: []unified.Event{
 		unified.TextDeltaEvent{Text: "partial"},
@@ -184,6 +232,19 @@ func TestClientDoesNotFallBackAfterStreamStarts(t *testing.T) {
 	}
 	if primary.calls != 1 || fallback.calls != 0 {
 		t.Fatalf("unexpected calls: primary=%d fallback=%d", primary.calls, fallback.calls)
+	}
+}
+
+func staticMuxRoute(provider string, weight int, client unified.Client) router.StaticRoute {
+	return router.StaticRoute{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Weight:    weight,
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: provider,
+			APIKind:      adapt.ApiOpenAIResponses,
+			Family:       adapt.FamilyOpenAIResponses,
+			Client:       client,
+		},
 	}
 }
 

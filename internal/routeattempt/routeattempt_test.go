@@ -70,3 +70,33 @@ func TestErrorIncludesProviderAndAPI(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestRetryableClassifiesRequestValidationErrors(t *testing.T) {
+	if Retryable(&adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "audio"}) {
+		t.Fatalf("unsupported field errors should not be retryable")
+	}
+	if Retryable(&unified.APIError{StatusCode: 400, Message: "bad request"}) {
+		t.Fatalf("400 API errors should not be retryable")
+	}
+	if Retryable(&unified.APIError{StatusCode: 422, Message: "unprocessable"}) {
+		t.Fatalf("422 API errors should not be retryable")
+	}
+	if !Retryable(&unified.APIError{StatusCode: 503, Message: "unavailable"}) {
+		t.Fatalf("503 API errors should be retryable")
+	}
+	if !Retryable(errors.New("temporary network failure")) {
+		t.Fatalf("generic errors should be retryable")
+	}
+}
+
+func TestReachedMaxAttempts(t *testing.T) {
+	if ReachedMaxAttempts(0, 0) || ReachedMaxAttempts(1, 0) {
+		t.Fatalf("zero max attempts should mean unlimited")
+	}
+	if ReachedMaxAttempts(1, 2) {
+		t.Fatalf("attempt 1 of 2 should be allowed")
+	}
+	if !ReachedMaxAttempts(2, 2) {
+		t.Fatalf("attempt 2 of 2 should stop before next attempt")
+	}
+}
