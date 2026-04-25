@@ -102,6 +102,32 @@ func TestEventDecoderReasoningSignature(t *testing.T) {
 	}
 }
 
+func TestEventDecoderPreservesUnknownContentBlockAsRaw(t *testing.T) {
+	dec := NewEventDecoder()
+	out, err := dec.Push(context.Background(), ContentBlockStartEvent{
+		Index:        0,
+		ContentBlock: ContentBlock{Type: "server_tool_use", ID: "srv_1", Name: "web_search"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), sliceEvents(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Raw) != 1 {
+		t.Fatalf("raw = %+v", resp.Raw)
+	}
+	raw := resp.Raw[0]
+	if raw.APIKind != "anthropic.messages" || raw.Type != "server_tool_use" {
+		t.Fatalf("unexpected raw event: %+v", raw)
+	}
+	block, ok := raw.Value.(ContentBlock)
+	if !ok || block.ID != "srv_1" || block.Name != "web_search" {
+		t.Fatalf("unexpected raw value: %#v", raw.Value)
+	}
+}
+
 func sliceEvents(events []unified.Event) <-chan unified.Event {
 	ch := make(chan unified.Event, len(events))
 	for _, ev := range events {

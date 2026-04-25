@@ -7,14 +7,15 @@ import (
 )
 
 type Response struct {
-	ID           string         `json:"id,omitempty"`
-	Model        string         `json:"model,omitempty"`
-	Content      []ContentPart  `json:"content,omitempty"`
-	ToolCalls    []ToolCall     `json:"tool_calls,omitempty"`
-	FinishReason FinishReason   `json:"finish_reason,omitempty"`
-	Usage        Usage          `json:"usage,omitempty"`
-	Warnings     []WarningEvent `json:"warnings,omitempty"`
-	Raw          []RawEvent     `json:"raw,omitempty"`
+	ID           string          `json:"id,omitempty"`
+	Model        string          `json:"model,omitempty"`
+	Content      []ContentPart   `json:"content,omitempty"`
+	ToolCalls    []ToolCall      `json:"tool_calls,omitempty"`
+	FinishReason FinishReason    `json:"finish_reason,omitempty"`
+	Usage        Usage           `json:"usage,omitempty"`
+	Warnings     []WarningEvent  `json:"warnings,omitempty"`
+	Citations    []CitationEvent `json:"citations,omitempty"`
+	Raw          []RawEvent      `json:"raw,omitempty"`
 }
 
 func Collect(ctx context.Context, events <-chan Event) (Response, error) {
@@ -141,6 +142,8 @@ func Collect(ctx context.Context, events <-chan Event) (Response, error) {
 				}
 			case WarningEvent:
 				resp.Warnings = append(resp.Warnings, e)
+			case CitationEvent:
+				resp.Citations = append(resp.Citations, e)
 			case RawEvent:
 				resp.Raw = append(resp.Raw, e)
 			case ErrorEvent:

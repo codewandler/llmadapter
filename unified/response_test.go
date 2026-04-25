@@ -69,3 +69,21 @@ func TestCollectReasoningSignature(t *testing.T) {
 		t.Fatalf("reasoning = %+v", resp.Content[0])
 	}
 }
+
+func TestCollectPreservesCitationsAndRawEvents(t *testing.T) {
+	ch := make(chan Event, 2)
+	ch <- CitationEvent{Index: 0, Citation: Citation{Type: "url", URL: "https://example.test", Title: "Example"}}
+	ch <- RawEvent{APIKind: "test.api", Type: "provider_specific", JSON: []byte(`{"x":1}`)}
+	close(ch)
+
+	resp, err := Collect(context.Background(), ch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Citations) != 1 || resp.Citations[0].Citation.URL != "https://example.test" {
+		t.Fatalf("citations = %+v", resp.Citations)
+	}
+	if len(resp.Raw) != 1 || resp.Raw[0].APIKind != "test.api" || string(resp.Raw[0].JSON) != `{"x":1}` {
+		t.Fatalf("raw = %+v", resp.Raw)
+	}
+}
