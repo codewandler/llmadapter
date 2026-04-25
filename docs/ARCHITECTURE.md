@@ -219,6 +219,7 @@ unified.Request
 - Mid-stream provider errors are projected as `unified.ErrorEvent` carrying `unified.APIError` where the provider exposes structured error fields. Gateway/mux fallback remains pre-stream/pre-response only; once streaming output begins, errors surface to the caller instead of retrying another provider.
 - Provider raw error payloads are preserved for normalized non-2xx errors and covered mid-stream error events, including Responses response-object failures.
 - Multimodal support is explicit and warning-driven: supported image URL/base64 inputs encode through compatible provider surfaces, while unsupported audio/file/video parts are either rejected in strict mode or dropped with `unsupported_field_dropped` warnings in best-effort mode.
+- Built-in tool support is explicit by omission: unmodeled provider-native tools such as web search or code interpreter are warning/dropped in current endpoint/provider paths instead of being silently forwarded as malformed function tools.
 - Prompt-cache primitives are explicit on `unified.Request`: policy/key/TTL intent is mapped by provider codecs, while session-level cache strategy and stable-prefix projection stay in agentsdk.
 - Provider-specific controls are carried through namespaced `unified.Request.Extensions` instead of being added as core fields too early.
 - Reasoning stream projection is fixture-tested across Anthropic-family Messages surfaces, OpenAI Responses-compatible surfaces, and Codex Responses. `unified.Collect` preserves reasoning signatures, citations, and raw provider events for higher layers that need continuation or provider-specific metadata.
@@ -261,7 +262,7 @@ Live tests are strong smoke coverage, not full protocol conformance. Known gaps 
 - Additional endpoint codec edge-case fixtures.
 - Additional reasoning/citation variants as providers expose new event shapes.
 - Additional provider-specific error body and mid-stream error variants as new providers expose them.
-- Audio, video, file, document, and built-in tool conformance.
+- Actual audio, video, file, document, and built-in tool support if those features are added beyond the current warning/drop policy.
 - Provider-specific extension semantic validation beyond the typed helper shape checks that already exist.
 
 ### Raw Event Preservation

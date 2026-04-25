@@ -127,6 +127,122 @@ func TestProviderUnsupportedMultimodalWarnings(t *testing.T) {
 	}
 }
 
+func TestProviderUnsupportedMultimodalDroppedFromWire(t *testing.T) {
+	cases := []struct {
+		name      string
+		frames    [][]byte
+		newClient func(transport.ByteStreamTransport) (unified.Client, error)
+		forbidden []string
+	}{
+		{
+			name:      "openai_chat",
+			frames:    chatCompleteFrames(),
+			forbidden: []string{"audio.wav", "file.pdf", "video.mp4", "input_audio", "input_file", "video"},
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openai.NewClient(openai.WithAPIKey("key"), openai.WithTransport(t))
+			},
+		},
+		{
+			name:      "openrouter_responses",
+			frames:    responsesCompleteFrames(),
+			forbidden: []string{"audio.wav", "file.pdf", "video.mp4", "input_audio", "input_file", "input_video"},
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey("key"), openrouterresponses.WithTransport(t))
+			},
+		},
+		{
+			name:      "anthropic_messages",
+			frames:    anthropicCompleteFrames(),
+			forbidden: []string{"audio.wav", "file.pdf", "video.mp4", `"type":"audio"`, `"type":"document"`, `"type":"video"`},
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return anthropic.NewClient(anthropic.WithAPIKey("key"), anthropic.WithTransport(t))
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &transport.FakeByteStreamTransport{Frames: tc.frames}
+			client, err := tc.newClient(fake)
+			if err != nil {
+				t.Fatal(err)
+			}
+			events, err := client.Request(context.Background(), unsupportedMultimodalRequest())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := unified.Collect(context.Background(), events); err != nil {
+				t.Fatal(err)
+			}
+			body := requestBody(t, fake)
+			for _, forbidden := range tc.forbidden {
+				if strings.Contains(body, forbidden) {
+					t.Fatalf("unsupported media leaked into wire body (%s):\n%s", forbidden, body)
+				}
+			}
+		})
+	}
+}
+
+func TestProviderUnsupportedBuiltInToolWarnings(t *testing.T) {
+	cases := []struct {
+		name      string
+		frames    [][]byte
+		newClient func(transport.ByteStreamTransport) (unified.Client, error)
+		forbidden []string
+	}{
+		{
+			name:      "openai_chat",
+			frames:    chatCompleteFrames(),
+			forbidden: []string{"web_search", "code_interpreter"},
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openai.NewClient(openai.WithAPIKey("key"), openai.WithTransport(t))
+			},
+		},
+		{
+			name:      "openrouter_responses",
+			frames:    responsesCompleteFrames(),
+			forbidden: []string{"web_search", "code_interpreter"},
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey("key"), openrouterresponses.WithTransport(t))
+			},
+		},
+		{
+			name:      "anthropic_messages",
+			frames:    anthropicCompleteFrames(),
+			forbidden: []string{"web_search", "code_interpreter"},
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return anthropic.NewClient(anthropic.WithAPIKey("key"), anthropic.WithTransport(t))
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &transport.FakeByteStreamTransport{Frames: tc.frames}
+			client, err := tc.newClient(fake)
+			if err != nil {
+				t.Fatal(err)
+			}
+			events, err := client.Request(context.Background(), unsupportedBuiltInToolRequest())
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := unified.Collect(context.Background(), events)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertUnsupportedWarning(t, resp.Warnings)
+			body := requestBody(t, fake)
+			for _, forbidden := range tc.forbidden {
+				if strings.Contains(body, forbidden) {
+					t.Fatalf("unsupported built-in tool leaked into wire body (%s):\n%s", forbidden, body)
+				}
+			}
+		})
+	}
+}
+
 func imageSmokeRequest() unified.Request {
 	maxTokens := 16
 	return unified.Request{
@@ -160,6 +276,34 @@ func unsupportedMultimodalRequest() unified.Request {
 		}},
 		Stream: true,
 	}
+}
+
+func unsupportedBuiltInToolRequest() unified.Request {
+	maxTokens := 16
+	return unified.Request{
+		Model:           "test-model",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "search"}},
+		}},
+		Tools: []unified.Tool{
+			{Kind: unified.ToolKind("web_search"), Name: "web_search"},
+			{Kind: unified.ToolKind("code_interpreter"), Name: "code_interpreter"},
+			{Kind: unified.ToolKindFunction, Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		},
+		Stream: true,
+	}
+}
+
+func assertUnsupportedWarning(t *testing.T, warnings []unified.WarningEvent) {
+	t.Helper()
+	for _, warning := range warnings {
+		if warning.Code == "unsupported_field_dropped" {
+			return
+		}
+	}
+	t.Fatalf("missing unsupported warning: %+v", warnings)
 }
 
 func requestBody(t *testing.T, fake *transport.FakeByteStreamTransport) string {

@@ -156,7 +156,8 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 		"messages":[{"role":"user","content":[
 			{"type":"text","text":"hello"},
 			{"type":"document","source":{"type":"url","url":"x"}},
-			{"type":"tool_result","tool_use_id":"toolu","content":[{"type":"text","text":"ok"},{"type":"image"}]}
+			{"type":"server_tool_use","id":"srv_1","name":"web_search"},
+			{"type":"tool_result","tool_use_id":"toolu","content":[{"type":"text","text":"ok"},{"type":"image"},{"type":"document"}]}
 		]}],
 		"tool_choice":{"type":"unknown"},
 		"provider":{"order":["openai"]},
@@ -169,7 +170,9 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertWarning(t, req.Warnings, "messages.0.content.1.type")
-	assertWarning(t, req.Warnings, "messages.0.content.2.content.1")
+	assertWarning(t, req.Warnings, "messages.0.content.2.type")
+	assertWarning(t, req.Warnings, "messages.0.content.3.content.1")
+	assertWarning(t, req.Warnings, "messages.0.content.3.content.2")
 	assertWarning(t, req.Warnings, "tool_choice.type")
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterProvider, `{"order":["openai"]}`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterTrace, `{"enabled":true}`)

@@ -92,6 +92,7 @@ Error conformance slice: live e2e coverage includes invalid API-key and invalid-
 Provider error conformance slice: shared fixtures preserve provider raw payloads on mid-stream API errors, cover Responses response-object failures, and extend non-2xx parsing for top-level message, detail, and string-error provider body variants
 Citation conformance slice: Responses-family annotation events and Anthropic-family text-block citations emit canonical CitationEvent values, preserving URL/title/text/ranges/document IDs and unknown citation metadata
 Endpoint codec conformance slice: OpenAI Chat, OpenAI Responses, and Anthropic Messages endpoint codecs preserve HTTP/raw decode metadata; OpenAI Responses and Anthropic Messages endpoints project canonical citations back into compatible response annotation/citation fields
+Unsupported media/tool conformance slice: endpoint and provider fixtures pin current best-effort policy for unsupported audio/video/file/document content and built-in tools: supported images are preserved, unsupported fields warn/drop, and provider wire payloads do not leak unsupported media or built-in tool declarations
 ```
 
 Verified:
@@ -299,7 +300,7 @@ Model resolution is centralized through adapterconfig/modeldb catalog loading pl
 Supported provider endpoint families cover Anthropic Messages-compatible, OpenAI Chat-compatible, and OpenAI Responses-compatible surfaces, including Anthropic, Claude Code-compatible access, OpenAI, OpenRouter, MiniMax, and Codex endpoint variants.
 Usage/cost accounting is canonical and structured; provider raw usage payloads are retained when available, and modeldb-backed pricing is absent-safe.
 Prompt caching primitives are explicit request hints only; session-level cache policy and stateful conversation projection remain agentsdk responsibilities.
-Conformance coverage now includes text, tools, parallel tool-call decoding, tool continuation, reasoning signatures, citation variants, endpoint raw decode metadata, endpoint citation projection, prompt caching, error normalization, provider raw error payloads, dynamic model rejection, multimodal image/unsupported-media behavior, typed extension validation, raw provider usage, and selected raw provider events.
+Conformance coverage now includes text, function tools, parallel tool-call decoding, tool continuation, reasoning signatures, citation variants, endpoint raw decode metadata, endpoint citation projection, prompt caching, error normalization, provider raw error payloads, dynamic model rejection, multimodal image support, unsupported media/built-in-tool warning/drop behavior, typed extension validation, raw provider usage, and selected raw provider events.
 ```
 
 Implementation assessment:
@@ -308,7 +309,7 @@ Implementation assessment:
 Foundation is solid for a stateless adapter: canonical request/event model, stream-first provider clients, deterministic weighted routing, pre-response gateway fallback, fake transport unit tests, shared CLI/gateway config construction, in-process mux routing, modeldb-backed resolution/pricing, and live outside-in e2e tests are all working.
 Main intentional shortcuts are stream-first provider paths, family-level default capabilities, explicit static provider descriptors, and partial protocol coverage for provider-specific advanced fields.
 Current live tests are good smoke coverage, not full conformance coverage.
-Important remaining test gaps: additional endpoint-codec edge cases, additional citation variants as providers expose new annotation shapes, additional provider-specific error variants as new providers expose them, full audio/video/file/document/built-in-tool provider conformance, and deeper provider-specific extension semantic validation.
+Important remaining test gaps: additional endpoint-codec edge cases, additional citation variants as providers expose new annotation shapes, additional provider-specific error variants as new providers expose them, actual audio/video/file/document/built-in-tool provider support if/when added, and deeper provider-specific extension semantic validation.
 Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stateless gateway/adapter foundation and now covers provider auto-detection for env/local credentials. Stateful conversation ownership has moved to agentsdk.
 ```
 

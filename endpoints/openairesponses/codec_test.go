@@ -79,10 +79,10 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 	body := `{
 		"model":"gpt-test",
 		"input":[
-			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"},{"type":"input_audio"}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"},{"type":"input_audio"},{"type":"input_file","file_id":"file_1"},{"type":"input_video","video_url":"https://example.com/video.mp4"}]},
 			{"type":"web_search_call"}
 		],
-		"tools":[{"type":"web_search","name":"ignored"}],
+		"tools":[{"type":"web_search","name":"ignored"},{"type":"code_interpreter","name":"ignored"}],
 		"tool_choice":{"type":"unknown"},
 		"provider":{"allow_fallbacks":true},
 		"debug":true,
@@ -94,8 +94,11 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertWarning(t, req.Warnings, "input.0.content.1.type")
+	assertWarning(t, req.Warnings, "input.0.content.2.type")
+	assertWarning(t, req.Warnings, "input.0.content.3.type")
 	assertWarning(t, req.Warnings, "input.1.type")
 	assertWarning(t, req.Warnings, "tools.0.type")
+	assertWarning(t, req.Warnings, "tools.1.type")
 	assertWarning(t, req.Warnings, "tool_choice")
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterProvider, `{"allow_fallbacks":true}`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterDebug, `true`)

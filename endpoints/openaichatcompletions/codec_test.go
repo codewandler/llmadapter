@@ -65,7 +65,7 @@ func TestDecodeHTTPPreservesRequestMetadata(t *testing.T) {
 func TestDecodeHTTPWarnings(t *testing.T) {
 	body := `{
 		"model":"test-model",
-		"messages":[{"role":"user","content":[{"type":"text","text":"hello"},{"type":"input_audio","input_audio":{"data":"x"}}]}],
+		"messages":[{"role":"user","content":[{"type":"text","text":"hello"},{"type":"input_audio","input_audio":{"data":"x"}},{"type":"input_file","file_id":"file_1"}]}],
 		"stop":["ok",42],
 		"tools":[{"type":"web_search","function":{"name":"ignored"}}],
 		"tool_choice":{"type":"unknown"},
@@ -79,6 +79,7 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertWarning(t, req.Warnings, "messages.0.content.1.type")
+	assertWarning(t, req.Warnings, "messages.0.content.2.type")
 	assertWarning(t, req.Warnings, "stop.1")
 	assertWarning(t, req.Warnings, "tools.0.type")
 	assertWarning(t, req.Warnings, "tool_choice")
