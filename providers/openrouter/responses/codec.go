@@ -86,10 +86,24 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 			out.Text.Format = responseFormat
 		}
 	}
+	applyReasoning(&out, req)
 	applyUnifiedCachePolicy(&out, req)
 	applyOpenAIResponsesExtensions(&out, req.Extensions, &warnings)
 	applyOpenRouterExtensions(&out, req.Extensions)
 	return out, warnings
+}
+
+func applyReasoning(out *requestWire, req unified.Request) {
+	if req.Reasoning == nil {
+		return
+	}
+	out.Reasoning = &reasoningWire{}
+	if req.Reasoning.Effort != "" {
+		out.Reasoning.Effort = string(req.Reasoning.Effort)
+	}
+	if req.Reasoning.Expose {
+		out.Reasoning.Summary = "auto"
+	}
 }
 
 func applyUnifiedCachePolicy(out *requestWire, req unified.Request) {
@@ -254,6 +268,7 @@ type streamDecoder struct {
 	model          string
 	started        bool
 	startedBlock   bool
+	blockIndex     int
 	toolIDs        map[int]string
 	toolNames      map[int]string
 	toolArgs       map[int]json.RawMessage
@@ -309,15 +324,19 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	case "response.content_part.added":
 		out = append(out, d.start()...)
 		if ev.Part == nil || ev.Part.Type == "output_text" {
-			out = append(out, d.startBlock()...)
+			out = append(out, d.startBlock(ev.OutputIndex)...)
 		}
 	case "response.content_part.delta", "response.output_text.delta":
 		out = append(out, d.start()...)
-		out = append(out, d.startBlock()...)
-		out = append(out, unified.TextDeltaEvent{Index: 0, Text: ev.Delta})
+		out = append(out, d.startBlock(ev.OutputIndex)...)
+		out = append(out, unified.TextDeltaEvent{Index: ev.OutputIndex, Text: ev.Delta})
+	case "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
+		out = append(out, d.start()...)
+		out = append(out, unified.ReasoningDeltaEvent{Index: ev.OutputIndex, Text: ev.Delta})
+	case "response.reasoning_summary_text.done", "response.reasoning_text.done":
 	case "response.content_part.done":
 		if d.startedBlock {
-			out = append(out, unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText})
+			out = append(out, unified.ContentBlockDoneEvent{Index: d.blockIndex, Kind: unified.ContentKindText})
 			d.startedBlock = false
 		}
 	case "response.function_call_arguments.done":
@@ -340,12 +359,13 @@ func (d *streamDecoder) start() []unified.Event {
 	return []unified.Event{unified.MessageStartEvent{ID: d.id, Model: d.model, Role: unified.RoleAssistant}}
 }
 
-func (d *streamDecoder) startBlock() []unified.Event {
+func (d *streamDecoder) startBlock(index int) []unified.Event {
 	if d.startedBlock {
 		return nil
 	}
 	d.startedBlock = true
-	return []unified.Event{unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindText}}
+	d.blockIndex = index
+	return []unified.Event{unified.ContentBlockStartEvent{Index: index, Kind: unified.ContentKindText}}
 }
 
 func (d *streamDecoder) startToolCall(index int, item *outputItemWire) []unified.Event {
@@ -421,7 +441,7 @@ func (d *streamDecoder) ensureToolMaps() {
 func (d *streamDecoder) done(resp *responseWire) []unified.Event {
 	out := d.start()
 	if d.startedBlock {
-		out = append(out, unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText})
+		out = append(out, unified.ContentBlockDoneEvent{Index: d.blockIndex, Kind: unified.ContentKindText})
 		d.startedBlock = false
 	}
 	if resp != nil && resp.Usage != nil {

@@ -16,6 +16,7 @@ type requestWire struct {
 	Store                *bool           `json:"store,omitempty"`
 	PromptCacheKey       string          `json:"prompt_cache_key,omitempty"`
 	PromptCacheRetention string          `json:"prompt_cache_retention,omitempty"`
+	Reasoning            *reasoningWire  `json:"reasoning,omitempty"`
 	Text                 textConfigWire  `json:"text,omitempty"`
 	Tools                []toolWire      `json:"tools,omitempty"`
 	ToolChoice           any             `json:"tool_choice,omitempty"`
@@ -31,6 +32,11 @@ type requestWire struct {
 
 type textConfigWire struct {
 	Format any `json:"format,omitempty"`
+}
+
+type reasoningWire struct {
+	Effort  string `json:"effort,omitempty"`
+	Summary string `json:"summary,omitempty"`
 }
 
 type inputItemWire struct {
@@ -65,6 +71,7 @@ type eventWire struct {
 	OutputIndex  int              `json:"output_index,omitempty"`
 	ContentIndex int              `json:"content_index,omitempty"`
 	Delta        string           `json:"delta,omitempty"`
+	Text         string           `json:"text,omitempty"`
 	Response     *responseWire    `json:"response,omitempty"`
 	Item         *outputItemWire  `json:"item,omitempty"`
 	Part         *contentPartWire `json:"part,omitempty"`

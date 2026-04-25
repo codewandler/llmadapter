@@ -230,6 +230,53 @@ func TestEncodeOpenAIResponsesExtensions(t *testing.T) {
 	}
 }
 
+func TestEncodeReasoningRequest(t *testing.T) {
+	wire, warnings := encodeRequest(unified.Request{
+		Model: "openai/test",
+		Reasoning: &unified.ReasoningConfig{
+			Effort: unified.ReasoningEffortHigh,
+			Expose: true,
+		},
+	})
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if wire.Reasoning == nil || wire.Reasoning.Effort != "high" || wire.Reasoning.Summary != "auto" {
+		t.Fatalf("unexpected reasoning wire: %+v", wire.Reasoning)
+	}
+}
+
+func TestDecodeReasoningSummaryDelta(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"openai/test"}}`),
+		[]byte(`data: {"type":"response.reasoning_summary_text.delta","output_index":0,"delta":"thinking"}`),
+		[]byte(`data: {"type":"response.output_text.delta","output_index":1,"delta":"answer"}`),
+		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"openai/test","status":"completed"}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), unified.Request{Model: "openai/test", Stream: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundReasoning bool
+	for _, part := range resp.Content {
+		if reasoning, ok := part.(unified.ReasoningPart); ok && reasoning.Text == "thinking" {
+			foundReasoning = true
+		}
+	}
+	if !foundReasoning {
+		t.Fatalf("reasoning content = %+v", resp.Content)
+	}
+}
+
 func TestEncodeUnifiedCachePolicy(t *testing.T) {
 	wire, warnings := encodeRequest(unified.Request{
 		Model:       "openai/test",

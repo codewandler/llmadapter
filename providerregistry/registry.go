@@ -68,7 +68,7 @@ var descriptors = []Descriptor{
 		Type:              "openai_responses",
 		APIKind:           adapt.ApiOpenAIResponses,
 		Family:            adapt.FamilyOpenAIResponses,
-		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true},
+		Capabilities:      router.CapabilitySet{Streaming: true, Tools: true, Vision: true, JSONMode: true, JSONSchema: true, Reasoning: true, ReasoningDeltas: true},
 		DefaultAPIKeyEnvs: []string{"OPENAI_API_KEY", "OPENAI_KEY"},
 		DefaultModelEnv:   "OPENAI_RESPONSES_MODEL",
 		DefaultModel:      "gpt-4.1-mini",
