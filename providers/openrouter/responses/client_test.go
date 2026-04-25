@@ -223,6 +223,23 @@ func TestEncodeOpenRouterExtensions(t *testing.T) {
 	}
 }
 
+func TestEncodeOpenRouterExtensionsInvalid(t *testing.T) {
+	req := unified.Request{Model: "openai/test"}
+	if err := req.Extensions.Set(unified.ExtOpenRouterProvider, []string{"not-object"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenRouterSessionID, " "); err != nil {
+		t.Fatal(err)
+	}
+	wire, warnings := encodeRequest(req)
+	if len(wire.OpenRouterProvider) != 0 || len(wire.OpenRouterSessionID) != 0 {
+		t.Fatalf("invalid extensions should be dropped: %+v", wire)
+	}
+	if len(warnings) != 2 || warnings[0].code != "invalid_extension_dropped" {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
 func TestEncodeOpenAIResponsesExtensions(t *testing.T) {
 	req := unified.Request{Model: "openai/test"}
 	if err := req.Extensions.Set(unified.ExtOpenAIPreviousResponseID, "resp_prev"); err != nil {

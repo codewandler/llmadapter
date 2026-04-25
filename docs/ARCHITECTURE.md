@@ -315,6 +315,8 @@ Keep extension data namespaced, but add typed helper structs and validation for 
 - Codex-specific session/window/turn controls. Initial typed helpers are implemented through `unified.CodexExtensions`.
 - Anthropic-family beta/thinking/cache controls. Initial beta helpers are implemented through `unified.AnthropicExtensions`.
 
+Typed extension readers now validate mature extension groups and return `invalid_extension_dropped` warnings for invalid values. Provider encoders preserve valid extensions and drop invalid controls instead of silently sending malformed provider-specific fields.
+
 ### 6. Keep Conversation State Out Of Core
 
 Do not move replay history, durable session state, cache policy, or memory projection into llmadapter. Instead, keep improving the stateless primitives consumed by agentsdk and similar clients.

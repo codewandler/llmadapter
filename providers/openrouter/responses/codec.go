@@ -89,7 +89,7 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 	applyReasoning(&out, req)
 	applyUnifiedCachePolicy(&out, req)
 	applyOpenAIResponsesExtensions(&out, req.Extensions, &warnings)
-	applyOpenRouterExtensions(&out, req.Extensions)
+	applyOpenRouterExtensions(&out, req.Extensions, &warnings)
 	return out, warnings
 }
 
@@ -164,8 +164,12 @@ func functionCallItemID(id string) string {
 	return ""
 }
 
-func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions) {
-	raw := unified.OpenRouterRawExtensionsFrom(extensions)
+func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions, warnings *[]mappingWarning) {
+	raw, extensionWarnings := unified.OpenRouterExtensionsFrom(extensions)
+	for _, warning := range extensionWarnings {
+		key, _ := warning.Meta["key"].(string)
+		addExtensionWarning(warnings, key, warning.Message)
+	}
 	out.OpenRouterModels = raw.Models
 	out.OpenRouterRoute = raw.Route
 	out.OpenRouterProvider = raw.Provider
@@ -180,7 +184,7 @@ func applyOpenAIResponsesExtensions(out *requestWire, extensions unified.Extensi
 	values, extensionWarnings := unified.OpenAIResponsesExtensionsFrom(extensions)
 	for _, warning := range extensionWarnings {
 		key, _ := warning.Meta["key"].(string)
-		addWarning(warnings, key, warning.Message)
+		addExtensionWarning(warnings, key, warning.Message)
 	}
 	if values.PreviousResponseID != "" {
 		out.PreviousResponseID = values.PreviousResponseID
@@ -258,6 +262,13 @@ func addWarning(warnings *[]mappingWarning, field, message string) {
 		return
 	}
 	*warnings = append(*warnings, mappingWarning{code: "unsupported_field_dropped", field: field, message: message})
+}
+
+func addExtensionWarning(warnings *[]mappingWarning, field, message string) {
+	if warnings == nil {
+		return
+	}
+	*warnings = append(*warnings, mappingWarning{code: "invalid_extension_dropped", field: field, message: message})
 }
 
 type streamDecoder struct {

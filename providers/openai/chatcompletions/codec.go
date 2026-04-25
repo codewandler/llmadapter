@@ -93,7 +93,7 @@ func encodeRequestForAPI(req unified.Request, apiKind adapt.ApiKind) (requestWir
 		}
 	}
 	if apiKind == adapt.ApiOpenRouterChatCompletions {
-		applyOpenRouterExtensions(&out, req.Extensions)
+		applyOpenRouterExtensions(&out, req.Extensions, &warnings)
 	}
 	return out, warnings, nil
 }
@@ -130,8 +130,12 @@ func encodeMessageContent(parts []unified.ContentPart, field string, warnings *[
 	return wireParts
 }
 
-func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions) {
-	raw := unified.OpenRouterRawExtensionsFrom(extensions)
+func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions, warnings *[]mappingWarning) {
+	raw, extensionWarnings := unified.OpenRouterExtensionsFrom(extensions)
+	for _, warning := range extensionWarnings {
+		key, _ := warning.Meta["key"].(string)
+		addExtensionWarning(warnings, key, warning.Message)
+	}
 	out.OpenRouterModels = raw.Models
 	out.OpenRouterRoute = raw.Route
 	out.OpenRouterProvider = raw.Provider
@@ -198,6 +202,13 @@ func addWarning(warnings *[]mappingWarning, field, message string) {
 		return
 	}
 	*warnings = append(*warnings, mappingWarning{code: "unsupported_field_dropped", field: field, message: message})
+}
+
+func addExtensionWarning(warnings *[]mappingWarning, field, message string) {
+	if warnings == nil {
+		return
+	}
+	*warnings = append(*warnings, mappingWarning{code: "invalid_extension_dropped", field: field, message: message})
 }
 
 type streamDecoder struct {

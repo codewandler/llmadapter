@@ -160,6 +160,26 @@ func TestEncodeOpenRouterExtensions(t *testing.T) {
 	}
 }
 
+func TestEncodeOpenRouterExtensionsInvalid(t *testing.T) {
+	req := unified.Request{Model: "openrouter/test"}
+	if err := req.Extensions.Set(unified.ExtOpenRouterProvider, []string{"not-object"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := req.Extensions.Set(unified.ExtOpenRouterSessionID, " "); err != nil {
+		t.Fatal(err)
+	}
+	wire, warnings, err := encodeRequestForAPI(req, adapt.ApiOpenRouterChatCompletions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.OpenRouterProvider) != 0 || len(wire.OpenRouterSessionID) != 0 {
+		t.Fatalf("invalid extensions should be dropped: %+v", wire)
+	}
+	if len(warnings) != 2 || warnings[0].code != "invalid_extension_dropped" {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
 func TestClientStreamWithFakeTransport(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`: OPENROUTER PROCESSING`),

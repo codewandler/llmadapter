@@ -90,6 +90,23 @@ func TestOpenAIResponsesExtensionsRoundtrip(t *testing.T) {
 	}
 }
 
+func TestOpenAIResponsesExtensionsValidationWarnings(t *testing.T) {
+	var e Extensions
+	if err := e.Set(ExtOpenAIPromptCacheRetention, "1h"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Set(ExtOpenAIPromptCacheKey, " "); err != nil {
+		t.Fatal(err)
+	}
+	got, warnings := OpenAIResponsesExtensionsFrom(e)
+	if got.PromptCacheRetention != "" || got.PromptCacheKey != "" {
+		t.Fatalf("invalid responses extensions should be dropped: %+v", got)
+	}
+	if len(warnings) != 2 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
 func TestOpenRouterExtensionsRoundtrip(t *testing.T) {
 	var e Extensions
 	err := SetOpenRouterExtensions(&e, OpenRouterExtensions{
@@ -108,6 +125,27 @@ func TestOpenRouterExtensionsRoundtrip(t *testing.T) {
 	}
 }
 
+func TestOpenRouterExtensionsValidationWarnings(t *testing.T) {
+	var e Extensions
+	if err := e.Set(ExtOpenRouterProvider, []string{"not-object"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Set(ExtOpenRouterSessionID, " "); err != nil {
+		t.Fatal(err)
+	}
+	got, warnings := OpenRouterExtensionsFrom(e)
+	if len(got.Provider) != 0 || len(got.SessionID) != 0 {
+		t.Fatalf("invalid OpenRouter extensions should be dropped: %+v", got)
+	}
+	if len(warnings) != 2 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	raw := OpenRouterRawExtensionsFrom(e)
+	if len(raw.Provider) == 0 || len(raw.SessionID) == 0 {
+		t.Fatalf("raw OpenRouter extensions should preserve valid JSON: %+v", raw)
+	}
+}
+
 func TestAnthropicExtensionsRoundtrip(t *testing.T) {
 	var e Extensions
 	if err := SetAnthropicExtensions(&e, AnthropicExtensions{Betas: []string{"thinking"}}); err != nil {
@@ -119,6 +157,20 @@ func TestAnthropicExtensionsRoundtrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Betas, []string{"thinking"}) {
 		t.Fatalf("anthropic extensions = %+v", got)
+	}
+}
+
+func TestAnthropicExtensionsValidationWarnings(t *testing.T) {
+	var e Extensions
+	if err := e.Set(ExtAnthropicBetas, []string{"thinking", ""}); err != nil {
+		t.Fatal(err)
+	}
+	got, warnings := AnthropicExtensionsFrom(e)
+	if !reflect.DeepEqual(got.Betas, []string{"thinking"}) {
+		t.Fatalf("anthropic extensions = %+v", got)
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("warnings = %+v", warnings)
 	}
 }
 
@@ -151,8 +203,14 @@ func TestCodexExtensionsWarnings(t *testing.T) {
 	if err := e.Set(ExtCodexSubagent, "not-bool"); err != nil {
 		t.Fatal(err)
 	}
+	if err := e.Set(ExtCodexSessionID, " "); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Set(ExtCodexWindowID, "bad\nwindow"); err != nil {
+		t.Fatal(err)
+	}
 	_, warnings := CodexExtensionsFrom(e)
-	if len(warnings) != 1 || warnings[0].Code != "invalid_extension_dropped" {
+	if len(warnings) != 3 || warnings[0].Code != "invalid_extension_dropped" {
 		t.Fatalf("warnings = %+v", warnings)
 	}
 }

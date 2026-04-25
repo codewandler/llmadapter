@@ -222,7 +222,7 @@ Reasoning is represented as canonical `ReasoningPart` content and `ReasoningDelt
 
 OpenAI Responses-compatible continuation and cache-key controls are also carried through extensions. `openai.responses.previous_response_id`, `openai.responses.store`, `openai.responses.prompt_cache_key`, and `openai.responses.prompt_cache_retention` are decoded by the `/v1/responses` endpoint and encoded by OpenAI/OpenRouter Responses providers without adding gateway/session state.
 
-Typed extension helper structs are available for mature extension groups: `unified.OpenAIResponsesExtensions`, `unified.OpenRouterExtensions`, `unified.AnthropicExtensions`, and `unified.CodexExtensions`. These helpers keep provider-specific controls namespaced while avoiding ad-hoc stringly-typed code in consumers.
+Typed extension helper structs are available for mature extension groups: `unified.OpenAIResponsesExtensions`, `unified.OpenRouterExtensions`, `unified.AnthropicExtensions`, and `unified.CodexExtensions`. These helpers keep provider-specific controls namespaced while avoiding ad-hoc stringly-typed code in consumers. Typed readers validate known value shapes and return `invalid_extension_dropped` warnings for invalid controls; malformed raw JSON is rejected by `Extensions.SetRaw`.
 
 Conversation/session state belongs above llmadapter, for example in `agentsdk`. llmadapter only exposes stateless request/event/provider primitives needed by those layers.
 

@@ -167,6 +167,35 @@ func TestCodecEncodeReasoningThinking(t *testing.T) {
 	}
 }
 
+func TestCodecOpenRouterExtensionWarnings(t *testing.T) {
+	maxTokens := 128
+	req := adapt.Request{
+		SourceAPI: adapt.ApiOpenRouterAnthropicMessages,
+		Unified: unified.Request{
+			Model:           "claude-test",
+			MaxOutputTokens: &maxTokens,
+			Messages: []unified.Message{{
+				Role:    unified.RoleUser,
+				Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+			}},
+			Stream: true,
+		},
+	}
+	if err := req.Unified.Extensions.Set(unified.ExtOpenRouterProvider, []string{"not-object"}); err != nil {
+		t.Fatal(err)
+	}
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.OpenRouterProvider) != 0 {
+		t.Fatalf("invalid extension should be dropped: %+v", wire.OpenRouterProvider)
+	}
+	if len(req.Warnings) != 1 || req.Warnings[0].Code != "invalid_extension_dropped" {
+		t.Fatalf("warnings = %+v", req.Warnings)
+	}
+}
+
 func TestCodecEncodeAssistantReasoningSignature(t *testing.T) {
 	maxTokens := 128
 	req := adapt.Request{Unified: unified.Request{

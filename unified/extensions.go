@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
+	"unicode"
 )
 
 const (
@@ -142,8 +144,7 @@ func GetExtension[T any](e Extensions, key string) (T, bool, error) {
 }
 
 func OpenRouterRawExtensionsFrom(e Extensions) OpenRouterRawExtensions {
-	raw, _ := OpenRouterExtensionsFrom(e)
-	return OpenRouterRawExtensions(raw)
+	return OpenRouterRawExtensions(openRouterRawExtensionsFrom(e))
 }
 
 func SetOpenRouterRawExtensions(e *Extensions, raw OpenRouterRawExtensions) error {
@@ -181,12 +182,20 @@ func OpenAIResponsesExtensionsFrom(e Extensions) (OpenAIResponsesExtensions, []W
 			return
 		}
 		if ok {
+			if strings.TrimSpace(value) == "" {
+				warnings = append(warnings, extensionWarning(key, errors.New("empty string")))
+				return
+			}
 			*dest = value
 		}
 	}
 	setString(ExtOpenAIPreviousResponseID, &out.PreviousResponseID)
 	setString(ExtOpenAIPromptCacheKey, &out.PromptCacheKey)
 	setString(ExtOpenAIPromptCacheRetention, &out.PromptCacheRetention)
+	if out.PromptCacheRetention != "" && out.PromptCacheRetention != "24h" && out.PromptCacheRetention != "in_memory" {
+		warnings = append(warnings, extensionWarning(ExtOpenAIPromptCacheRetention, errors.New(`must be "24h" or "in_memory"`)))
+		out.PromptCacheRetention = ""
+	}
 	value, ok, err := GetExtension[bool](e, ExtOpenAIStore)
 	if err != nil {
 		warnings = append(warnings, extensionWarning(ExtOpenAIStore, err))
@@ -221,6 +230,67 @@ func SetOpenAIResponsesExtensions(e *Extensions, value OpenAIResponsesExtensions
 }
 
 func OpenRouterExtensionsFrom(e Extensions) (OpenRouterExtensions, []WarningEvent) {
+	var warnings []WarningEvent
+	out := OpenRouterExtensions{
+		Models:        validatedRawExtension(e, ExtOpenRouterModels, rawArray, &warnings),
+		Route:         validatedRawExtension(e, ExtOpenRouterRoute, rawObjectOrString, &warnings),
+		Provider:      validatedRawExtension(e, ExtOpenRouterProvider, rawObject, &warnings),
+		ProviderPrefs: validatedRawExtension(e, ExtOpenRouterProviderPrefs, rawObject, &warnings),
+		Plugins:       validatedRawExtension(e, ExtOpenRouterPlugins, rawArray, &warnings),
+		Debug:         validatedRawExtension(e, ExtOpenRouterDebug, rawBoolOrObject, &warnings),
+		Trace:         validatedRawExtension(e, ExtOpenRouterTrace, rawObject, &warnings),
+		SessionID:     validatedRawExtension(e, ExtOpenRouterSessionID, rawNonEmptyString, &warnings),
+	}
+	return out, warnings
+}
+
+func rawArray(v any) bool {
+	_, ok := v.([]any)
+	return ok
+}
+
+func rawObject(v any) bool {
+	_, ok := v.(map[string]any)
+	return ok
+}
+
+func rawBoolOrObject(v any) bool {
+	if _, ok := v.(bool); ok {
+		return true
+	}
+	return rawObject(v)
+}
+
+func rawObjectOrString(v any) bool {
+	if rawObject(v) {
+		return true
+	}
+	return rawNonEmptyString(v)
+}
+
+func rawNonEmptyString(v any) bool {
+	value, ok := v.(string)
+	return ok && strings.TrimSpace(value) != ""
+}
+
+func validatedRawExtension(e Extensions, key string, valid func(any) bool, warnings *[]WarningEvent) json.RawMessage {
+	raw := e.Raw(key)
+	if len(raw) == 0 {
+		return nil
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		*warnings = append(*warnings, extensionWarning(key, err))
+		return nil
+	}
+	if !valid(value) {
+		*warnings = append(*warnings, extensionWarning(key, errors.New("unexpected JSON type")))
+		return nil
+	}
+	return raw
+}
+
+func openRouterRawExtensionsFrom(e Extensions) OpenRouterExtensions {
 	return OpenRouterExtensions{
 		Models:        e.Raw(ExtOpenRouterModels),
 		Route:         e.Raw(ExtOpenRouterRoute),
@@ -230,7 +300,7 @@ func OpenRouterExtensionsFrom(e Extensions) (OpenRouterExtensions, []WarningEven
 		Debug:         e.Raw(ExtOpenRouterDebug),
 		Trace:         e.Raw(ExtOpenRouterTrace),
 		SessionID:     e.Raw(ExtOpenRouterSessionID),
-	}, nil
+	}
 }
 
 func SetOpenRouterExtensions(e *Extensions, value OpenRouterExtensions) error {
@@ -243,7 +313,13 @@ func AnthropicExtensionsFrom(e Extensions) (AnthropicExtensions, []WarningEvent)
 	if value, ok, err := GetExtension[[]string](e, ExtAnthropicBetas); err != nil {
 		warnings = append(warnings, extensionWarning(ExtAnthropicBetas, err))
 	} else if ok {
-		out.Betas = append([]string(nil), value...)
+		for _, beta := range value {
+			if strings.TrimSpace(beta) == "" {
+				warnings = append(warnings, extensionWarning(ExtAnthropicBetas, errors.New("empty beta value")))
+				continue
+			}
+			out.Betas = append(out.Betas, beta)
+		}
 	}
 	return out, warnings
 }
@@ -265,6 +341,10 @@ func CodexExtensionsFrom(e Extensions) (CodexExtensions, []WarningEvent) {
 			return
 		}
 		if ok {
+			if !validExtensionString(value) {
+				warnings = append(warnings, extensionWarning(key, errors.New("must be a non-empty string without control characters")))
+				return
+			}
 			*dest = value
 		}
 	}
@@ -287,6 +367,18 @@ func CodexExtensionsFrom(e Extensions) (CodexExtensions, []WarningEvent) {
 	setBool(ExtCodexMemgenRequest, &out.MemgenRequest)
 	setBool(ExtCodexIncludeTimingMetrics, &out.IncludeTimingMetrics)
 	return out, warnings
+}
+
+func validExtensionString(value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return false
+	}
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
 }
 
 func SetCodexExtensions(e *Extensions, value CodexExtensions) error {

@@ -148,3 +148,25 @@ func TestClientAppliesCodexExtensions(t *testing.T) {
 	checkHeader(HeaderOpenAIMemgenRequest, "true")
 	checkHeader(HeaderTimingMetrics, "true")
 }
+
+func TestClientRejectsInvalidCodexExtensions(t *testing.T) {
+	client, err := NewClient(
+		WithAccessToken("token"),
+		WithBaseURL("https://example.invalid/backend-api"),
+		WithTransport(&transport.FakeByteStreamTransport{}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := unified.Request{Model: "codex", Stream: true}
+	if err := req.Extensions.Set(unified.ExtCodexSessionID, " "); err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Request(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected invalid codex extension error")
+	}
+	if !strings.Contains(err.Error(), "invalid extensions") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

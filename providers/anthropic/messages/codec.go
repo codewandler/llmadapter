@@ -93,7 +93,7 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 		out.ToolChoice = choice
 	}
 	if req.SourceAPI == adapt.ApiOpenRouterAnthropicMessages {
-		applyOpenRouterExtensions(&out, ureq.Extensions)
+		applyOpenRouterExtensions(req, &out, ureq.Extensions)
 	}
 	return out, nil
 }
@@ -177,8 +177,12 @@ func thinkingBudget(reasoning unified.ReasoningConfig, maxTokens int) int {
 	return 1024
 }
 
-func applyOpenRouterExtensions(out *MessageRequest, extensions unified.Extensions) {
-	raw := unified.OpenRouterRawExtensionsFrom(extensions)
+func applyOpenRouterExtensions(req *adapt.Request, out *MessageRequest, extensions unified.Extensions) {
+	raw, warnings := unified.OpenRouterExtensionsFrom(extensions)
+	for _, warning := range warnings {
+		key, _ := warning.Meta["key"].(string)
+		req.AddWarning(warning.Code, key, warning.Message)
+	}
 	out.OpenRouterModels = raw.Models
 	out.OpenRouterRoute = raw.Route
 	out.OpenRouterProvider = raw.Provider
