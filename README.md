@@ -75,7 +75,7 @@ Provider model override env vars:
 - `MINIMAX_MODEL`
 - `MINIMAX_MESSAGES_MODEL`
 
-See [docs/PROVIDER_MATRIX.md](docs/PROVIDER_MATRIX.md) for the v1 provider endpoint matrix, feature coverage, live smoke commands, and latest recorded smoke result.
+See [docs/PROVIDER_MATRIX.md](docs/PROVIDER_MATRIX.md) for the v1 provider endpoint matrix, feature coverage, live smoke commands, and latest recorded smoke result. See [docs/API_SURFACE.md](docs/API_SURFACE.md) for the pre-v1 package-boundary decision.
 
 ## Common Usage
 
@@ -339,7 +339,7 @@ The `claude` provider type is an Anthropic Messages-compatible endpoint variant 
 
 The default HTTP byte-stream transport advertises and decodes `gzip`, `deflate`, `br`, and `zstd` response compression. Custom HTTP clients can preserve that behavior by starting from `transport.CloneDefaultHTTPClient()`.
 
-See `DESIGN.md` for the target architecture, `docs/ARCHITECTURE.md` for the current package architecture review, and `PLAN.md` for current status, known gaps, and next implementation phases.
+See `DESIGN.md` for the target architecture, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the current package architecture review, [docs/API_SURFACE.md](docs/API_SURFACE.md) for public package boundaries, and `PLAN.md` for current status, known gaps, and next implementation phases.
 
 ## Known Limitations
 

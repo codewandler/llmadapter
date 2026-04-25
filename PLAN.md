@@ -100,6 +100,7 @@ V1 phase 3 routing/fallback policy slice: shared route-attempt policy classifies
 V1 phase 4 capability/model policy slice: config inspection and model resolution expose capability provenance as provider descriptor defaults, config overrides, or modeldb exposure metadata; dynamic modeldb routes still reject catalog-missing models without provider-default substitution
 V1 phase 5 CLI/config/examples slice: README usage examples cover auto mux, config mux, direct infer, gateway serve, Docker, model resolution, and provider identity inspection; `examples/llmadapter.example.json` plus a modeldb overlay are load-tested
 V1 phase 6 provider matrix slice: `docs/PROVIDER_MATRIX.md` documents the v1 provider endpoints, feature coverage, credential triggers, live smoke commands, skip behavior, and latest full matrix result
+V1 phase 7 public API freeze slice: primary public packages have package docs, `docs/API_SURFACE.md` records stable consumer/extension/internal boundaries, and no pre-v1 exported renames are required
 ```
 
 Verified:
@@ -273,7 +274,6 @@ CODEX_MODEL overrides the default codex_responses smoke-test model
 Known follow-up gaps before v1:
 
 ```text
-V1 blocker: exported public APIs need a final package-boundary/doc-comment review before v1.
 V1 non-blocker: OpenAI Chat, OpenAI Responses, Anthropic Messages, OpenRouter, MiniMax, Claude-compatible access, and Codex provider paths are stream-first compatibility surfaces, not full clones of every upstream provider field.
 V1 non-blocker: OpenRouter extension passthrough is centralized through typed raw helpers with shape and focused semantic validation for mature routing/provider/plugin/session controls; broader provider-specific controls should stay namespaced until their semantics are stable.
 V1 non-blocker: prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter. Codex uses the session/window cache key path and the live smoke checks follow-up cache-read accounting.
@@ -305,7 +305,7 @@ Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stat
 Next planned phase:
 
 ```text
-The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 7: public API and package-boundary freeze, followed by a v1.0.0 release candidate.
+The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 8: final hardening and a v1.0.0 release candidate.
 ```
 
 V1 completion roadmap:

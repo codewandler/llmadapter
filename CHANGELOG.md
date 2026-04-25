@@ -10,6 +10,17 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.31] - 2026-04-25
+
+### Added
+
+- Added package documentation for the primary public API packages.
+- Added `docs/API_SURFACE.md` documenting stable consumer packages, extension packages, internal packages, and pre-v1 stability rules.
+
+### Changed
+
+- Recorded the public API/package-boundary freeze in `PLAN.md`; no pre-v1 exported renames are required from the current surface.
+
 ## [0.48.30] - 2026-04-25
 
 ### Added
