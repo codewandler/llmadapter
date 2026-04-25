@@ -115,7 +115,7 @@ This matters for providers such as OpenRouter, MiniMax, Azure, Bedrock, Vertex, 
 
 `modelmeta` maps modeldb offering exposure metadata into route capabilities and limits.
 
-Model resolution is centralized in `adapterconfig`. CLI diagnostics, `llmadapter infer`, auto route summaries, mux routing, and gateway routing use the same catalog-backed route/native-model decision. Modeldb is the source of truth for whether a model or alias exists when modeldb-backed routing is enabled; dynamic routes reject catalog-missing models instead of falling through to provider defaults.
+Model resolution is centralized in `adapterconfig`. CLI diagnostics, `llmadapter infer`, auto route summaries, mux routing, and gateway routing use the same catalog-backed route/native-model decision. Modeldb is the source of truth for whether a model or alias exists when modeldb-backed routing is enabled; dynamic routes reject catalog-missing models instead of falling through to provider defaults. Config inspection and model resolution expose capability provenance as `provider_descriptor`, `config_override`, or `modeldb_exposure`.
 
 `pricing` enriches canonical usage events with modeldb-backed cost items.
 
@@ -245,9 +245,13 @@ Gateway and mux client both implement route candidate fallback. Shared route-att
 
 The shared policy classifies request-shape validation failures as non-retryable, including `adapt.UnsupportedFieldError` and 400/422 provider API errors. Gateway config can set `max_attempts`; mux library consumers can set `muxclient.WithMaxAttempts`. The HTTP-specific response-start rule stays in `gateway`: once response bytes are written, the gateway cannot transparently retry another upstream.
 
-### Capability Defaults
+### Capability Provenance
 
-Base capabilities are still partly endpoint-family/provider defaults. Modeldb narrows fixed-route capabilities and known dynamic model requests, and dynamic model IDs missing from the catalog are rejected instead of being rewritten to provider defaults. The remaining v1 work is to make default-versus-catalog-confirmed capability decisions more visible in CLI/config inspection.
+Base capabilities are still partly endpoint-family/provider defaults. Modeldb narrows fixed-route capabilities and known dynamic model requests, and dynamic model IDs missing from the catalog are rejected instead of being rewritten to provider defaults. CLI/config inspection reports where effective capabilities came from:
+
+- `provider_descriptor`: static provider endpoint metadata.
+- `config_override`: explicit operator override in llmadapter config.
+- `modeldb_exposure`: modeldb offering exposure metadata for the selected provider API.
 
 ### Conformance Depth
 

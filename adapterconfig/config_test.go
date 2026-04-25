@@ -430,7 +430,8 @@ func TestInspectConfigResolvesRoutesWithoutProviderCredentials(t *testing.T) {
 		}},
 	}
 	cfg := Config{
-		Addr: ":9090",
+		Addr:        ":9090",
+		MaxAttempts: 2,
 		Providers: []ProviderConfig{{
 			Name:             "openrouter",
 			Type:             "openrouter_responses",
@@ -452,6 +453,12 @@ func TestInspectConfigResolvesRoutesWithoutProviderCredentials(t *testing.T) {
 	if len(inspection.Providers) != 1 || inspection.Providers[0].InlineAPIKey {
 		t.Fatalf("unexpected provider inspection: %+v", inspection.Providers)
 	}
+	if inspection.MaxAttempts != 2 {
+		t.Fatalf("max attempts = %d, want 2", inspection.MaxAttempts)
+	}
+	if inspection.Providers[0].CapabilitySource != "provider_descriptor" {
+		t.Fatalf("unexpected provider capability source: %+v", inspection.Providers[0])
+	}
 	if len(inspection.Routes) != 1 {
 		t.Fatalf("routes = %+v", inspection.Routes)
 	}
@@ -462,11 +469,47 @@ func TestInspectConfigResolvesRoutesWithoutProviderCredentials(t *testing.T) {
 	if !route.Capabilities.Streaming || !route.Capabilities.Tools || !route.Capabilities.JSONSchema {
 		t.Fatalf("unexpected capabilities: %+v", route.Capabilities)
 	}
+	if route.CapabilitySource != "modeldb_exposure" {
+		t.Fatalf("unexpected route capability source: %+v", route)
+	}
 	if route.Capabilities.MaxInputTokens != 128000 || route.Capabilities.MaxOutputTokens != 4096 {
 		t.Fatalf("unexpected limits: %+v", route.Capabilities)
 	}
 	if !route.ModelDB.Enabled || !route.ModelDB.OfferingFound || !route.ModelDB.ExposureFound || !route.ModelDB.PricingAvailable {
 		t.Fatalf("unexpected modeldb inspection: %+v", route.ModelDB)
+	}
+}
+
+func TestInspectConfigReportsCapabilityOverrideSource(t *testing.T) {
+	cfg := Config{
+		Providers: []ProviderConfig{{
+			Name:   "openai",
+			Type:   "openai_responses",
+			APIKey: "key",
+			Capabilities: &CapabilityConfig{
+				Streaming: boolPtr(true),
+				Tools:     boolPtr(false),
+			},
+		}},
+		Routes: []RouteConfig{{
+			SourceAPI: adapt.ApiOpenAIResponses,
+			Provider:  "openai",
+		}},
+	}
+	ApplyDefaults(&cfg)
+
+	inspection, err := InspectConfigWithCatalog(cfg, modeldb.Catalog{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inspection.Providers) != 1 || len(inspection.Routes) != 1 {
+		t.Fatalf("unexpected inspection: %+v", inspection)
+	}
+	if inspection.Providers[0].CapabilitySource != "config_override" {
+		t.Fatalf("unexpected provider capability source: %+v", inspection.Providers[0])
+	}
+	if inspection.Routes[0].CapabilitySource != "config_override" {
+		t.Fatalf("unexpected route capability source: %+v", inspection.Routes[0])
 	}
 }
 
@@ -501,6 +544,10 @@ func TestInspectConfigReportsResolvedModelDBModel(t *testing.T) {
 	if route.ModelDB.WireModelID != "openai/gpt-test" || !route.ModelDB.ExposureFound {
 		t.Fatalf("unexpected modeldb inspection: %+v", route.ModelDB)
 	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 func (c fakeClient) Request(context.Context, unified.Request) (<-chan unified.Event, error) {

@@ -10,6 +10,18 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.28] - 2026-04-25
+
+### Added
+
+- Added capability provenance fields to config inspection and model resolution diagnostics.
+- `llmadapter resolve` now reports whether capabilities come from provider descriptor defaults, config overrides, or modeldb exposure metadata.
+- Added regression tests for capability source reporting across provider defaults, explicit config overrides, modeldb-backed routes, and CLI output.
+
+### Changed
+
+- Narrowed the v1 capability/model policy gap by making default-versus-catalog-confirmed capability decisions inspectable.
+
 ## [0.48.27] - 2026-04-25
 
 ### Added

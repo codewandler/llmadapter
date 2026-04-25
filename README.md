@@ -108,6 +108,7 @@ Configuration:
 - `modeldb.overlay_paths` optionally merges one or more JSON catalog files after the base catalog.
 - `modeldb.aliases` can bind local intent names to explicit service/wire-model pairs; route `modeldb_model` and auto-detected model intents resolve through the same loaded modeldb catalog plus overlays.
 - Provider `capabilities` can override default endpoint metadata for a configured model, for example to disable `vision` or `json_schema` on a model that does not support it.
+- `serve --inspect-config` and `resolve` report `capability_source` so operators can distinguish provider descriptor defaults, explicit config overrides, and modeldb exposure metadata.
 - Provider `modeldb_service_id` plus a fixed route `native_model` or `modeldb_wire_model_id` enables modeldb-backed usage cost enrichment and endpoint capability/limit metadata for that route. Dynamic routes with `dynamic_models: true` resolve requested models through modeldb before routing, rewrite to the selected offering wire model, and reject catalog-missing models instead of falling through to provider defaults.
 - `claude` defaults `modeldb_service_id` to `anthropic` because it invokes Anthropic Claude models through Claude Code-compatible auth.
 - The gateway exposes `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`.
@@ -304,7 +305,7 @@ See `DESIGN.md` for the target architecture, `docs/ARCHITECTURE.md` for the curr
 
 ## Known Limitations
 
-- V1 blocker: capability decisions must remain inspectable. Modeldb narrows configured fixed-model routes and dynamic model requests, but routes that rely on endpoint-family defaults should be treated as defaults rather than model-specific proof.
+- Stable behavior: capability decisions are inspectable. Modeldb narrows configured fixed-model routes and dynamic model requests where exposure metadata exists; routes that report `provider_descriptor` still rely on endpoint-family/provider defaults rather than model-specific proof.
 - Stable behavior: gateway/mux fallback is deterministic, can be bounded with `max_attempts` or `muxclient.WithMaxAttempts`, and treats request-shape validation failures as non-retryable. Gateway fallback only retries before response bytes are written; mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
 - V1 blocker: provider and endpoint codecs cover smoke-tested text, tools, structured output, reasoning, caching, usage, citations, raw events, and basic image inputs; they are not full conformance implementations for every provider field.
 - V1 non-blocker: OpenRouter extension passthrough uses typed raw helpers with focused shape/semantic validation for mature controls; broader provider-specific controls remain intentionally raw until their semantics are stable.

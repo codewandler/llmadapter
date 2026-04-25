@@ -12,6 +12,7 @@ import (
 type ConfigInspection struct {
 	Addr           string               `json:"addr,omitempty"`
 	HealthCooldown string               `json:"health_cooldown,omitempty"`
+	MaxAttempts    int                  `json:"max_attempts,omitempty"`
 	Providers      []ProviderInspection `json:"providers,omitempty"`
 	Routes         []RouteInspection    `json:"routes,omitempty"`
 }
@@ -28,6 +29,7 @@ type ProviderInspection struct {
 	BaseURL          string               `json:"base_url,omitempty"`
 	Priority         int                  `json:"priority,omitempty"`
 	Capabilities     CapabilityInspection `json:"capabilities,omitempty"`
+	CapabilitySource string               `json:"capability_source,omitempty"`
 	Tags             map[string]string    `json:"tags,omitempty"`
 	Error            string               `json:"error,omitempty"`
 }
@@ -46,6 +48,7 @@ type RouteInspection struct {
 	TargetFamily       adapt.ApiFamily      `json:"target_family,omitempty"`
 	Priority           int                  `json:"priority,omitempty"`
 	Capabilities       CapabilityInspection `json:"capabilities,omitempty"`
+	CapabilitySource   string               `json:"capability_source,omitempty"`
 	ModelDB            ModelDBInspection    `json:"modeldb,omitempty"`
 }
 
@@ -94,6 +97,7 @@ func InspectConfigWithCatalog(cfg Config, catalog modeldb.Catalog, modelDBEnable
 	out := ConfigInspection{
 		Addr:           cfg.Addr,
 		HealthCooldown: cfg.HealthCooldown,
+		MaxAttempts:    cfg.MaxAttempts,
 		Providers:      make([]ProviderInspection, 0, len(cfg.Providers)),
 		Routes:         make([]RouteInspection, 0, len(cfg.Routes)),
 	}
@@ -119,6 +123,7 @@ func InspectConfigWithCatalog(cfg Config, catalog modeldb.Catalog, modelDBEnable
 		info.Family = endpoint.Family
 		info.ModelDBServiceID = providerModelDBServiceID(provider)
 		info.Capabilities = inspectCapabilities(endpoint.Capabilities)
+		info.CapabilitySource = providerCapabilitySource(provider)
 		info.Tags = endpoint.Tags
 		out.Providers = append(out.Providers, info)
 	}
@@ -153,11 +158,35 @@ func InspectConfigWithCatalog(cfg Config, catalog modeldb.Catalog, modelDBEnable
 			TargetFamily:       endpoint.Family,
 			Priority:           endpoint.Priority,
 			Capabilities:       inspectCapabilities(endpoint.Capabilities),
+			CapabilitySource:   routeCapabilitySource(providerForInspection(cfg, route.Provider), endpoint, route, catalog, modelDBEnabled),
 			ModelDB:            inspectModelDB(catalog, modelDBEnabled, endpoint, route),
 		})
 	}
 
 	return out, nil
+}
+
+func providerForInspection(cfg Config, name string) ProviderConfig {
+	for _, provider := range cfg.Providers {
+		if provider.Name == name {
+			return provider
+		}
+	}
+	return ProviderConfig{}
+}
+
+func providerCapabilitySource(provider ProviderConfig) string {
+	if provider.Capabilities != nil {
+		return "config_override"
+	}
+	return "provider_descriptor"
+}
+
+func routeCapabilitySource(provider ProviderConfig, endpoint router.ProviderEndpoint, route RouteConfig, catalog modeldb.Catalog, modelDBEnabled bool) string {
+	if modelDBEnabled && modelDBExposureFound(catalog, endpoint, route) {
+		return "modeldb_exposure"
+	}
+	return providerCapabilitySource(provider)
 }
 
 func inspectModelDB(catalog modeldb.Catalog, enabled bool, endpoint router.ProviderEndpoint, route RouteConfig) ModelDBInspection {
@@ -185,6 +214,23 @@ func inspectModelDB(catalog modeldb.Catalog, enabled bool, endpoint router.Provi
 		info.ExposureFound = offering.Exposure(apiType) != nil
 	}
 	return info
+}
+
+func modelDBExposureFound(catalog modeldb.Catalog, endpoint router.ProviderEndpoint, route RouteConfig) bool {
+	serviceID := endpoint.Tags[TagModelDBServiceID]
+	wireModelID := pricingWireModel(route)
+	if serviceID == "" || wireModelID == "" {
+		return false
+	}
+	apiType, ok := modelmeta.APITypeForFamily(endpoint.Family)
+	if !ok {
+		return false
+	}
+	offering, ok := catalog.Offerings[modeldb.OfferingRef{ServiceID: serviceID, WireModelID: wireModelID}]
+	if !ok {
+		return false
+	}
+	return offering.Exposure(apiType) != nil
 }
 
 func inspectCapabilities(caps router.CapabilitySet) CapabilityInspection {

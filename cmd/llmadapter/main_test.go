@@ -137,7 +137,7 @@ func TestResolveCommandWithConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, want := range []string{"Matched as:   public_model", "Provider API: openai.responses", "Native model: gpt-test", "Capabilities:"} {
+	for _, want := range []string{"Matched as:   public_model", "Provider API: openai.responses", "Native model: gpt-test", "Capability source: provider_descriptor", "Capabilities:"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
@@ -265,7 +265,7 @@ func TestResolveCommandWithModelDBDynamicRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, want := range []string{"Matched as:   dynamic_model", "Native model: gpt-fast-wire", "ModelDB svc:  openai"} {
+	for _, want := range []string{"Matched as:   dynamic_model", "Native model: gpt-fast-wire", "ModelDB svc:  openai", "Capability source: modeldb_exposure"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
@@ -331,7 +331,7 @@ func TestServeInspectConfigCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, want := range []string{`"addr": ":9090"`, `"type": "openai_responses"`, `"source_api": "openai.responses"`} {
+	for _, want := range []string{`"addr": ":9090"`, `"type": "openai_responses"`, `"source_api": "openai.responses"`, `"capability_source": "provider_descriptor"`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}

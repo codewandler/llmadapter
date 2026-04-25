@@ -11,19 +11,20 @@ import (
 )
 
 type ModelResolutionCandidate struct {
-	Input          string
-	MatchedAs      string
-	SourceAPI      adapt.ApiKind
-	PublicModel    string
-	NativeModel    string
-	Provider       string
-	ProviderType   string
-	ProviderAPI    adapt.ApiKind
-	Family         adapt.ApiFamily
-	Weight         int
-	Priority       int
-	ModelDBService string
-	Capabilities   router.CapabilitySet
+	Input            string
+	MatchedAs        string
+	SourceAPI        adapt.ApiKind
+	PublicModel      string
+	NativeModel      string
+	Provider         string
+	ProviderType     string
+	ProviderAPI      adapt.ApiKind
+	Family           adapt.ApiFamily
+	Weight           int
+	Priority         int
+	ModelDBService   string
+	Capabilities     router.CapabilitySet
+	CapabilitySource string
 }
 
 func ResolveModelCandidates(cfg Config, model string, sourceAPI adapt.ApiKind) ([]ModelResolutionCandidate, error) {
@@ -56,19 +57,20 @@ func ResolveModelCandidates(cfg Config, model string, sourceAPI adapt.ApiKind) (
 			route.ProviderAPI = endpoint.APIKind
 		}
 		out = append(out, ModelResolutionCandidate{
-			Input:          model,
-			MatchedAs:      matchedAs,
-			SourceAPI:      route.SourceAPI,
-			PublicModel:    route.Model,
-			NativeModel:    nativeModel,
-			Provider:       route.Provider,
-			ProviderType:   provider.Type,
-			ProviderAPI:    route.ProviderAPI,
-			Family:         endpoint.Family,
-			Weight:         route.Weight,
-			Priority:       provider.Priority,
-			ModelDBService: endpoint.Tags[TagModelDBServiceID],
-			Capabilities:   endpoint.Capabilities,
+			Input:            model,
+			MatchedAs:        matchedAs,
+			SourceAPI:        route.SourceAPI,
+			PublicModel:      route.Model,
+			NativeModel:      nativeModel,
+			Provider:         route.Provider,
+			ProviderType:     provider.Type,
+			ProviderAPI:      route.ProviderAPI,
+			Family:           endpoint.Family,
+			Weight:           route.Weight,
+			Priority:         provider.Priority,
+			ModelDBService:   endpoint.Tags[TagModelDBServiceID],
+			Capabilities:     endpoint.Capabilities,
+			CapabilitySource: routeCapabilitySource(provider, endpoint, route, catalog, modelDBEnabled),
 		})
 	}
 	if len(out) == 0 {

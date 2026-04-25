@@ -444,19 +444,20 @@ type providerStatusInfo struct {
 }
 
 type resolutionInfo struct {
-	Input          string               `json:"input"`
-	MatchedAs      string               `json:"matched_as"`
-	SourceAPI      adapt.ApiKind        `json:"source_api"`
-	PublicModel    string               `json:"public_model,omitempty"`
-	NativeModel    string               `json:"native_model,omitempty"`
-	Provider       string               `json:"provider"`
-	ProviderType   string               `json:"provider_type"`
-	ProviderAPI    adapt.ApiKind        `json:"provider_api"`
-	Family         adapt.ApiFamily      `json:"family"`
-	Weight         int                  `json:"weight,omitempty"`
-	Priority       int                  `json:"priority,omitempty"`
-	ModelDBService string               `json:"modeldb_service_id,omitempty"`
-	Capabilities   router.CapabilitySet `json:"capabilities"`
+	Input            string               `json:"input"`
+	MatchedAs        string               `json:"matched_as"`
+	SourceAPI        adapt.ApiKind        `json:"source_api"`
+	PublicModel      string               `json:"public_model,omitempty"`
+	NativeModel      string               `json:"native_model,omitempty"`
+	Provider         string               `json:"provider"`
+	ProviderType     string               `json:"provider_type"`
+	ProviderAPI      adapt.ApiKind        `json:"provider_api"`
+	Family           adapt.ApiFamily      `json:"family"`
+	Weight           int                  `json:"weight,omitempty"`
+	Priority         int                  `json:"priority,omitempty"`
+	ModelDBService   string               `json:"modeldb_service_id,omitempty"`
+	Capabilities     router.CapabilitySet `json:"capabilities"`
+	CapabilitySource string               `json:"capability_source,omitempty"`
 }
 
 type catalogModelFlags struct {
@@ -912,6 +913,9 @@ func printResolution(w io.Writer, resolution resolutionInfo) {
 	if resolution.ModelDBService != "" {
 		fmt.Fprintf(w, "ModelDB svc:  %s\n", resolution.ModelDBService)
 	}
+	if resolution.CapabilitySource != "" {
+		fmt.Fprintf(w, "Capability source: %s\n", resolution.CapabilitySource)
+	}
 	fmt.Fprintf(w, "Capabilities: streaming=%t tools=%t vision=%t audio_input=%t json_mode=%t json_schema=%t reasoning=%t\n",
 		resolution.Capabilities.Streaming,
 		resolution.Capabilities.Tools,
@@ -957,19 +961,20 @@ func resolveModelCandidates(cfg adapterconfig.Config, model string) ([]resolutio
 
 func resolutionInfoFromAdapter(resolution adapterconfig.ModelResolutionCandidate) resolutionInfo {
 	return resolutionInfo{
-		Input:          resolution.Input,
-		MatchedAs:      resolution.MatchedAs,
-		SourceAPI:      resolution.SourceAPI,
-		PublicModel:    resolution.PublicModel,
-		NativeModel:    resolution.NativeModel,
-		Provider:       resolution.Provider,
-		ProviderType:   resolution.ProviderType,
-		ProviderAPI:    resolution.ProviderAPI,
-		Family:         resolution.Family,
-		Weight:         resolution.Weight,
-		Priority:       resolution.Priority,
-		ModelDBService: resolution.ModelDBService,
-		Capabilities:   resolution.Capabilities,
+		Input:            resolution.Input,
+		MatchedAs:        resolution.MatchedAs,
+		SourceAPI:        resolution.SourceAPI,
+		PublicModel:      resolution.PublicModel,
+		NativeModel:      resolution.NativeModel,
+		Provider:         resolution.Provider,
+		ProviderType:     resolution.ProviderType,
+		ProviderAPI:      resolution.ProviderAPI,
+		Family:           resolution.Family,
+		Weight:           resolution.Weight,
+		Priority:         resolution.Priority,
+		ModelDBService:   resolution.ModelDBService,
+		Capabilities:     resolution.Capabilities,
+		CapabilitySource: resolution.CapabilitySource,
 	}
 }
 

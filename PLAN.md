@@ -97,6 +97,7 @@ Unsupported media/tool conformance slice: endpoint and provider fixtures pin cur
 V1 phase 1 docs/status truth slice: README, PLAN, ARCHITECTURE, and CHANGELOG now describe the current implementation accurately, split v1 blockers from non-blockers and post-v1 expansion, and require changelog updates before every tag/release
 V1 phase 2 conformance fixture slice: endpoint decode edge cases, additional reasoning event shapes, citation metadata variants, message-only stream errors, raw/unmapped events, and unsupported media/tool policy are covered by deterministic offline fixtures
 V1 phase 3 routing/fallback policy slice: shared route-attempt policy classifies non-retryable request validation failures, gateway config supports `max_attempts`, muxclient exposes `WithMaxAttempts`, and gateway/mux tests pin retry-limit exhaustion plus response-start boundaries
+V1 phase 4 capability/model policy slice: config inspection and model resolution expose capability provenance as provider descriptor defaults, config overrides, or modeldb exposure metadata; dynamic modeldb routes still reject catalog-missing models without provider-default substitution
 ```
 
 Verified:
@@ -269,7 +270,6 @@ CODEX_MODEL overrides the default codex_responses smoke-test model
 Known follow-up gaps before v1:
 
 ```text
-V1 blocker: capability/model decisions need final inspectability polish so catalog-confirmed metadata and endpoint-family defaults are clearly distinguishable.
 V1 blocker: CLI/config/examples need a final usability pass covering auto mux, config mux, direct infer, gateway serve, Docker, model resolution, redaction, and provider identity terminology.
 V1 blocker: the supported provider matrix needs a final documented live-smoke pass with exact commands and explicit skip reasons for missing credentials.
 V1 blocker: exported public APIs need a final package-boundary/doc-comment review before v1.
@@ -284,6 +284,7 @@ Current stable state:
 ```text
 llmadapter is a stateless, stream-first adapter with a shared canonical request/event model, provider endpoint routing, HTTP gateway endpoints, a Cobra CLI, and an in-process mux client.
 Model resolution is centralized through adapterconfig/modeldb catalog loading plus alias overlays; CLI resolve/infer, auto mux, gateway, and muxclient use the same catalog-backed route/native-model decision path when modeldb is enabled.
+Capability provenance is inspectable as provider descriptor defaults, explicit config overrides, or modeldb exposure metadata.
 Supported provider endpoint families cover Anthropic Messages-compatible, OpenAI Chat-compatible, and OpenAI Responses-compatible surfaces, including Anthropic, Claude Code-compatible access, OpenAI, OpenRouter, MiniMax, and Codex endpoint variants.
 Usage/cost accounting is canonical and structured; provider raw usage payloads are retained when available, and modeldb-backed pricing is absent-safe.
 Prompt caching primitives are explicit request hints only; session-level cache policy and stateful conversation projection remain agentsdk responsibilities.
@@ -303,7 +304,7 @@ Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stat
 Next planned phase:
 
 ```text
-The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 4: capability/model policy finalization, followed by CLI/examples, provider smoke matrix, public API freeze, and a v1.0.0 release candidate.
+The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 5: public CLI, config, and examples finalization, followed by provider smoke matrix, public API freeze, and a v1.0.0 release candidate.
 ```
 
 V1 completion roadmap:
