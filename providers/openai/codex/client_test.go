@@ -150,23 +150,35 @@ func TestClientAppliesCodexExtensions(t *testing.T) {
 }
 
 func TestClientRejectsInvalidCodexExtensions(t *testing.T) {
-	client, err := NewClient(
-		WithAccessToken("token"),
-		WithBaseURL("https://example.invalid/backend-api"),
-		WithTransport(&transport.FakeByteStreamTransport{}),
-	)
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		key  string
+		val  any
+	}{
+		{name: "unsafe session header", key: unified.ExtCodexSessionID, val: " "},
+		{name: "invalid turn metadata", key: unified.ExtCodexTurnMetadata, val: "not-json"},
 	}
-	req := unified.Request{Model: "codex", Stream: true}
-	if err := req.Extensions.Set(unified.ExtCodexSessionID, " "); err != nil {
-		t.Fatal(err)
-	}
-	_, err = client.Request(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected invalid codex extension error")
-	}
-	if !strings.Contains(err.Error(), "invalid extensions") {
-		t.Fatalf("unexpected error: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := NewClient(
+				WithAccessToken("token"),
+				WithBaseURL("https://example.invalid/backend-api"),
+				WithTransport(&transport.FakeByteStreamTransport{}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := unified.Request{Model: "codex", Stream: true}
+			if err := req.Extensions.Set(tt.key, tt.val); err != nil {
+				t.Fatal(err)
+			}
+			_, err = client.Request(context.Background(), req)
+			if err == nil {
+				t.Fatal("expected invalid codex extension error")
+			}
+			if !strings.Contains(err.Error(), "invalid extensions") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }

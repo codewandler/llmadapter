@@ -232,21 +232,29 @@ func SetOpenAIResponsesExtensions(e *Extensions, value OpenAIResponsesExtensions
 func OpenRouterExtensionsFrom(e Extensions) (OpenRouterExtensions, []WarningEvent) {
 	var warnings []WarningEvent
 	out := OpenRouterExtensions{
-		Models:        validatedRawExtension(e, ExtOpenRouterModels, rawArray, &warnings),
-		Route:         validatedRawExtension(e, ExtOpenRouterRoute, rawObjectOrString, &warnings),
-		Provider:      validatedRawExtension(e, ExtOpenRouterProvider, rawObject, &warnings),
+		Models:        validatedRawExtension(e, ExtOpenRouterModels, rawStringArray, &warnings),
+		Route:         validatedRawExtension(e, ExtOpenRouterRoute, rawObjectOrSafeString, &warnings),
+		Provider:      validatedRawExtension(e, ExtOpenRouterProvider, rawProviderObject, &warnings),
 		ProviderPrefs: validatedRawExtension(e, ExtOpenRouterProviderPrefs, rawObject, &warnings),
-		Plugins:       validatedRawExtension(e, ExtOpenRouterPlugins, rawArray, &warnings),
+		Plugins:       validatedRawExtension(e, ExtOpenRouterPlugins, rawPluginArray, &warnings),
 		Debug:         validatedRawExtension(e, ExtOpenRouterDebug, rawBoolOrObject, &warnings),
 		Trace:         validatedRawExtension(e, ExtOpenRouterTrace, rawObject, &warnings),
-		SessionID:     validatedRawExtension(e, ExtOpenRouterSessionID, rawNonEmptyString, &warnings),
+		SessionID:     validatedRawExtension(e, ExtOpenRouterSessionID, rawSafeString, &warnings),
 	}
 	return out, warnings
 }
 
-func rawArray(v any) bool {
-	_, ok := v.([]any)
-	return ok
+func rawStringArray(v any) bool {
+	values, ok := v.([]any)
+	if !ok {
+		return false
+	}
+	for _, item := range values {
+		if !rawSafeString(item) {
+			return false
+		}
+	}
+	return true
 }
 
 func rawObject(v any) bool {
@@ -261,16 +269,50 @@ func rawBoolOrObject(v any) bool {
 	return rawObject(v)
 }
 
-func rawObjectOrString(v any) bool {
+func rawObjectOrSafeString(v any) bool {
 	if rawObject(v) {
 		return true
 	}
-	return rawNonEmptyString(v)
+	return rawSafeString(v)
 }
 
-func rawNonEmptyString(v any) bool {
+func rawSafeString(v any) bool {
 	value, ok := v.(string)
-	return ok && strings.TrimSpace(value) != ""
+	return ok && validExtensionString(value)
+}
+
+func rawProviderObject(v any) bool {
+	values, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	for _, key := range []string{"order", "ignore", "only"} {
+		value, ok := values[key]
+		if !ok {
+			continue
+		}
+		if !rawStringArray(value) {
+			return false
+		}
+	}
+	return true
+}
+
+func rawPluginArray(v any) bool {
+	values, ok := v.([]any)
+	if !ok {
+		return false
+	}
+	for _, item := range values {
+		plugin, ok := item.(map[string]any)
+		if !ok {
+			return false
+		}
+		if id, exists := plugin["id"]; exists && !rawSafeString(id) {
+			return false
+		}
+	}
+	return true
 }
 
 func validatedRawExtension(e Extensions, key string, valid func(any) bool, warnings *[]WarningEvent) json.RawMessage {
@@ -314,8 +356,8 @@ func AnthropicExtensionsFrom(e Extensions) (AnthropicExtensions, []WarningEvent)
 		warnings = append(warnings, extensionWarning(ExtAnthropicBetas, err))
 	} else if ok {
 		for _, beta := range value {
-			if strings.TrimSpace(beta) == "" {
-				warnings = append(warnings, extensionWarning(ExtAnthropicBetas, errors.New("empty beta value")))
+			if !validBetaValue(beta) {
+				warnings = append(warnings, extensionWarning(ExtAnthropicBetas, errors.New("must be a non-empty beta header value without whitespace, comma, or control characters")))
 				continue
 			}
 			out.Betas = append(out.Betas, beta)
@@ -362,11 +404,27 @@ func CodexExtensionsFrom(e Extensions) (CodexExtensions, []WarningEvent) {
 	setString(ExtCodexWindowID, &out.WindowID)
 	setString(ExtCodexTurnState, &out.TurnState)
 	setString(ExtCodexTurnMetadata, &out.TurnMetadata)
+	if out.TurnMetadata != "" && !validJSONObject(out.TurnMetadata) {
+		warnings = append(warnings, extensionWarning(ExtCodexTurnMetadata, errors.New("must be a JSON object string")))
+		out.TurnMetadata = ""
+	}
 	setString(ExtCodexParentThreadID, &out.ParentThreadID)
 	setBool(ExtCodexSubagent, &out.Subagent)
 	setBool(ExtCodexMemgenRequest, &out.MemgenRequest)
 	setBool(ExtCodexIncludeTimingMetrics, &out.IncludeTimingMetrics)
 	return out, warnings
+}
+
+func validBetaValue(value string) bool {
+	if strings.TrimSpace(value) != value || value == "" || strings.Contains(value, ",") {
+		return false
+	}
+	for _, r := range value {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
 }
 
 func validExtensionString(value string) bool {
@@ -379,6 +437,11 @@ func validExtensionString(value string) bool {
 		}
 	}
 	return true
+}
+
+func validJSONObject(value string) bool {
+	var obj map[string]any
+	return json.Unmarshal([]byte(value), &obj) == nil
 }
 
 func SetCodexExtensions(e *Extensions, value CodexExtensions) error {

@@ -110,7 +110,10 @@ func TestOpenAIResponsesExtensionsValidationWarnings(t *testing.T) {
 func TestOpenRouterExtensionsRoundtrip(t *testing.T) {
 	var e Extensions
 	err := SetOpenRouterExtensions(&e, OpenRouterExtensions{
+		Models:    json.RawMessage(`["openai/gpt-5","anthropic/claude-sonnet"]`),
+		Route:     json.RawMessage(`"fallback"`),
 		Provider:  json.RawMessage(`{"order":["anthropic"]}`),
+		Plugins:   json.RawMessage(`[{"id":"web"}]`),
 		SessionID: json.RawMessage(`"sess"`),
 	})
 	if err != nil {
@@ -120,24 +123,33 @@ func TestOpenRouterExtensionsRoundtrip(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %+v", warnings)
 	}
-	if string(got.Provider) != `{"order":["anthropic"]}` || string(got.SessionID) != `"sess"` {
+	if string(got.Models) != `["openai/gpt-5","anthropic/claude-sonnet"]` || string(got.Route) != `"fallback"` || string(got.Provider) != `{"order":["anthropic"]}` || string(got.Plugins) != `[{"id":"web"}]` || string(got.SessionID) != `"sess"` {
 		t.Fatalf("openrouter extensions = %+v", got)
 	}
 }
 
 func TestOpenRouterExtensionsValidationWarnings(t *testing.T) {
 	var e Extensions
-	if err := e.Set(ExtOpenRouterProvider, []string{"not-object"}); err != nil {
+	if err := e.Set(ExtOpenRouterModels, []any{"openai/gpt-5", ""}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Set(ExtOpenRouterRoute, "bad\nroute"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Set(ExtOpenRouterProvider, map[string]any{"order": []any{"anthropic", ""}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Set(ExtOpenRouterPlugins, []map[string]any{{"id": ""}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.Set(ExtOpenRouterSessionID, " "); err != nil {
 		t.Fatal(err)
 	}
 	got, warnings := OpenRouterExtensionsFrom(e)
-	if len(got.Provider) != 0 || len(got.SessionID) != 0 {
+	if len(got.Models) != 0 || len(got.Route) != 0 || len(got.Provider) != 0 || len(got.Plugins) != 0 || len(got.SessionID) != 0 {
 		t.Fatalf("invalid OpenRouter extensions should be dropped: %+v", got)
 	}
-	if len(warnings) != 2 {
+	if len(warnings) != 5 {
 		t.Fatalf("warnings = %+v", warnings)
 	}
 	raw := OpenRouterRawExtensionsFrom(e)
@@ -162,14 +174,14 @@ func TestAnthropicExtensionsRoundtrip(t *testing.T) {
 
 func TestAnthropicExtensionsValidationWarnings(t *testing.T) {
 	var e Extensions
-	if err := e.Set(ExtAnthropicBetas, []string{"thinking", ""}); err != nil {
+	if err := e.Set(ExtAnthropicBetas, []string{"thinking", "", "bad beta", "bad,beta"}); err != nil {
 		t.Fatal(err)
 	}
 	got, warnings := AnthropicExtensionsFrom(e)
 	if !reflect.DeepEqual(got.Betas, []string{"thinking"}) {
 		t.Fatalf("anthropic extensions = %+v", got)
 	}
-	if len(warnings) != 1 {
+	if len(warnings) != 3 {
 		t.Fatalf("warnings = %+v", warnings)
 	}
 }
@@ -209,8 +221,11 @@ func TestCodexExtensionsWarnings(t *testing.T) {
 	if err := e.Set(ExtCodexWindowID, "bad\nwindow"); err != nil {
 		t.Fatal(err)
 	}
+	if err := e.Set(ExtCodexTurnMetadata, "not-json"); err != nil {
+		t.Fatal(err)
+	}
 	_, warnings := CodexExtensionsFrom(e)
-	if len(warnings) != 3 || warnings[0].Code != "invalid_extension_dropped" {
+	if len(warnings) != 4 || warnings[0].Code != "invalid_extension_dropped" {
 		t.Fatalf("warnings = %+v", warnings)
 	}
 }

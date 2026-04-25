@@ -263,7 +263,7 @@ Live tests are strong smoke coverage, not full protocol conformance. Known gaps 
 - Additional reasoning/citation variants as providers expose new event shapes.
 - Additional provider-specific error body and mid-stream error variants as new providers expose them.
 - Actual audio, video, file, document, and built-in tool support if those features are added beyond the current warning/drop policy.
-- Provider-specific extension semantic validation beyond the typed helper shape checks that already exist.
+- Broader provider-specific extension semantic validation for controls that are still intentionally raw.
 
 ### Raw Event Preservation
 
@@ -329,7 +329,7 @@ Keep extension data namespaced, but add typed helper structs and validation for 
 - Codex-specific session/window/turn controls. Initial typed helpers are implemented through `unified.CodexExtensions`.
 - Anthropic-family beta/thinking/cache controls. Initial beta helpers are implemented through `unified.AnthropicExtensions`.
 
-Typed extension readers now validate mature extension groups and return `invalid_extension_dropped` warnings for invalid values. Provider encoders preserve valid extensions and drop invalid controls instead of silently sending malformed provider-specific fields.
+Typed extension readers now validate mature extension groups and return `invalid_extension_dropped` warnings for invalid values. Focused semantic checks cover OpenAI Responses cache retention, OpenRouter routing/provider/plugin/session controls, Anthropic beta header values, and Codex turn metadata. Provider encoders preserve valid extensions and drop invalid controls instead of silently sending malformed provider-specific fields.
 
 ### 6. Keep Conversation State Out Of Core
 
