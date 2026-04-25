@@ -8,7 +8,7 @@ Primary goal: keep the adapter buildable and incrementally useful while hardenin
 
 ## Current Status
 
-Status date: 2026-04-24.
+Status date: 2026-04-25.
 
 Phases 1-3 are implemented as a first working vertical slice.
 
@@ -94,6 +94,7 @@ Provider error conformance slice: shared fixtures preserve provider raw payloads
 Citation conformance slice: Responses-family annotation events and Anthropic-family text-block citations emit canonical CitationEvent values, preserving URL/title/text/ranges/document IDs and unknown citation metadata
 Endpoint codec conformance slice: OpenAI Chat, OpenAI Responses, and Anthropic Messages endpoint codecs preserve HTTP/raw decode metadata; OpenAI Responses and Anthropic Messages endpoints project canonical citations back into compatible response annotation/citation fields
 Unsupported media/tool conformance slice: endpoint and provider fixtures pin current best-effort policy for unsupported audio/video/file/document content and built-in tools: supported images are preserved, unsupported fields warn/drop, and provider wire payloads do not leak unsupported media or built-in tool declarations
+V1 phase 1 docs/status truth slice: README, PLAN, ARCHITECTURE, and CHANGELOG now describe the current implementation accurately, split v1 blockers from non-blockers and post-v1 expansion, and require changelog updates before every tag/release
 ```
 
 Verified:
@@ -263,34 +264,19 @@ CODEX_AUTH_PATH overrides the Codex local auth file path, otherwise ~/.codex/aut
 CODEX_MODEL overrides the default codex_responses smoke-test model
 ```
 
-Known follow-up gaps:
+Known follow-up gaps before v1:
 
 ```text
-Provider mappings and endpoint codecs now cover common unsupported dropped fields with warnings; more specialized fields still need broader warning/extension coverage
-Anthropic request mapping covers the phase-3 vertical slice, not the full Messages API
-non-streaming Anthropic response bodies are not yet modeled separately from stream events
-SSE parser intentionally skips empty dispatches; revisit if an endpoint needs exact spec-level empty event behavior
-Raw/unmapped event preservation now covers provider raw usage payloads and selected unmapped provider stream events; richer provider-specific events still need focused fixtures as new APIs expose them
-router is static and now includes capability checks plus deterministic weighted ranking; gateway retries pre-response provider failures and temporarily deprioritizes failed endpoints, but there is no probabilistic load balancing, configurable retry policy, or capability conversion policy yet
-capability defaults are endpoint-family guesses; configured provider capability overrides are available for model-specific routing, but there is no model capability registry yet
-gateway config is intentionally explicit; routes can disambiguate same-provider endpoints with provider_api, but there is no plugin-style provider registry or external provider module loading yet
-OpenAI Chat provider is stream-first and covers smoke-tested text and tool-use paths
-OpenAI Responses provider is stream-first and covers the canonical Responses-family request/event shape, including previous_response_id/store/prompt-cache extension encoding and live-verified previous_response_id continuation
-OpenRouter Chat Completions provider reuses the OpenAI-compatible stream path against OpenRouter's native chat endpoint
-OpenRouter Responses provider is stream-first and covers smoke-tested text and function-call tool loops
-OpenRouter Messages provider reuses the Anthropic-compatible stream path against OpenRouter's native messages endpoint
-MiniMax Chat provider reuses the OpenAI-compatible stream path against MiniMax's /v1/chat/completions endpoint and advertises live-verified text/tool support
-MiniMax Messages provider reuses the Anthropic-compatible stream path against MiniMax's /anthropic/v1/messages endpoint and advertises live-verified text/tool/reasoning support
-OpenAI-backed gateway route is smoke-tested for streaming and non-streaming responses
-OpenAI Chat endpoint mapping is a compatibility slice, not full API coverage
-Provider support is currently strong for text + function-tool loops, OpenAI-family structured-output requests, and basic image input passthrough; broad multimodal/media conformance is not complete
-OpenRouter extension passthrough is centralized through typed raw helpers with shape and focused semantic validation for mature routing/provider/plugin/session controls; broader provider-specific controls should stay namespaced until their semantics are stable
-streaming provider errors after response start need a final policy; current behavior marks the route unhealthy and returns because the endpoint-shaped response has already started
-runnable gateway supports configured and auto-detected provider routes through shared adapterconfig/gatewayserver construction; the no-config path remains a small Anthropic default
-modeldb metadata is integrated for fixed-route enrichment and dynamic model routes; provider endpoint base capabilities still come from hardcoded family defaults plus manual config overrides
-usage now carries structured token and cost item fields as the canonical accounting surface; modeldb-backed pricing enrichment is wired for configured fixed-model gateway routes and dynamic per-request models when catalog pricing exists
-stateful conversations are intentionally absent from llmadapter core; conversation/session belongs in agentsdk or another wrapper above unified.Client
-Prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter. Codex uses the session/window cache key path and the live smoke checks follow-up cache-read accounting.
+V1 blocker: conformance fixtures need one more deterministic pass for endpoint edge cases, reasoning/citation variants, provider error shapes, raw/unmapped events, and unsupported-media/built-in-tool policy regressions.
+V1 blocker: gateway/mux fallback policy needs explicit retry-limit and non-retryable-failure tests; HTTP response-start behavior remains gateway-specific by design.
+V1 blocker: capability/model decisions need final inspectability polish so catalog-confirmed metadata and endpoint-family defaults are clearly distinguishable.
+V1 blocker: CLI/config/examples need a final usability pass covering auto mux, config mux, direct infer, gateway serve, Docker, model resolution, redaction, and provider identity terminology.
+V1 blocker: the supported provider matrix needs a final documented live-smoke pass with exact commands and explicit skip reasons for missing credentials.
+V1 blocker: exported public APIs need a final package-boundary/doc-comment review before v1.
+V1 non-blocker: OpenAI Chat, OpenAI Responses, Anthropic Messages, OpenRouter, MiniMax, Claude-compatible access, and Codex provider paths are stream-first compatibility surfaces, not full clones of every upstream provider field.
+V1 non-blocker: OpenRouter extension passthrough is centralized through typed raw helpers with shape and focused semantic validation for mature routing/provider/plugin/session controls; broader provider-specific controls should stay namespaced until their semantics are stable.
+V1 non-blocker: prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter. Codex uses the session/window cache key path and the live smoke checks follow-up cache-read accounting.
+Post-v1: broad audio/video/file/document/built-in-tool provider support, plugin-style external provider loading, probabilistic load balancing, broad provider-specific extension semantics, and additional provider families such as Ollama/Bedrock/Vertex/Azure/Gemini.
 ```
 
 Current stable state:
@@ -317,21 +303,242 @@ Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stat
 Next planned phase:
 
 ```text
-Priority: provider registry/CLI, in-process mux client, modeldb, Claude compatibility, caching, usage/pricing, provider parity, and broader live conformance tracks below are the highest-priority work items for the next implementation rounds.
-Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, explicit route alias resolution, service-qualified model names, dynamic per-request pricing, dynamic per-request capability narrowing, and catalog-missing dynamic-model rejection are in place.
-Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, fixed-route gateway pricing, and dynamic request-scoped pricing wiring are in place.
-Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, Anthropic extended-thinking request mapping, and live prompt-cache/tool/reasoning/gateway smokes are in place. MiniMax Messages also advertises and live-verifies reasoning on its Anthropic-compatible surface.
-Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
-Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key extensions are in place; session-level cache policy belongs above llmadapter.
-CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, serve, and smoke requests; `cmd/llmadapter-gateway` remains as a thin compatibility binary over the same adapterconfig/gateway server path.
-Catalog CLI slice: `llmadapter models --catalog` inspects the built-in or configured modeldb catalog with filters for service, API type, parameter, identity, and query text.
-Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; gateway serving now uses the same adapterconfig router construction in the Cobra CLI path.
-Dynamic model access slice: routes can opt into `dynamic_models` to resolve requested model IDs against modeldb for that provider endpoint while fixed weighted routes remain deterministic.
-Dynamic model capability slice: modeldb-backed dynamic routes narrow route capabilities for the selected provider offering before route selection; unknown dynamic model IDs are rejected rather than treated as provider defaults.
-Provider parity backlog: MiniMax Chat tool validation is complete; continue expanding endpoint conformance after the metadata/accounting boundaries are in place.
-Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, text/tool/tool-continuation/reasoning/prompt-cache/gateway smoke entries, and typed session/window/turn extension controls are in place.
-Reasoning signature preservation is now part of the canonical stream surface for providers that emit signed thinking blocks; raw chain-of-thought still remains provider-controlled, while signed reasoning summaries/blocks can round-trip when the upstream API exposes them.
-Provider metadata conformance slice: raw provider usage payloads are preserved on canonical usage events across OpenAI Chat, Responses-family, Codex Responses, and Anthropic-family Messages paths; unmapped provider stream events are preserved as canonical RawEvent values for Responses-family and Anthropic-family provider surfaces.
+The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 2: conformance fixture closure, followed by routing/fallback policy, capability/model policy, CLI/examples, provider smoke matrix, public API freeze, and a v1.0.0 release candidate.
+```
+
+V1 completion roadmap:
+
+```text
+Goal: reach a stable v1.0.0 baseline that can be promoted as the public stateless adapter/gateway/mux foundation.
+
+Execution rule:
+- Work phase by phase in order.
+- Each phase must leave the tree buildable, documented, committed, tagged, pushed, and released.
+- Use patch releases while hardening, for example v0.48.25, v0.48.26, and so on.
+- Cut v1.0.0 only after every mandatory phase below is complete and verified.
+- Do not add new broad provider families during this track unless they are needed to close an existing v1 gap.
+
+Mandatory verification for every implementation phase:
+- env GOCACHE=/tmp/go-cache go test ./...
+- env GOCACHE=/tmp/go-cache go vet ./...
+- env GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod-cache go build ./...
+
+Mandatory release checklist for every phase:
+- update PLAN.md status and current stable state when behavior changes
+- update README.md or docs/ARCHITECTURE.md when public behavior or architecture changes
+- update CHANGELOG.md with the exact version entry before tagging
+- commit with a focused message
+- create an annotated git tag
+- push main and the tag
+- create a GitHub release with concise release notes and verification commands
+```
+
+V1 phase 1: status/docs truth pass.
+
+```text
+Purpose:
+Make the repository self-describing before more code changes.
+
+Tasks:
+1. Update PLAN.md status date, current stable state, known gaps, and next planned phase so they match the current implementation.
+2. Update docs/ARCHITECTURE.md known shortcomings so solved items are removed or rewritten as remaining policy choices.
+3. Update README.md known limitations so users can tell which behavior is stable, smoke-tested, best-effort, or intentionally out of scope.
+4. Add or update a short "v1 stability target" section that says llmadapter is stateless and conversation state belongs above it.
+5. Audit TODO/FIXME/deferred wording in README.md, PLAN.md, docs/ARCHITECTURE.md, and AGENTS.md.
+6. Do not change runtime behavior in this phase unless a doc claim is plainly contradicted by a tiny bug.
+
+Done criteria:
+- docs have no stale claims about already-completed provider registry, Anthropic wire cleanup, extension validation, Codex parity, or conformance slices
+- remaining gaps are phrased as explicit v1 blockers, v1 non-blockers, or post-v1 expansion items
+- release a docs/status patch
+```
+
+V1 phase 2: conformance fixture closure.
+
+```text
+Purpose:
+Turn the remaining "smoke coverage, not conformance" risk into deterministic offline fixtures.
+
+Tasks:
+1. Add endpoint codec fixtures for malformed and edge-case OpenAI Chat, OpenAI Responses, and Anthropic Messages inputs.
+2. Add provider stream fixtures for additional reasoning variants exposed by supported providers, including signed/unsigned Anthropic-family blocks and Responses-family reasoning summaries.
+3. Add citation fixtures for supported Responses-family and Anthropic-family citation shapes that are not already covered.
+4. Add provider error fixtures for additional non-2xx and mid-stream body shapes that supported providers can emit.
+5. Add raw/unmapped event preservation fixtures for at least one extra Responses-family event and one extra Anthropic-family event.
+6. Add regression tests that unsupported audio/video/file/document/built-in-tool inputs never leak into provider wire payloads.
+7. Keep live tests as smoke tests; do not make conformance depend on paid network calls.
+
+Done criteria:
+- all listed fixture groups have focused unit tests
+- conformance gaps in PLAN.md/docs are narrowed to genuinely unknown future provider variants
+- release a conformance patch
+```
+
+V1 phase 3: routing and fallback policy finalization.
+
+```text
+Purpose:
+Make gateway and mux failure behavior explicit and stable.
+
+Tasks:
+1. Add configurable retry attempt limits for route fallback where they do not already exist.
+2. Add optional backoff configuration only if it can be done without complicating the default path.
+3. Classify retryable setup/pre-stream failures versus non-retryable request validation failures.
+4. Keep HTTP response-start behavior in gateway and shared route mechanics in internal/routeattempt.
+5. Ensure muxclient and gateway report route attempts, selected route, native model, and final provider/API error consistently.
+6. Add tests for retry limit exhaustion, non-retryable validation failures, and consistent mux/gateway error formatting.
+7. Update CLI resolve/infer diagnostics if route failure output is ambiguous.
+
+Done criteria:
+- fallback behavior is deterministic and documented
+- gateway and mux differ only where HTTP response-start semantics require it
+- release a routing-policy patch
+```
+
+V1 phase 4: capability and model policy finalization.
+
+```text
+Purpose:
+Remove ambiguity around what can be routed and why.
+
+Tasks:
+1. Audit all provider descriptors for default capabilities and mark which are endpoint-family defaults versus live-verified model capabilities.
+2. Ensure modeldb-backed dynamic routes reject unavailable catalog models and do not silently relabel unknown models as provider defaults.
+3. Ensure fixed routes with explicit native_model remain deterministic and inspectable.
+4. Add CLI inspect/resolve warnings when a route relies on provider-family default capabilities instead of catalog-confirmed metadata.
+5. Add tests for catalog hit, catalog miss, service-qualified model, alias overlay, fixed route, and dynamic route behavior.
+6. Ensure pricing remains absent-safe when modeldb has no pricing for a selected offering.
+
+Done criteria:
+- model resolution has one documented path through modeldb plus overlays when modeldb is enabled
+- capability decisions are explainable through CLI/config inspection
+- no fallback model substitution surprises remain
+- release a model-policy patch
+```
+
+V1 phase 5: public CLI, config, and examples finalization.
+
+```text
+Purpose:
+Make the project usable without reading the code.
+
+Tasks:
+1. Review `llmadapter providers`, `llmadapter models`, `llmadapter resolve`, `llmadapter infer`, `llmadapter smoke`, and `llmadapter serve` for consistent flag names and output labels.
+2. Add README examples for auto mux, config mux, direct inference, gateway serve, model resolution, and Docker gateway startup.
+3. Add a minimal documented config example that includes provider endpoints, dynamic model routes, modeldb catalog/overlays, aliases, capabilities, and pricing.
+4. Confirm `cmd/llmadapter-gateway` is documented as a compatibility binary over the shared server path.
+5. Add CLI regression tests where output format is user-facing enough to matter, especially resolve/infer/provider identity fields.
+6. Ensure no command prints secrets and redaction behavior is documented.
+
+Done criteria:
+- a new consumer can configure and run CLI/gateway/mux paths from README examples
+- CLI diagnostics use provider instance/type/API/family/model terminology consistently
+- release a CLI/docs patch
+```
+
+V1 phase 6: provider smoke matrix finalization.
+
+```text
+Purpose:
+Define the supported provider matrix for v1 and verify it outside-in.
+
+Tasks:
+1. Enumerate v1-supported provider endpoints: anthropic messages, claude messages, openai chat, openai responses, openrouter chat, openrouter responses, openrouter messages, minimax chat, minimax messages, and codex responses.
+2. For each endpoint, document supported features: text, tools, tool continuation, reasoning, prompt caching, structured output, vision, raw events, usage, pricing, and gateway routing.
+3. Ensure e2e smoke tests skip cleanly when credentials or local auth files are missing.
+4. Run the full available live smoke matrix with current local credentials.
+5. Update README/PLAN with the verified matrix and any skipped credentials.
+6. Do not block v1 on Ollama, DockerMR, Bedrock, Vertex, or other new providers unless explicitly reprioritized.
+
+Done criteria:
+- the v1 provider matrix is documented and matches test coverage
+- live smoke results are recorded in PLAN.md with exact commands
+- release a provider-matrix patch
+```
+
+V1 phase 7: public API and package-boundary freeze.
+
+```text
+Purpose:
+Avoid cutting v1 with avoidable exported API churn.
+
+Tasks:
+1. Review exported identifiers in unified, adapt, router, muxclient, adapterconfig, providerregistry, pricing, modelmeta, transport, and gatewayserver.
+2. Rename or deprecate confusing exported names before v1 rather than after v1.
+3. Confirm internal packages contain implementation details that should not be public.
+4. Confirm provider packages expose only stable constructors/options needed by registry and advanced users.
+5. Add doc comments for exported types/functions that are part of the public surface and currently undocumented.
+6. Run `go vet` and package documentation checks; fix obvious lint/doc issues without adding noisy comments.
+
+Done criteria:
+- public API names align with the architecture terminology: provider instance, provider type, API kind, API family, endpoint, route, modeldb service/offering
+- no obvious package-boundary leaks remain
+- release an API-freeze patch
+```
+
+V1 phase 8: final hardening and release-candidate cut.
+
+```text
+Purpose:
+Produce a release candidate that should be v1 unless a real bug appears.
+
+Tasks:
+1. Run the mandatory local verification suite from a clean tree.
+2. Run all non-secret CLI examples from README.
+3. Run the available live smoke matrix with TEST_INTEGRATION=1 and record skipped providers.
+4. Review CHANGELOG.md and backfill a concise v1 section summarizing the stable surface.
+5. Review README.md, AGENTS.md, docs/ARCHITECTURE.md, DESIGN.md, and PLAN.md for contradictions.
+6. Verify Docker image build still works if Docker is available.
+7. Cut a release candidate tag, for example v1.0.0-rc.1.
+
+Done criteria:
+- no known mandatory v1 blocker remains
+- release candidate notes include supported provider matrix, verification commands, known limitations, and migration notes from v0.x if needed
+```
+
+V1 phase 9: v1.0.0 promotion.
+
+```text
+Purpose:
+Mark the project stable.
+
+Tasks:
+1. Fix only release-candidate regressions or documentation inaccuracies.
+2. Re-run mandatory verification and available live smoke matrix.
+3. Ensure CHANGELOG.md has a proper v1.0.0 entry.
+4. Ensure README.md starts with the stable public use cases and not historical implementation notes.
+5. Tag v1.0.0, push, and create GitHub release notes.
+
+Done criteria:
+- v1.0.0 release exists on GitHub
+- repository docs describe the current stable architecture and usage
+- future work is separated into post-v1 backlog, not mixed with v1 blockers
+```
+
+V1 done definition:
+
+```text
+Consider llmadapter v1-done when all mandatory phases above are complete and:
+- local tests, vet, and build are green
+- available live smoke tests are green or explicitly skipped for missing credentials
+- CLI, gateway, mux client, and auto mux use the same adapterconfig/modeldb-backed resolution path
+- supported providers have documented feature coverage and deterministic unsupported-feature behavior
+- routing/capability/model decisions are inspectable and do not silently substitute unrelated models
+- usage, pricing, caching, reasoning signatures, citations, provider errors, and raw provider metadata have fixture coverage where supported
+- README.md, PLAN.md, docs/ARCHITECTURE.md, AGENTS.md, CHANGELOG.md, and release notes agree on the stable surface
+- stateful conversations remain out of llmadapter and are documented as agentsdk territory
+```
+
+Post-v1 backlog:
+
+```text
+- Ollama/local provider support
+- Bedrock, Vertex, Azure OpenAI, Gemini, or other additional provider families
+- broader multimodal provider support beyond current image passthrough and unsupported-media warning policy
+- plugin-style external provider loading
+- richer retry/backoff/load-balancing policies if production operators need them
+- additional provider-specific extensions as their semantics become stable
+- deeper live conformance against provider-specific edge cases as APIs evolve
 ```
 
 Prototype parity notes from ../agentapis and ../llmproviders:

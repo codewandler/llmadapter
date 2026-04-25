@@ -231,17 +231,13 @@ unified.Request
 
 ## Known Shortcomings
 
-### Provider Registry Growth
+### Static Provider Registry
 
-`providerregistry` currently combines descriptor metadata with concrete client construction. The descriptor list is useful, but `NewClient` is a growing switch that imports every provider package.
+`providerregistry` is intentionally static. Descriptors carry endpoint metadata and factories, so metadata and construction stay together without a central provider-type switch. This is stable for v1, but it is not a plugin system. External provider module loading remains post-v1 expansion.
 
-This is acceptable at the current scale, but adding more providers will make it a coordination bottleneck unless factories move closer to descriptors or a registration pattern is introduced.
+### Shared Wire Packages
 
-### Endpoint/Provider Wire Sharing
-
-The Anthropic downstream endpoint reuses types from the Anthropic provider package. This avoids duplicate wire structs today, but it weakens the separation between downstream endpoint codecs and upstream provider clients.
-
-If endpoint and provider behavior diverge further, shared Anthropic wire structs should move to a neutral package.
+Shared wire structs that cross endpoint/provider boundaries should live in neutral packages. Anthropic Messages already follows this through `anthropicwire`. New shared wire packages should be added only when there is real cross-boundary reuse, not preemptively.
 
 ### Gateway/Mux Fallback Boundary
 
@@ -251,14 +247,12 @@ The HTTP-specific response-start rule stays in `gateway`: once response bytes ar
 
 ### Capability Defaults
 
-Base capabilities are still mostly endpoint-family/provider defaults. Modeldb can narrow fixed-route capabilities and known dynamic model requests, but models missing from the catalog still fall back to provider endpoint defaults.
+Base capabilities are still partly endpoint-family/provider defaults. Modeldb narrows fixed-route capabilities and known dynamic model requests, and dynamic model IDs missing from the catalog are rejected instead of being rewritten to provider defaults. The remaining v1 work is to make default-versus-catalog-confirmed capability decisions more visible in CLI/config inspection.
 
 ### Conformance Depth
 
 Live tests are strong smoke coverage, not full protocol conformance. Known gaps include:
 
-- Invalid credentials and invalid model behavior.
-- Parallel tool calls.
 - Additional endpoint codec edge-case fixtures.
 - Additional reasoning/citation variants as providers expose new event shapes.
 - Additional provider-specific error body and mid-stream error variants as new providers expose them.
@@ -281,23 +275,9 @@ Stateful conversations intentionally live outside llmadapter. This is the right 
 
 ## Improvement Roadmap
 
-### 1. Harden Provider Registry Shape
+### 1. Keep Provider Registry Static And Descriptor-Owned
 
-Evolve `providerregistry.Descriptor` to own or reference its client factory so metadata and construction do not drift.
-
-Possible direction:
-
-```go
-type Descriptor struct {
-    Type string
-    APIKind adapt.ApiKind
-    Family adapt.ApiFamily
-    Capabilities router.CapabilitySet
-    Factory func(ClientConfig) (unified.Client, error)
-}
-```
-
-Provider descriptors now carry static client factories, so client construction lives with descriptor metadata instead of in a growing provider-type switch. This remains static and deterministic; a plugin-style registry is not required yet.
+Provider descriptors now carry static client factories, so client construction lives with descriptor metadata instead of in a growing provider-type switch. This remains static and deterministic for v1; a plugin-style registry is not required.
 
 ### 2. Normalize Shared Wire Packages Where Needed
 
@@ -309,16 +289,16 @@ Keep the HTTP-specific response-start behavior in `gateway`, but factor shared r
 
 Initial shared mechanics are implemented in `internal/routeattempt`; remaining work is policy-level only, such as configurable retry limits, backoff, or richer failure classification.
 
-### 4. Broaden E2E And Codec Conformance
+### 4. Broaden Codec Conformance
 
-Add focused fixture tests and live tests for:
+Add focused offline fixture tests for:
 
-- Invalid credentials and invalid models. Initial live coverage is implemented through shared e2e error normalization smokes.
-- Parallel tool calls. Initial deterministic fixtures cover OpenAI Chat and Responses-family streaming decoders, with live opt-in smokes for providers advertising the capability.
-- Provider-specific error decoding.
-- Reasoning and citation variants.
-- Prompt cache accounting where providers expose explicit counters.
-- Dynamic model routing through modeldb-backed offering resolution, capability checks, and native model rewriting.
+- Additional endpoint codec edge cases.
+- Additional provider-specific error decoding variants.
+- Additional reasoning and citation variants.
+- Additional raw/unmapped provider events.
+- Prompt cache accounting variants where providers expose explicit counters.
+- Unsupported-media and built-in-tool policy regressions.
 
 ### 5. Validate Provider Extensions
 

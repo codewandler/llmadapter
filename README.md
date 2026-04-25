@@ -10,6 +10,16 @@ Current implemented surface:
 - Providers: Anthropic Messages, Claude Code-compatible Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, Codex Responses, OpenRouter Chat Completions, OpenRouter Responses, OpenRouter Anthropic-compatible Messages, MiniMax Chat Completions, MiniMax Anthropic-compatible Messages.
 - Live e2e smoke tests for text streaming, tool calls, tool-result continuation, reasoning streams, prompt caching, and gateway routing.
 
+## V1 Stability Target
+
+The v1 target is a stable stateless adapter surface:
+
+- CLI, gateway, mux client, and auto-detected mux construction use the same `adapterconfig` and modeldb-backed resolution path.
+- Provider support is documented as endpoint-specific capabilities, not implied full provider API emulation.
+- Unsupported fields are rejected or dropped with warnings; they are not silently forwarded in incompatible wire shapes.
+- Usage, pricing, caching, reasoning signatures, citations, provider errors, and raw provider metadata remain explicit stream primitives where supported.
+- Stateful conversations, memory, replay history, and projection policy stay above `unified.Client`, for example in `agentsdk`.
+
 ## Quick Start
 
 Run local verification:
@@ -292,10 +302,10 @@ See `DESIGN.md` for the target architecture, `docs/ARCHITECTURE.md` for the curr
 
 ## Known Limitations
 
-- Capability defaults are endpoint-family guesses. Use provider `capabilities` overrides for model-specific support before routing production traffic.
-- Gateway fallback only retries before response bytes are written. Mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
-- OpenRouter extension passthrough uses typed raw helpers with focused shape/semantic validation for mature controls; broader provider-specific controls remain intentionally raw until their semantics are stable.
-- Native OpenAI Responses has live smoke coverage for `previous_response_id` continuation. OpenRouter Responses encodes the same fields, but live context preservation is not advertised because the current backend smoke did not preserve prior-turn context.
-- Modeldb-backed metadata narrows configured fixed-model routes and dynamic model requests. Pricing works for fixed routes and dynamic routes when the selected native model has catalog pricing. Dynamic model IDs missing from the catalog are rejected instead of using provider endpoint defaults.
-- Prompt cache request hints currently map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions; higher-level session cache policy belongs above llmadapter. OpenRouter and MiniMax caching depend on the selected endpoint: use Messages surfaces for Anthropic block cache controls, or Responses-compatible surfaces for prompt-cache-key style controls. Codex maps the prompt cache key into Codex session/window headers.
-- Provider and endpoint codecs cover smoke-tested text, tools, structured output, and basic image inputs; they are not full conformance implementations for every provider field.
+- V1 blocker: capability decisions must remain inspectable. Modeldb narrows configured fixed-model routes and dynamic model requests, but routes that rely on endpoint-family defaults should be treated as defaults rather than model-specific proof.
+- V1 blocker: gateway/mux fallback policy must stay deterministic. Gateway fallback only retries before response bytes are written; mid-stream provider failures are marked unhealthy but cannot be converted into a fresh endpoint-shaped response.
+- V1 blocker: provider and endpoint codecs cover smoke-tested text, tools, structured output, reasoning, caching, usage, citations, raw events, and basic image inputs; they are not full conformance implementations for every provider field.
+- V1 non-blocker: OpenRouter extension passthrough uses typed raw helpers with focused shape/semantic validation for mature controls; broader provider-specific controls remain intentionally raw until their semantics are stable.
+- V1 non-blocker: Native OpenAI Responses has live smoke coverage for `previous_response_id` continuation. OpenRouter Responses encodes the same fields, but live context preservation is not advertised because the current backend smoke did not preserve prior-turn context.
+- V1 non-blocker: Prompt cache request hints map to Anthropic-family block-level cache controls and OpenAI Responses-compatible cache-key extensions. Higher-level session cache policy belongs above llmadapter. OpenRouter and MiniMax caching depend on the selected endpoint: use Messages surfaces for Anthropic block cache controls, or Responses-compatible surfaces for prompt-cache-key style controls. Codex maps the prompt cache key into Codex session/window headers.
+- Post-v1 expansion: broad audio/video/file/document/built-in-tool provider support, plugin-style provider loading, and additional provider families such as Ollama, Bedrock, Vertex, Azure OpenAI, or Gemini.

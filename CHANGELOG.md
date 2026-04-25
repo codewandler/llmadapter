@@ -10,6 +10,162 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.25] - 2026-04-25
+
+### Changed
+
+- Added the v1 completion roadmap to `PLAN.md`, including mandatory phase-by-phase tasks, verification, changelog, release, and v1 promotion criteria.
+- Refreshed README and architecture docs to separate v1 blockers, v1 non-blockers, and post-v1 expansion work.
+- Updated the implementation status to reflect completed provider registry, Anthropic wire cleanup, extension validation, Codex parity, and conformance hardening slices.
+
+## [0.48.24] - 2026-04-25
+
+### Changed
+
+- Tightened semantic validation for OpenAI Responses cache retention, OpenRouter model/route/provider/plugin/session controls, Anthropic beta header values, and Codex turn metadata.
+- Added provider encode/reject coverage so invalid semantic values are dropped with `invalid_extension_dropped` warnings where safe, while Codex rejects unsafe header/metadata controls before transport.
+- Updated README, architecture notes, and PLAN status for current extension validation coverage.
+
+## [0.48.23] - 2026-04-25
+
+### Added
+
+- Added endpoint and provider fixtures that pin unsupported audio/video/file/document content and built-in tool policy.
+
+### Changed
+
+- Confirmed supported images are preserved while unsupported media and built-in tools warn/drop or reject instead of leaking into provider wire payloads.
+
+## [0.48.22] - 2026-04-25
+
+### Added
+
+- Added endpoint codec conformance fixtures for HTTP/raw decode metadata preservation.
+- Added projection coverage for canonical citations back into OpenAI Responses annotations and Anthropic Messages citation fields.
+
+## [0.48.21] - 2026-04-25
+
+### Added
+
+- Added citation conformance fixtures for Responses-family annotation events and Anthropic-family text-block citations.
+- Canonical citation events preserve URL/title/text/ranges/document IDs and unknown citation metadata where providers expose them.
+
+## [0.48.20] - 2026-04-25
+
+### Added
+
+- Added provider error conformance fixtures for mid-stream API errors, Responses response-object failures, and non-2xx error body variants.
+
+### Changed
+
+- Provider raw payloads are preserved on normalized provider errors where available.
+
+## [0.48.19] - 2026-04-25
+
+### Changed
+
+- Refreshed stable implementation status after the conformance hardening rounds.
+
+## [0.48.18] - 2026-04-25
+
+### Added
+
+- Added raw provider usage payload preservation on canonical usage events across OpenAI Chat, Responses-family, Codex Responses, and Anthropic-family Messages paths.
+- Added canonical `RawEvent` preservation for selected unmapped provider stream events.
+
+## [0.48.17] - 2026-04-25
+
+### Added
+
+- Added multimodal conformance fixtures for supported image URL/base64 encoding and unsupported audio/file/video warning behavior.
+
+## [0.48.16] - 2026-04-25
+
+### Added
+
+- Added stream error conformance fixtures across Anthropic-family Messages, OpenAI Chat-compatible, OpenAI Responses-compatible, OpenRouter, MiniMax, and Codex paths.
+
+### Changed
+
+- Shared HTTP transport now normalizes numeric provider error codes and MiniMax `base_resp` error bodies.
+
+## [0.48.15] - 2026-04-25
+
+### Added
+
+- Added shared reasoning stream projection fixtures for Anthropic Messages, MiniMax Messages, OpenRouter Messages, OpenAI Responses, OpenRouter Responses, and Codex Responses.
+- `unified.Collect` preserves citation events and raw provider events alongside content, usage, warnings, and finish metadata.
+
+## [0.48.14] - 2026-04-25
+
+### Added
+
+- Added typed extension validation for mature OpenAI Responses, OpenRouter, Anthropic, and Codex extension groups.
+- Provider encoders emit `invalid_extension_dropped` warnings for invalid extension controls.
+
+## [0.48.13] - 2026-04-25
+
+### Added
+
+- Added focused conformance tests for Responses mid-stream provider errors.
+- Added dynamic model resolver rejection coverage for unavailable catalog models.
+
+## [0.48.12] - 2026-04-25
+
+### Changed
+
+- Shared gateway and muxclient route candidate lookup, native model rewrite, and provider/API error formatting through `internal/routeattempt`.
+
+## [0.48.11] - 2026-04-25
+
+### Added
+
+- Added provider conformance hardening around error normalization and modeldb-backed dynamic route behavior.
+
+## [0.48.10] - 2026-04-25
+
+### Added
+
+- Added `unified.CodexExtensions` for Codex session/window/turn metadata headers.
+- Codex transport validates and applies typed Codex extensions without changing default cache-key behavior.
+
+## [0.48.9] - 2026-04-25
+
+### Added
+
+- Canonical reasoning content/events now preserve provider signatures for Anthropic-family thinking continuations.
+- Anthropic, Claude-compatible, OpenRouter Messages, and MiniMax Messages decode/encode thinking signatures.
+
+## [0.48.8] - 2026-04-25
+
+### Added
+
+- Responses-family providers now stream canonical reasoning summaries when upstream events expose them.
+
+## [0.48.7] - 2026-04-25
+
+### Changed
+
+- Centralized modeldb-backed model resolution across CLI resolve/infer, auto mux, gateway, and muxclient paths.
+- Dynamic model and alias resolution now use the catalog plus overlays as the single model existence source when modeldb is enabled.
+
+## [0.48.6] - 2026-04-25
+
+### Fixed
+
+- Improved `llmadapter infer` defaults and routing behavior, including defaulting inference to the `haiku` intent.
+
+## [0.48.5] - 2026-04-25
+
+### Added
+
+- Added canonical cache primitives on `unified.Request`: `CachePolicy`, `CacheKey`, and `CacheTTL`.
+- Added `TextPart.CacheControl` request hints for Anthropic-family block caching.
+
+### Changed
+
+- Cleaned up auto-routing/model resolution behavior around cache-capable provider paths.
+
 ## [0.48.4] - 2026-04-24
 
 ### Changed
@@ -17,6 +173,18 @@ match these entries as the project starts publishing releases.
 - Normalized Claude-compatible provider naming by using `claude` as the canonical provider type (replacing `claude_messages`) across descriptors, auto-routing, gateway/runtime pathing, and CLI/provider resolution.
 - Removed the separate instance naming layer so provider identity is consistently derived from provider type while preserving local Claude credential-based auto-enable behavior.
 - Updated resolve/output test snapshots, default docs, and e2e smoke/gateway provider labels to match the new naming model.
+
+## [0.48.3] - 2026-04-24
+
+### Added
+
+- `llmadapter resolve` now shows ranked candidates by default.
+
+## [0.48.2] - 2026-04-24
+
+### Changed
+
+- Documented the Anthropic client construction refactor.
 
 ## [0.48.1] - 2026-04-24
 
