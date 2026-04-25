@@ -221,6 +221,7 @@ unified.Request
 - Prompt-cache primitives are explicit on `unified.Request`: policy/key/TTL intent is mapped by provider codecs, while session-level cache strategy and stable-prefix projection stay in agentsdk.
 - Provider-specific controls are carried through namespaced `unified.Request.Extensions` instead of being added as core fields too early.
 - Reasoning stream projection is fixture-tested across Anthropic-family Messages surfaces, OpenAI Responses-compatible surfaces, and Codex Responses. `unified.Collect` preserves reasoning signatures, citations, and raw provider events for higher layers that need continuation or provider-specific metadata.
+- Provider metadata preservation is fixture-tested for raw usage payloads and unmapped provider stream events across OpenAI Chat, Responses-family, Codex Responses, and Anthropic-family Messages surfaces.
 - `cmd/llmadapter-gateway` is now a thin compatibility binary over the shared `adapterconfig` and `gatewayserver` path.
 - Live smoke tests cover text, tools, tool-result continuation, reasoning streams, prompt caching, and gateway paths across supported providers.
 
@@ -262,7 +263,7 @@ Live tests are strong smoke coverage, not full protocol conformance. Known gaps 
 
 ### Raw Event Preservation
 
-Raw/unmapped event preservation exists but remains minimal. More provider-specific events should be preserved before broadening to APIs with richer event streams.
+Raw/unmapped event preservation exists for provider usage payloads and selected unmapped provider stream events. More provider-specific events should be preserved before broadening to APIs with richer event streams.
 
 ### Stateful Conversation Policy
 

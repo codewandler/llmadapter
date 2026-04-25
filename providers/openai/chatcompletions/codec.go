@@ -291,10 +291,22 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	}
 	if chunk.Usage != nil {
 		out = append(out, unified.UsageEvent{
-			Tokens: tokenItemsFromUsage(chunk.Usage),
+			Tokens:      tokenItemsFromUsage(chunk.Usage),
+			ProviderRaw: providerRawUsage(chunk.Usage),
 		})
 	}
 	return out, nil
+}
+
+func providerRawUsage(usage *usageWire) json.RawMessage {
+	if usage == nil {
+		return nil
+	}
+	raw, err := json.Marshal(usage)
+	if err != nil || len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	return raw
 }
 
 func tokenItemsFromUsage(usage *usageWire) unified.TokenItems {

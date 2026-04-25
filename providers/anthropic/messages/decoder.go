@@ -82,7 +82,7 @@ func (d *EventDecoder) contentBlockStart(e ContentBlockStartEvent) []unified.Eve
 		}
 		return out
 	default:
-		return []unified.Event{unified.RawEvent{APIKind: "anthropic.messages", Type: block.Type, Value: block}}
+		return []unified.Event{unified.RawEvent{APIKind: "anthropic.messages", Type: block.Type, JSON: providerRawJSON(block), Value: block}}
 	}
 }
 
@@ -142,9 +142,18 @@ func (d *EventDecoder) messageDelta(e MessageDeltaEvent) []unified.Event {
 				{Kind: unified.TokenKindInputCacheWrite, Count: e.Usage.CacheCreationInputTokens},
 				{Kind: unified.TokenKindOutput, Count: e.Usage.OutputTokens},
 			}.NonZero(),
+			ProviderRaw: providerRawJSON(e.Usage),
 		})
 	}
 	return out
+}
+
+func providerRawJSON(value any) json.RawMessage {
+	raw, err := json.Marshal(value)
+	if err != nil || len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	return raw
 }
 
 func mapStopReason(reason string) unified.FinishReason {

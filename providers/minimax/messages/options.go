@@ -39,6 +39,7 @@ func NewClient(opts ...Option) (unified.Client, error) {
 			req.Unified.Stream = true
 			return nil
 		})),
+		anthropic.WithUnifiedEventProcessor(rawAPIKindProcessor{apiKind: string(adapt.ApiMiniMaxAnthropicMessages)}),
 	}
 	if cfg.transport != nil {
 		anthropicOpts = append(anthropicOpts, anthropic.WithTransport(cfg.transport))
@@ -73,4 +74,20 @@ type requestProcessorFunc func(context.Context, *adapt.Request) error
 
 func (f requestProcessorFunc) ProcessRequest(ctx context.Context, req *adapt.Request) error {
 	return f(ctx, req)
+}
+
+type rawAPIKindProcessor struct {
+	apiKind string
+}
+
+func (p rawAPIKindProcessor) Push(ctx context.Context, ev unified.Event) ([]unified.Event, error) {
+	if raw, ok := ev.(unified.RawEvent); ok && raw.APIKind == string(adapt.ApiAnthropicMessages) {
+		raw.APIKind = p.apiKind
+		return []unified.Event{raw}, nil
+	}
+	return []unified.Event{ev}, nil
+}
+
+func (p rawAPIKindProcessor) Close(ctx context.Context) ([]unified.Event, error) {
+	return nil, nil
 }

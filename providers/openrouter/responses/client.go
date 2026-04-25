@@ -20,6 +20,7 @@ type Client struct {
 	apiKey        string
 	baseURL       string
 	warningSource string
+	rawAPIKind    string
 	transport     transport.ByteStreamTransport
 }
 
@@ -37,7 +38,7 @@ func NewClient(opts ...Option) (unified.Client, error) {
 	if cfg.warningSource == "" {
 		cfg.warningSource = "openrouter.responses"
 	}
-	return &Client{apiKey: cfg.apiKey, baseURL: cfg.baseURL, warningSource: cfg.warningSource, transport: cfg.transport}, nil
+	return &Client{apiKey: cfg.apiKey, baseURL: cfg.baseURL, warningSource: cfg.warningSource, rawAPIKind: cfg.warningSource, transport: cfg.transport}, nil
 }
 
 func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unified.Event, error) {
@@ -76,7 +77,7 @@ func (c *Client) readStream(ctx context.Context, warnings []mappingWarning, stre
 		case out <- warning.event(c.warningSource):
 		}
 	}
-	decoder := streamDecoder{}
+	decoder := streamDecoder{apiKind: c.rawAPIKind}
 	for {
 		raw, err := stream.Recv(ctx)
 		if errors.Is(err, io.EOF) {

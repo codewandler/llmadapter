@@ -315,6 +315,7 @@ Dynamic model capability slice: modeldb-backed dynamic routes narrow route capab
 Provider parity backlog: MiniMax Chat tool validation is complete; continue expanding endpoint conformance after the metadata/accounting boundaries are in place.
 Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, text/tool/tool-continuation/reasoning/prompt-cache/gateway smoke entries, and typed session/window/turn extension controls are in place.
 Reasoning signature preservation is now part of the canonical stream surface for providers that emit signed thinking blocks; raw chain-of-thought still remains provider-controlled, while signed reasoning summaries/blocks can round-trip when the upstream API exposes them.
+Provider metadata conformance slice: raw provider usage payloads are preserved on canonical usage events across OpenAI Chat, Responses-family, Codex Responses, and Anthropic-family Messages paths; unmapped provider stream events are preserved as canonical RawEvent values for Responses-family and Anthropic-family provider surfaces.
 ```
 
 Prototype parity notes from ../agentapis and ../llmproviders:

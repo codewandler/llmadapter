@@ -272,6 +272,7 @@ func addExtensionWarning(warnings *[]mappingWarning, field, message string) {
 }
 
 type streamDecoder struct {
+	apiKind        string
 	id             string
 	model          string
 	started        bool
@@ -350,13 +351,22 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	case "response.function_call_arguments.done":
 		out = append(out, d.doneToolCall(ev.OutputIndex, ev.Arguments)...)
 	case "response.done", "response.completed":
-		out = append(out, d.done(ev.Response)...)
+		out = append(out, d.done(ev.Response, ev.Raw)...)
 	default:
 		if ev.Response != nil && ev.Response.Status == "completed" {
-			out = append(out, d.done(ev.Response)...)
+			out = append(out, d.done(ev.Response, ev.Raw)...)
+		} else {
+			out = append(out, unified.RawEvent{APIKind: d.rawAPIKind(), Type: ev.Type, JSON: ev.Raw})
 		}
 	}
 	return out, nil
+}
+
+func (d *streamDecoder) rawAPIKind() string {
+	if d.apiKind != "" {
+		return d.apiKind
+	}
+	return "openrouter.responses"
 }
 
 func (d *streamDecoder) start() []unified.Event {
@@ -446,7 +456,7 @@ func (d *streamDecoder) ensureToolMaps() {
 	}
 }
 
-func (d *streamDecoder) done(resp *responseWire) []unified.Event {
+func (d *streamDecoder) done(resp *responseWire, raw json.RawMessage) []unified.Event {
 	out := d.start()
 	if d.startedBlock {
 		out = append(out, unified.ContentBlockDoneEvent{Index: d.blockIndex, Kind: unified.ContentKindText})
@@ -454,7 +464,8 @@ func (d *streamDecoder) done(resp *responseWire) []unified.Event {
 	}
 	if resp != nil && resp.Usage != nil {
 		out = append(out, unified.UsageEvent{
-			Tokens: tokenItemsFromUsage(resp.Usage),
+			Tokens:      tokenItemsFromUsage(resp.Usage),
+			ProviderRaw: providerRawUsage(resp.Usage, raw),
 		})
 	}
 	reason := finishReason(resp)
@@ -464,6 +475,17 @@ func (d *streamDecoder) done(resp *responseWire) []unified.Event {
 	out = append(out, unified.CompletedEvent{FinishReason: reason, MessageID: d.id})
 	out = append(out, unified.MessageDoneEvent{ID: d.id})
 	return out
+}
+
+func providerRawUsage(usage *usageWire, fallback json.RawMessage) json.RawMessage {
+	if usage == nil {
+		return nil
+	}
+	raw, err := json.Marshal(usage)
+	if err != nil || len(raw) == 0 || string(raw) == "null" {
+		return append(json.RawMessage(nil), fallback...)
+	}
+	return raw
 }
 
 func tokenItemsFromUsage(usage *usageWire) unified.TokenItems {
