@@ -75,6 +75,41 @@ Provider model override env vars:
 - `MINIMAX_MODEL`
 - `MINIMAX_MESSAGES_MODEL`
 
+## Common Usage
+
+Auto-detected mux inference from env/local credentials:
+
+```sh
+go run ./cmd/llmadapter infer -m haiku "reply with one short sentence"
+go run ./cmd/llmadapter resolve haiku
+go run ./cmd/llmadapter providers --auto
+```
+
+Config-driven mux inference and model diagnostics:
+
+```sh
+go run ./cmd/llmadapter infer --config examples/llmadapter.example.json -m fast "what is 2+2?"
+go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json fast
+go run ./cmd/llmadapter routes --config examples/llmadapter.example.json
+go run ./cmd/llmadapter models --config examples/llmadapter.example.json
+```
+
+Gateway startup:
+
+```sh
+go run ./cmd/llmadapter serve --config examples/llmadapter.example.json
+go run ./cmd/llmadapter serve --config examples/llmadapter.example.json --inspect-config
+```
+
+Docker gateway startup:
+
+```sh
+docker build -t llmadapter:local .
+docker run --rm -p 8080:8080 -w /app -v "$PWD/examples:/app/examples:ro" -e ANTHROPIC_API_KEY -e OPENAI_API_KEY -e OPENROUTER_API_KEY llmadapter:local serve --config examples/llmadapter.example.json
+```
+
+`examples/llmadapter.example.json` is a minimal load-tested config covering provider endpoints, dynamic model routes, modeldb overlays, aliases, capability overrides, pricing metadata, and route attempt limits.
+
 ## CLI And Gateway
 
 The main CLI command is `cmd/llmadapter`.

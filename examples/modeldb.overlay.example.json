@@ -1,0 +1,62 @@
+{
+  "models": [
+    {
+      "key": {
+        "creator": "example",
+        "family": "fast",
+        "version": "1"
+      },
+      "name": "Example Fast Model",
+      "aliases": ["fast"],
+      "capabilities": {
+        "streaming": true,
+        "tool_use": true,
+        "structured_output": true,
+        "vision": true
+      },
+      "limits": {
+        "context_window": 1047576,
+        "max_output": 32768
+      }
+    }
+  ],
+  "services": [
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "kind": "broker",
+      "env_vars": ["OPENROUTER_API_KEY", "OPENROUTER_KEY"]
+    }
+  ],
+  "offerings": [
+    {
+      "service_id": "openrouter",
+      "wire_model_id": "example/fast-model",
+      "model_key": {
+        "creator": "example",
+        "family": "fast",
+        "version": "1"
+      },
+      "aliases": ["fast"],
+      "exposures": [
+        {
+          "api_type": "openai-responses",
+          "exposed_capabilities": {
+            "streaming": true,
+            "tool_use": true,
+            "structured_output": true,
+            "vision": true
+          },
+          "supported_parameters": ["messages", "tools", "response_format", "prompt_cache_key"]
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 0.8,
+        "cached_input": 0.05,
+        "cache_write": 0.2,
+        "reasoning": 0.8
+      }
+    }
+  ]
+}

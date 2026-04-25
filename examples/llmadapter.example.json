@@ -1,0 +1,83 @@
+{
+  "addr": ":8080",
+  "health_cooldown": "30s",
+  "max_attempts": 2,
+  "modeldb": {
+    "overlay_paths": ["examples/modeldb.overlay.example.json"],
+    "aliases": [
+      {
+        "name": "fast",
+        "service_id": "openrouter",
+        "wire_model_id": "example/fast-model"
+      }
+    ]
+  },
+  "providers": [
+    {
+      "name": "claude",
+      "type": "claude",
+      "model": "claude-haiku-4-5-20251001",
+      "priority": 30
+    },
+    {
+      "name": "anthropic",
+      "type": "anthropic",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "model": "claude-haiku-4-5-20251001",
+      "priority": 20
+    },
+    {
+      "name": "openai",
+      "type": "openai_responses",
+      "api_key_env": "OPENAI_API_KEY",
+      "modeldb_service_id": "openai",
+      "priority": 10
+    },
+    {
+      "name": "openrouter",
+      "type": "openrouter_responses",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "modeldb_service_id": "openrouter",
+      "priority": 5,
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "vision": true,
+        "json_mode": true,
+        "json_schema": true,
+        "reasoning": false
+      }
+    }
+  ],
+  "routes": [
+    {
+      "source_api": "anthropic.messages",
+      "model": "haiku",
+      "provider": "claude",
+      "provider_api": "anthropic.messages",
+      "weight": 120
+    },
+    {
+      "source_api": "anthropic.messages",
+      "model": "haiku",
+      "provider": "anthropic",
+      "provider_api": "anthropic.messages",
+      "weight": 100
+    },
+    {
+      "source_api": "openai.responses",
+      "model": "fast",
+      "provider": "openrouter",
+      "provider_api": "openrouter.responses",
+      "modeldb_model": "fast",
+      "weight": 90
+    },
+    {
+      "source_api": "openai.responses",
+      "provider": "openai",
+      "provider_api": "openai.responses",
+      "dynamic_models": true,
+      "weight": 5
+    }
+  ]
+}

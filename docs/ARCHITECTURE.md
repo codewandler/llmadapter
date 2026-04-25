@@ -111,6 +111,8 @@ This matters for providers such as OpenRouter, MiniMax, Azure, Bedrock, Vertex, 
 
 `muxclient` exposes a stateless `unified.Client` over the same router/provider endpoint path used by the gateway.
 
+`examples/llmadapter.example.json` is a load-tested operator config that exercises this construction boundary without requiring provider credentials during inspection.
+
 ### Metadata And Pricing
 
 `modelmeta` maps modeldb offering exposure metadata into route capabilities and limits.

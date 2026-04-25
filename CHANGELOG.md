@@ -10,6 +10,18 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.29] - 2026-04-25
+
+### Added
+
+- Added a load-tested `examples/llmadapter.example.json` config plus modeldb overlay covering provider endpoints, dynamic model routing, aliases, capability overrides, pricing metadata, and route attempt limits.
+- Added README examples for auto mux inference, config-driven mux inference, model resolution, gateway serving, Docker startup, and provider identity inspection.
+- Added regression coverage that the public example config loads, validates, and produces inspectable modeldb-backed route metadata.
+
+### Changed
+
+- Narrowed the v1 CLI/config/examples gap by making the documented outside-in usage paths executable from repository examples.
+
 ## [0.48.28] - 2026-04-25
 
 ### Added

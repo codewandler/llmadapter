@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
@@ -543,6 +544,50 @@ func TestInspectConfigReportsResolvedModelDBModel(t *testing.T) {
 	}
 	if route.ModelDB.WireModelID != "openai/gpt-test" || !route.ModelDB.ExposureFound {
 		t.Fatalf("unexpected modeldb inspection: %+v", route.ModelDB)
+	}
+}
+
+func TestExampleConfigLoadsAndInspects(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime caller unavailable")
+	}
+	repoRoot := filepath.Dir(filepath.Dir(file))
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldWD); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	cfg, err := Load("examples/llmadapter.example.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(cfg); err != nil {
+		t.Fatal(err)
+	}
+	inspection, err := InspectConfig(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inspection.Providers) != 4 || len(inspection.Routes) != 4 {
+		t.Fatalf("unexpected example inspection: %+v", inspection)
+	}
+	var foundModelDBRoute bool
+	for _, route := range inspection.Routes {
+		if route.Model == "fast" && route.CapabilitySource == "modeldb_exposure" && route.ModelDB.PricingAvailable {
+			foundModelDBRoute = true
+		}
+	}
+	if !foundModelDBRoute {
+		t.Fatalf("example config missing inspectable modeldb-backed route: %+v", inspection.Routes)
 	}
 }
 
