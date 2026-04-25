@@ -56,7 +56,7 @@ Structured usage slice: canonical usage now carries token and cost item breakdow
 Pricing slice: `pricing` package adds a modeldb-backed event processor that enriches UsageEvent cost items for an explicit service/model offering
 Gateway pricing slice: configured fixed-model routes can wrap provider clients with modeldb-backed usage cost enrichment via provider `modeldb_service_id` plus route `native_model` or `modeldb_wire_model_id`; dynamic model routes can price each request from the selected provider-native model ID
 Model metadata slice: `modelmeta` maps modeldb offering exposures into route capability narrowing and model token limits for configured fixed-model gateway routes
-Dynamic model metadata slice: `dynamic_models` routes can narrow request capabilities from modeldb exposure metadata for the concrete requested provider-native model before route selection, while unknown catalog models keep provider endpoint defaults
+Dynamic model metadata slice: `dynamic_models` routes resolve requested models through the loaded modeldb catalog plus overlays, rewrite to the selected offering wire model, narrow request capabilities from modeldb exposure metadata, and reject catalog-missing models instead of falling through to provider defaults
 Operator inspection slice: `llmadapter-gateway -inspect-config` prints resolved providers, routes, capabilities, limits, modeldb metadata, and pricing availability without constructing provider clients
 Provider registry slice: shared `providerregistry` package lists endpoint types and can construct direct provider clients for CLI/library use
 Mux client slice: `muxclient` provides a stateless unified.Client over router/provider endpoints with native model rewrite, pre-stream fallback, and auto-source routing when no source API is preset
@@ -65,7 +65,7 @@ CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types,
 CLI inference slice: `llmadapter infer <message>` sends a prompt through the shared config/auto mux path, prints resolved route/model metadata first, streams reasoning/text deltas, and prints usage/cost data when providers report it
 Container slice: Dockerfile builds a standalone `llmadapter` image that runs `llmadapter serve`
 Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled and optional source API presetting
-Auto mux modeldb intent slice: when `UseModelDB` is enabled, auto intents and aliases choose a provider whose catalog service can resolve the requested model alias before falling back to provider defaults; Claude-family aliases prefer `claude`, then `anthropic`, then broker endpoints, and auto-source routing prefers Anthropic Messages for those aliases
+Auto mux modeldb intent slice: when `UseModelDB` is enabled, auto intents and aliases choose a provider whose catalog service can resolve the requested model alias; unresolved intents do not fall back to provider defaults. Service-qualified names such as `openai/gpt-5.5` and `codex/gpt-5.4` constrain resolution to that service before mapping to the offering wire model.
 Model alias slice: `adapterconfig.DefaultModelDBAliases()` centralizes built-in provider-local aliases for Claude-family `haiku`, `sonnet`, and `opus`; auto mux callers can inject or override aliases through `AutoOptions.ModelDBAliases`
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
@@ -206,7 +206,7 @@ MiniMax Chat uses the OpenAI-compatible stream path and is registered in text an
 MiniMax Messages uses the Anthropic-compatible stream path and is registered in text, tool, continuation, and gateway smoke matrices
 Anthropic, OpenAI Chat, and OpenRouter Responses provider decoders emit structured usage token categories where upstream details are available
 fixed-model gateway routes can enrich provider usage events with modeldb pricing when configured with explicit service/model metadata
-dynamic model gateway routes can narrow capabilities and enrich provider usage events with modeldb metadata/pricing from the request's selected native model when the catalog has a matching offering
+dynamic model gateway routes resolve models through modeldb, narrow capabilities, rewrite to the selected offering wire model, and enrich provider usage events with modeldb metadata/pricing when the catalog has a matching offering
 fixed-model gateway routes can narrow endpoint capabilities and attach token limits from modeldb OfferingExposure metadata
 gateway config inspection exposes the resolved metadata path for debugging route/API/modeldb configuration
 gateway modeldb loading can use built-in catalog data, an explicit JSON catalog path, and local JSON overlays
@@ -287,7 +287,7 @@ Next planned phase:
 
 ```text
 Priority: provider registry/CLI, in-process mux client, modeldb, Claude compatibility, caching, usage/pricing, provider parity, and broader live conformance tracks below are the highest-priority work items for the next implementation rounds.
-Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, explicit route alias resolution, dynamic per-request pricing, and dynamic per-request capability narrowing for known catalog models are in place.
+Model/catalog integration: fixed-route modeldb pricing, capability, exposure, limit lookup, route inspection, operator-configurable catalog paths/overlays, explicit route alias resolution, service-qualified model names, dynamic per-request pricing, dynamic per-request capability narrowing, and catalog-missing dynamic-model rejection are in place.
 Structured usage/cost accounting: canonical token and cost item types, modeldb-priced event processing, fixed-route gateway pricing, and dynamic request-scoped pricing wiring are in place.
 Claude compatibility: first Claude Code/CLI OAuth auth mode, request-side system block cache_control, Anthropic extended-thinking request mapping, and live prompt-cache/tool/reasoning/gateway smokes are in place. MiniMax Messages also advertises and live-verifies reasoning on its Anthropic-compatible surface.
 Conversation layer: owned by agentsdk; llmadapter only supplies stateless continuation/cache primitives through unified.Request, unified.Event, and provider codecs.
@@ -295,8 +295,8 @@ Prompt caching: Anthropic block cache_control and OpenAI Responses cache-key ext
 CLI surface: Cobra-based `llmadapter` now covers providers, routes, models, resolve, serve, and smoke requests; `cmd/llmadapter-gateway` remains as a thin compatibility binary over the same adapterconfig/gateway server path.
 Catalog CLI slice: `llmadapter models --catalog` inspects the built-in or configured modeldb catalog with filters for service, API type, parameter, identity, and query text.
 Mux client layer: stateless router-backed unified.Client, config/modeldb-backed construction, and env/local-Claude auto construction are in place; gateway serving now uses the same adapterconfig router construction in the Cobra CLI path.
-Dynamic model access slice: routes can opt into `dynamic_models` to pass arbitrary requested model IDs through to a provider endpoint while fixed weighted routes remain deterministic.
-Dynamic model capability slice: modeldb-backed dynamic routes now narrow route capabilities for known provider-native model IDs before route selection; unknown dynamic model IDs preserve broad pass-through behavior through endpoint defaults.
+Dynamic model access slice: routes can opt into `dynamic_models` to resolve requested model IDs against modeldb for that provider endpoint while fixed weighted routes remain deterministic.
+Dynamic model capability slice: modeldb-backed dynamic routes narrow route capabilities for the selected provider offering before route selection; unknown dynamic model IDs are rejected rather than treated as provider defaults.
 Provider parity backlog: MiniMax Chat tool validation is complete; continue expanding endpoint conformance after the metadata/accounting boundaries are in place.
 Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, and shared smoke entries are in place; next harden live tool/stream semantics and any Codex-specific reasoning/caching extensions after successful live verification.
 ```

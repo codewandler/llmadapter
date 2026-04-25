@@ -268,6 +268,19 @@ func TestInferCommandModelDefaultIsHaiku(t *testing.T) {
 	}
 }
 
+func TestInferAutoIntentsUseRequestedModel(t *testing.T) {
+	intents := inferAutoIntents("openai/gpt-5.5", adapt.ApiOpenAIResponses)
+	if len(intents) != 1 {
+		t.Fatalf("expected one intent, got %+v", intents)
+	}
+	if intents[0].Name != "openai/gpt-5.5" || intents[0].SourceAPI != adapt.ApiOpenAIResponses {
+		t.Fatalf("unexpected intents: %+v", intents)
+	}
+	if got := inferAutoIntents("", ""); got != nil {
+		t.Fatalf("expected nil intents, got %+v", got)
+	}
+}
+
 func TestServeInspectConfigCommand(t *testing.T) {
 	path := writeTestConfig(t)
 	var out, errOut bytes.Buffer

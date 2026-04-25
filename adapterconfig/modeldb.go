@@ -97,38 +97,68 @@ func ResolveRouteModelDBModel(route RouteConfig, endpoint router.ProviderEndpoin
 }
 
 func resolveModelDBItem(catalog modeldb.Catalog, cfg ModelDBConfig, serviceID string, apiType modeldb.APIType, name string) (modeldb.Item, bool) {
-	if item, ok := resolveConfiguredModelDBAlias(catalog, cfg, serviceID, apiType, name); ok {
-		return item, true
-	}
-	view := modeldb.ServiceView(catalog, serviceID, modeldb.ViewOptions{
-		AliasOverlay: modelDBAliasOverlay(cfg),
-		Filters: []modeldb.ItemFilter{
-			func(item modeldb.Item) bool {
-				return item.Offering.HasExposure(apiType)
-			},
-		},
-	})
-	if item, ok := view.Resolve(name); ok {
-		return item, true
-	}
-	if normalized := normalizeModelDBAlias(name); normalized != name {
-		if item, ok := view.Resolve(normalized); ok {
+	for _, candidateName := range modelDBResolutionNames(serviceID, name) {
+		if item, ok := resolveConfiguredModelDBAlias(catalog, cfg, serviceID, apiType, candidateName); ok {
 			return item, true
 		}
+		view := modeldb.ServiceView(catalog, serviceID, modeldb.ViewOptions{
+			AliasOverlay: modelDBAliasOverlay(cfg),
+			Filters: []modeldb.ItemFilter{
+				func(item modeldb.Item) bool {
+					return item.Offering.HasExposure(apiType)
+				},
+			},
+		})
+		if item, ok := view.Resolve(candidateName); ok {
+			return item, true
+		}
+		if normalized := normalizeModelDBAlias(candidateName); normalized != candidateName {
+			if item, ok := view.Resolve(normalized); ok {
+				return item, true
+			}
+		}
+		selection, err := catalog.SelectOfferingsByModel(modeldb.ModelSelector{
+			Name:      candidateName,
+			ServiceID: serviceID,
+			APIType:   apiType,
+		})
+		if err != nil || len(selection.Offerings) == 0 {
+			continue
+		}
+		offering := selection.Offerings[0]
+		return modeldb.Item{Model: offering.Model, Offering: offering.Offering}, true
 	}
-	selection, err := catalog.SelectOfferingsByModel(modeldb.ModelSelector{
-		Name:      name,
-		ServiceID: serviceID,
-		APIType:   apiType,
-	})
-	if err != nil || len(selection.Offerings) == 0 {
-		return modeldb.Item{}, false
-	}
-	offering := selection.Offerings[0]
-	return modeldb.Item{Model: offering.Model, Offering: offering.Offering}, true
+	return modeldb.Item{}, false
 }
 
-func resolveConfiguredModelDBAlias(catalog modeldb.Catalog, cfg ModelDBConfig, serviceID string, _ modeldb.APIType, name string) (modeldb.Item, bool) {
+func modelDBResolutionNames(serviceID string, name string) []string {
+	out := []string{name}
+	prefix, rest, ok := modelDBServiceQualifiedName(name)
+	if !ok || prefix != normalizeModelDBAlias(serviceID) {
+		return out
+	}
+	for _, existing := range out {
+		if normalizeModelDBAlias(existing) == normalizeModelDBAlias(rest) {
+			return out
+		}
+	}
+	return append(out, rest)
+}
+
+func modelDBServiceQualifiedName(name string) (string, string, bool) {
+	prefix, rest, ok := strings.Cut(strings.TrimSpace(name), "/")
+	if !ok {
+		return "", "", false
+	}
+	prefix = normalizeModelDBAlias(prefix)
+	rest = strings.TrimSpace(rest)
+	if prefix == "" || rest == "" {
+		return "", "", false
+	}
+	return prefix, rest, true
+}
+
+func resolveConfiguredModelDBAlias(catalog modeldb.Catalog, cfg ModelDBConfig, serviceID string, apiType modeldb.APIType, name string) (modeldb.Item, bool) {
 	normalized := normalizeModelDBAlias(name)
 	for i := len(cfg.Aliases) - 1; i >= 0; i-- {
 		alias := cfg.Aliases[i]
@@ -140,6 +170,9 @@ func resolveConfiguredModelDBAlias(catalog modeldb.Catalog, cfg ModelDBConfig, s
 		}
 		offering, ok := catalog.Offerings[modeldb.OfferingRef{ServiceID: alias.ServiceID, WireModelID: alias.WireModelID}]
 		if !ok {
+			continue
+		}
+		if apiType != "" && !offering.HasExposure(apiType) {
 			continue
 		}
 		return modeldb.Item{Model: catalog.Models[offering.ModelKey], Offering: offering}, true

@@ -78,12 +78,21 @@ type StaticRoute struct {
 	SourceAPI          adapt.ApiKind
 	Model              string
 	NativeModel        string
+	DynamicModels      bool
 	Weight             int
 	Endpoint           ProviderEndpoint
 	CapabilityResolver CapabilityResolver
+	ModelResolver      ModelResolver
 }
 
 type CapabilityResolver func(context.Context, adapt.Request, ProviderEndpoint) CapabilitySet
+
+type ModelResolution struct {
+	NativeModel  string
+	Capabilities *CapabilitySet
+}
+
+type ModelResolver func(context.Context, adapt.Request, ProviderEndpoint) (ModelResolution, bool)
 
 func NewStaticRouter(routes ...StaticRoute) *StaticRouter {
 	return &StaticRouter{routes: append([]StaticRoute(nil), routes...)}
@@ -99,8 +108,12 @@ func (r *StaticRouter) Route(ctx context.Context, req adapt.Request) (Route, err
 
 func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, error) {
 	var skipped []string
-	var candidates []StaticRoute
+	var candidates []resolvedStaticRoute
+	hasExactRoute := r.hasExactRoute(req)
 	for _, route := range r.routes {
+		if hasExactRoute && route.DynamicModels {
+			continue
+		}
 		if req.SourceAPI != "" && route.SourceAPI != "" && route.SourceAPI != req.SourceAPI {
 			continue
 		}
@@ -111,15 +124,32 @@ func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, 
 			return nil, fmt.Errorf("route for model %q has no client", req.Unified.Model)
 		}
 		caps := routeCapabilities(ctx, route, req)
+		nativeModel := route.NativeModel
+		if nativeModel == "" {
+			nativeModel = req.Unified.Model
+		}
+		if route.ModelResolver != nil {
+			resolution, ok := route.ModelResolver(ctx, req, route.Endpoint)
+			if !ok {
+				skipped = append(skipped, fmt.Sprintf("%s/%s: model unavailable", route.Endpoint.ProviderName, route.Endpoint.APIKind))
+				continue
+			}
+			if resolution.NativeModel != "" {
+				nativeModel = resolution.NativeModel
+			}
+			if resolution.Capabilities != nil {
+				caps = *resolution.Capabilities
+			}
+		}
 		if reason := capabilityMismatch(req.Unified, caps); reason != "" {
 			skipped = append(skipped, fmt.Sprintf("%s/%s: %s", route.Endpoint.ProviderName, route.Endpoint.APIKind, reason))
 			continue
 		}
-		candidates = append(candidates, route)
+		candidates = append(candidates, resolvedStaticRoute{route: route, nativeModel: nativeModel, capabilities: caps})
 	}
 	if len(candidates) > 0 {
 		sort.SliceStable(candidates, func(i, j int) bool {
-			return routeRank(req, candidates[i], candidates[j]) > 0
+			return routeRank(req, candidates[i].route, candidates[j].route) > 0
 		})
 		routes := make([]Route, 0, len(candidates))
 		for _, candidate := range candidates {
@@ -133,6 +163,24 @@ func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, 
 	return nil, fmt.Errorf("no route for api %q model %q", req.SourceAPI, req.Unified.Model)
 }
 
+func (r *StaticRouter) hasExactRoute(req adapt.Request) bool {
+	for _, route := range r.routes {
+		if req.SourceAPI != "" && route.SourceAPI != "" && route.SourceAPI != req.SourceAPI {
+			continue
+		}
+		if route.Model == req.Unified.Model || route.NativeModel == req.Unified.Model {
+			return true
+		}
+	}
+	return false
+}
+
+type resolvedStaticRoute struct {
+	route        StaticRoute
+	nativeModel  string
+	capabilities CapabilitySet
+}
+
 func routeCapabilities(ctx context.Context, route StaticRoute, req adapt.Request) CapabilitySet {
 	if route.CapabilityResolver == nil {
 		return route.Endpoint.Capabilities
@@ -140,25 +188,21 @@ func routeCapabilities(ctx context.Context, route StaticRoute, req adapt.Request
 	return route.CapabilityResolver(ctx, req, route.Endpoint)
 }
 
-func routeFromStatic(ctx context.Context, route StaticRoute, req adapt.Request) Route {
-	nativeModel := route.NativeModel
-	if nativeModel == "" {
-		nativeModel = req.Unified.Model
-	}
+func routeFromStatic(_ context.Context, resolved resolvedStaticRoute, req adapt.Request) Route {
+	route := resolved.route
 	sourceAPI := req.SourceAPI
 	if sourceAPI == "" {
 		sourceAPI = route.SourceAPI
 	}
-	caps := routeCapabilities(ctx, route, req)
 	return Route{
 		SourceAPI:    sourceAPI,
 		TargetAPI:    route.Endpoint.APIKind,
 		TargetFamily: route.Endpoint.Family,
 		ProviderName: route.Endpoint.ProviderName,
 		PublicModel:  req.Unified.Model,
-		NativeModel:  nativeModel,
+		NativeModel:  resolved.nativeModel,
 		Client:       route.Endpoint.Client,
-		Capabilities: caps,
+		Capabilities: resolved.capabilities,
 	}
 }
 

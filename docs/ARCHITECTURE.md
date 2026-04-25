@@ -103,7 +103,7 @@ This matters for providers such as OpenRouter, MiniMax, Azure, Bedrock, Vertex, 
 
 ### Config And Construction
 
-`adapterconfig` is the main construction boundary. It loads and validates JSON/env config, builds provider endpoints through `providerregistry`, applies modeldb metadata and pricing wrappers, builds routers, and constructs the in-process mux client.
+`adapterconfig` is the main construction boundary. It loads and validates JSON/env config, builds provider endpoints through `providerregistry`, loads the modeldb catalog with overlays, resolves requested models against catalog offerings, applies modeldb metadata and pricing wrappers, builds routers, and constructs the in-process mux client.
 
 `providerregistry` lists supported provider endpoint descriptors and builds direct provider clients for a configured provider type.
 
@@ -112,6 +112,8 @@ This matters for providers such as OpenRouter, MiniMax, Azure, Bedrock, Vertex, 
 ### Metadata And Pricing
 
 `modelmeta` maps modeldb offering exposure metadata into route capabilities and limits.
+
+Model resolution is centralized in `adapterconfig`. CLI diagnostics, `llmadapter infer`, auto route summaries, mux routing, and gateway routing use the same catalog-backed route/native-model decision. Modeldb is the source of truth for whether a model or alias exists when modeldb-backed routing is enabled; dynamic routes reject catalog-missing models instead of falling through to provider defaults.
 
 `pricing` enriches canonical usage events with modeldb-backed cost items.
 
@@ -298,7 +300,7 @@ Add focused fixture tests and live tests for:
 - Provider-specific error decoding.
 - Reasoning and citation variants.
 - Prompt cache accounting where providers expose explicit counters.
-- Dynamic model routing through modeldb-backed capability checks.
+- Dynamic model routing through modeldb-backed offering resolution, capability checks, and native model rewriting.
 
 ### 5. Validate Provider Extensions
 

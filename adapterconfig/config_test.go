@@ -182,6 +182,17 @@ func TestBuildRouterDynamicModelCapabilitiesUseModelDBExposure(t *testing.T) {
 		t.Fatal("expected no-tools model to be rejected for tool request")
 	}
 
+	_, err = r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified: unified.Request{
+			Model:  "missing-model",
+			Stream: true,
+		},
+	})
+	if err == nil {
+		t.Fatal("expected catalog-missing dynamic model to be rejected")
+	}
+
 	route, err := r.Route(context.Background(), adapt.Request{
 		SourceAPI: adapt.ApiOpenAIResponses,
 		Unified: unified.Request{

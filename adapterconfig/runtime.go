@@ -95,9 +95,11 @@ func BuildRouter(cfg Config) (router.Router, error) {
 			SourceAPI:          route.SourceAPI,
 			Model:              route.Model,
 			NativeModel:        route.NativeModel,
+			DynamicModels:      route.DynamicModels,
 			Weight:             route.Weight,
 			Endpoint:           endpoint,
 			CapabilityResolver: dynamicModelCapabilityResolver(endpoint, route, catalog, modelDBEnabled),
+			ModelResolver:      dynamicModelResolver(endpoint, route, catalog, cfg.ModelDB, modelDBEnabled),
 		})
 	}
 	return router.NewStaticRouter(routes...), nil
@@ -204,6 +206,33 @@ func dynamicModelCapabilityResolver(endpoint router.ProviderEndpoint, route Rout
 			return endpoint.Capabilities
 		}
 		return capabilities
+	}
+}
+
+func dynamicModelResolver(endpoint router.ProviderEndpoint, route RouteConfig, catalog modeldb.Catalog, cfg ModelDBConfig, modelDBEnabled bool) router.ModelResolver {
+	serviceID := endpoint.Tags[TagModelDBServiceID]
+	if !modelDBEnabled || !route.DynamicModels || serviceID == "" {
+		return nil
+	}
+	apiType, ok := modelmeta.APITypeForFamily(endpoint.Family)
+	if !ok {
+		return func(context.Context, adapt.Request, router.ProviderEndpoint) (router.ModelResolution, bool) {
+			return router.ModelResolution{}, false
+		}
+	}
+	return func(_ context.Context, req adapt.Request, endpoint router.ProviderEndpoint) (router.ModelResolution, bool) {
+		if req.Unified.Model == "" {
+			return router.ModelResolution{}, false
+		}
+		item, ok := resolveModelDBItem(catalog, cfg, serviceID, apiType, req.Unified.Model)
+		if !ok {
+			return router.ModelResolution{}, false
+		}
+		resolution := router.ModelResolution{NativeModel: item.Offering.WireModelID}
+		if capabilities, ok := modelmeta.EnrichCapabilities(endpoint.Capabilities, catalog, serviceID, item.Offering.WireModelID, endpoint.Family); ok {
+			resolution.Capabilities = &capabilities
+		}
+		return resolution, true
 	}
 }
 

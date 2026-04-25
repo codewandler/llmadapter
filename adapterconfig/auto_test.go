@@ -116,8 +116,9 @@ func TestAutoMuxClientIntentsCreatePublicRoutes(t *testing.T) {
 	result, err := AutoMuxClient(AutoOptions{
 		EnableEnv:         true,
 		EnableLocalClaude: false,
+		UseModelDB:        true,
 		Intents: []AutoIntent{{
-			Name:      "fast",
+			Name:      "gpt-4.1-mini",
 			SourceAPI: adapt.ApiOpenAIResponses,
 		}},
 	})
@@ -127,7 +128,7 @@ func TestAutoMuxClientIntentsCreatePublicRoutes(t *testing.T) {
 	if len(result.Config.Routes) != 1 {
 		t.Fatalf("expected one route, got %+v", result.Config.Routes)
 	}
-	if result.Config.Routes[0].Model != "fast" || result.Config.Routes[0].NativeModel == "" {
+	if result.Config.Routes[0].Model != "gpt-4.1-mini" || result.Config.Routes[0].ModelDBModel != "gpt-4.1-mini" {
 		t.Fatalf("unexpected intent route: %+v", result.Config.Routes[0])
 	}
 }
@@ -177,6 +178,75 @@ func TestAutoMuxClientModelDBIntentPrefersMatchingProvider(t *testing.T) {
 	}
 	if selected.ProviderName != "claude" || selected.NativeModel == "opus" || selected.NativeModel == "" || !selected.Capabilities.Reasoning {
 		t.Fatalf("unexpected selected route: %+v", selected)
+	}
+}
+
+func TestAutoMuxClientModelDBIntentPrefersQualifiedService(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("CODEX_ACCESS_TOKEN", "test-codex-token")
+	t.Setenv("OPENAI_API_KEY", "test-openai-key")
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:     true,
+		UseModelDB:    true,
+		DynamicModels: true,
+		SourceAPI:     adapt.ApiOpenAIResponses,
+		Intents: []AutoIntent{{
+			Name:      "codex/gpt-5.4",
+			SourceAPI: adapt.ApiOpenAIResponses,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, ok := autoRouteModel(result.Config, adapt.ApiOpenAIResponses, "codex/gpt-5.4")
+	if !ok {
+		t.Fatalf("missing codex/gpt-5.4 route: %+v", result.Config.Routes)
+	}
+	if route.Provider != "codex_responses" || route.ProviderAPI != adapt.ApiCodexResponses || route.ModelDBModel != "codex/gpt-5.4" {
+		t.Fatalf("expected qualified codex route, got %+v", route)
+	}
+	r, err := BuildRouter(result.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified:   unified.Request{Model: "codex/gpt-5.4", Stream: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ProviderName != "codex_responses" || selected.NativeModel != "gpt-5.4" {
+		t.Fatalf("unexpected selected route: %+v", selected)
+	}
+}
+
+func TestAutoMuxClientQualifiedIntentDoesNotFallbackToWrongService(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
+	t.Setenv("OPENAI_API_KEY", "test-openai-key")
+
+	result, err := AutoMuxClient(AutoOptions{
+		EnableEnv:     true,
+		UseModelDB:    true,
+		DynamicModels: true,
+		Intents: []AutoIntent{{
+			Name: "openai/gpt-5.5",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := autoRouteModel(result.Config, adapt.ApiAnthropicMessages, "openai/gpt-5.5"); ok {
+		t.Fatalf("qualified OpenAI intent should not create Anthropic fallback route: %+v", result.Config.Routes)
+	}
+	route, ok := autoRouteModel(result.Config, adapt.ApiOpenAIResponses, "openai/gpt-5.5")
+	if !ok {
+		t.Fatalf("missing OpenAI route: %+v", result.Config.Routes)
+	}
+	if route.Provider != "openai_responses" || route.ProviderAPI != adapt.ApiOpenAIResponses {
+		t.Fatalf("unexpected OpenAI route: %+v", route)
 	}
 }
 
@@ -239,7 +309,7 @@ func TestAutoMuxClientAutoSourcePrefersAnthropicRouteForAnthropicAlias(t *testin
 	}
 }
 
-func TestAutoMuxClientAutoSourceOpenRouterAliasUsesMessagesEndpoint(t *testing.T) {
+func TestAutoMuxClientAutoSourceOpenRouterAliasUsesCatalogEndpoint(t *testing.T) {
 	clearAutoEnv(t)
 	t.Setenv("OPENROUTER_API_KEY", "test-openrouter-key")
 
@@ -261,7 +331,7 @@ func TestAutoMuxClientAutoSourceOpenRouterAliasUsesMessagesEndpoint(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if selected.SourceAPI != adapt.ApiAnthropicMessages || selected.ProviderName != "openrouter_messages" || selected.TargetAPI != adapt.ApiOpenRouterAnthropicMessages {
+	if selected.SourceAPI != adapt.ApiOpenAIResponses || selected.ProviderName != "openrouter_responses" || selected.TargetAPI != adapt.ApiOpenRouterResponses {
 		t.Fatalf("unexpected auto-source OpenRouter route: %+v", selected)
 	}
 }
@@ -297,8 +367,9 @@ func TestAutoMuxClientCanAddDynamicRoutesWithIntents(t *testing.T) {
 
 	result, err := AutoMuxClient(AutoOptions{
 		EnableEnv:     true,
+		UseModelDB:    true,
 		DynamicModels: true,
-		Intents:       []AutoIntent{{Name: "miniagent-default", SourceAPI: adapt.ApiOpenAIResponses}},
+		Intents:       []AutoIntent{{Name: "gpt-4.1-mini", SourceAPI: adapt.ApiOpenAIResponses}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -309,7 +380,7 @@ func TestAutoMuxClientCanAddDynamicRoutesWithIntents(t *testing.T) {
 		if route.SourceAPI != adapt.ApiOpenAIResponses || route.Provider != "openai_responses" {
 			continue
 		}
-		if route.Model == "miniagent-default" && !route.DynamicModels {
+		if route.Model == "gpt-4.1-mini" && !route.DynamicModels {
 			foundIntent = true
 		}
 		if route.DynamicModels && route.Model == "" && route.NativeModel == "" {
@@ -420,6 +491,20 @@ func TestModelDBAliasOverridesCatalogAlias(t *testing.T) {
 	}
 	if item.Offering.WireModelID != "claude-opus-4-6" {
 		t.Fatalf("alias resolved to %q", item.Offering.WireModelID)
+	}
+}
+
+func TestResolveModelDBItemSupportsServiceQualifiedName(t *testing.T) {
+	catalog, err := LoadModelDBCatalog(ModelDBConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, ok := resolveModelDBItem(catalog, ModelDBConfig{}, "codex", modeldb.APITypeOpenAIResponses, "codex/gpt-5.4")
+	if !ok {
+		t.Fatal("expected qualified codex model to resolve")
+	}
+	if item.Offering.ServiceID != "codex" || item.Offering.WireModelID != "gpt-5.4" {
+		t.Fatalf("unexpected item: %+v", item.Offering)
 	}
 }
 

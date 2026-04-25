@@ -8,13 +8,16 @@ import (
 
 func TestAutoResultRouteSummaryFromConfig(t *testing.T) {
 	result := AutoResult{
-		Config: Config{Routes: []RouteConfig{{
-			SourceAPI:   adapt.ApiOpenAIResponses,
-			Model:       "default",
-			Provider:    "openai_responses",
-			ProviderAPI: adapt.ApiOpenAIResponses,
-			NativeModel: "gpt-test",
-		}}},
+		Config: Config{
+			Providers: []ProviderConfig{{Name: "openai_responses", Type: "openai_responses"}},
+			Routes: []RouteConfig{{
+				SourceAPI:   adapt.ApiOpenAIResponses,
+				Model:       "default",
+				Provider:    "openai_responses",
+				ProviderAPI: adapt.ApiOpenAIResponses,
+				NativeModel: "gpt-test",
+			}},
+		},
 		Enabled: []AutoProvider{{Name: "openai_responses", Type: "openai_responses", Reason: "env:OPENAI_API_KEY"}},
 	}
 
@@ -28,11 +31,15 @@ func TestAutoResultRouteSummaryFromConfig(t *testing.T) {
 }
 
 func TestAutoResultRouteSummaryDefaultsSourceAPI(t *testing.T) {
-	result := AutoResult{Config: Config{Routes: []RouteConfig{{
-		SourceAPI: adapt.ApiOpenAIResponses,
-		Model:     "default",
-		Provider:  "openai_responses",
-	}}}}
+	result := AutoResult{Config: Config{
+		Providers: []ProviderConfig{{Name: "openai_responses", Type: "openai_responses"}},
+		Routes: []RouteConfig{{
+			SourceAPI:   adapt.ApiOpenAIResponses,
+			Model:       "default",
+			Provider:    "openai_responses",
+			NativeModel: "default",
+		}},
+	}}
 
 	summary, ok := result.RouteSummary("", "")
 	if !ok {
@@ -44,24 +51,27 @@ func TestAutoResultRouteSummaryDefaultsSourceAPI(t *testing.T) {
 }
 
 func TestAutoResultRouteSummaryAutoSourcePrefersAnthropicMessages(t *testing.T) {
-	result := AutoResult{Config: Config{Routes: []RouteConfig{
-		{
-			SourceAPI:   adapt.ApiOpenAIResponses,
-			Model:       "haiku",
-			Provider:    "claude",
-			ProviderAPI: adapt.ApiAnthropicMessages,
-			NativeModel: "claude-haiku",
-			Weight:      100,
+	result := AutoResult{Config: Config{
+		Providers: []ProviderConfig{{Name: "claude", Type: "claude"}},
+		Routes: []RouteConfig{
+			{
+				SourceAPI:   adapt.ApiOpenAIResponses,
+				Model:       "haiku",
+				Provider:    "claude",
+				ProviderAPI: adapt.ApiAnthropicMessages,
+				NativeModel: "claude-haiku",
+				Weight:      100,
+			},
+			{
+				SourceAPI:   adapt.ApiAnthropicMessages,
+				Model:       "haiku",
+				Provider:    "claude",
+				ProviderAPI: adapt.ApiAnthropicMessages,
+				NativeModel: "claude-haiku",
+				Weight:      100,
+			},
 		},
-		{
-			SourceAPI:   adapt.ApiAnthropicMessages,
-			Model:       "haiku",
-			Provider:    "claude",
-			ProviderAPI: adapt.ApiAnthropicMessages,
-			NativeModel: "claude-haiku",
-			Weight:      100,
-		},
-	}}}
+	}}
 
 	summary, ok := result.RouteSummary("", "haiku")
 	if !ok {
@@ -73,12 +83,15 @@ func TestAutoResultRouteSummaryAutoSourcePrefersAnthropicMessages(t *testing.T) 
 }
 
 func TestAutoResultRouteSummaryDynamicModel(t *testing.T) {
-	result := AutoResult{Config: Config{Routes: []RouteConfig{{
-		SourceAPI:     adapt.ApiOpenAIResponses,
-		Provider:      "openai_responses",
-		ProviderAPI:   adapt.ApiOpenAIResponses,
-		DynamicModels: true,
-	}}}}
+	result := AutoResult{Config: Config{
+		Providers: []ProviderConfig{{Name: "openai_responses", Type: "openai_responses"}},
+		Routes: []RouteConfig{{
+			SourceAPI:     adapt.ApiOpenAIResponses,
+			Provider:      "openai_responses",
+			ProviderAPI:   adapt.ApiOpenAIResponses,
+			DynamicModels: true,
+		}},
+	}}
 
 	summary, ok := result.RouteSummary(adapt.ApiOpenAIResponses, "gpt-new")
 	if !ok {

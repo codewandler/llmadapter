@@ -193,7 +193,7 @@ func newResolveCommand() *cobra.Command {
 		Short: "Explain how a model routes to a provider endpoint",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := loadCLIConfig(configPath, adapt.ApiKind(sourceAPI))
+			cfg, err := loadResolveConfig(configPath, adapt.ApiKind(sourceAPI), args[0])
 			if err != nil {
 				return err
 			}
@@ -628,6 +628,22 @@ func loadCLIConfig(path string, sourceAPI adapt.ApiKind) (adapterconfig.Config, 
 	return result.Config, err
 }
 
+func loadResolveConfig(path string, sourceAPI adapt.ApiKind, model string) (adapterconfig.Config, error) {
+	if path != "" {
+		return adapterconfig.Load(path)
+	}
+	result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
+		EnableEnv:         true,
+		EnableLocalClaude: true,
+		EnableLocalCodex:  true,
+		UseModelDB:        true,
+		DynamicModels:     true,
+		SourceAPI:         sourceAPI,
+		Intents:           inferAutoIntents(model, sourceAPI),
+	})
+	return result.Config, err
+}
+
 func loadServeConfig(path string, addr string) (adapterconfig.Config, error) {
 	var (
 		cfg adapterconfig.Config
@@ -874,96 +890,11 @@ func joinAPITypes(types []modeldb.APIType) string {
 }
 
 func resolveModel(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKind) (resolutionInfo, error) {
-	for _, route := range cfg.Routes {
-		if sourceAPI != "" && route.SourceAPI != sourceAPI {
-			continue
-		}
-		matchedAs := ""
-		switch {
-		case route.Model == model:
-			matchedAs = "public_model"
-		case route.NativeModel == model:
-			matchedAs = "native_model"
-		case route.DynamicModels:
-			matchedAs = "dynamic_model"
-		default:
-			continue
-		}
-		provider, endpoint, err := routeEndpoint(cfg, route)
-		if err != nil {
-			return resolutionInfo{}, err
-		}
-		if adapterconfig.ConfigUsesModelDB(cfg) {
-			catalog, err := adapterconfig.LoadModelDBCatalog(cfg.ModelDB)
-			if err != nil {
-				return resolutionInfo{}, err
-			}
-			route, err = adapterconfig.ResolveRouteModelDBModel(route, endpoint, catalog, cfg.ModelDB)
-			if err != nil {
-				return resolutionInfo{}, err
-			}
-			endpoint = adapterconfig.EndpointWithModelDBMetadata(endpoint, route, catalog)
-		}
-		nativeModel := route.NativeModel
-		if nativeModel == "" && route.DynamicModels {
-			nativeModel = model
-		}
-		if nativeModel == "" {
-			nativeModel = provider.Model
-		}
-		providerAPI := route.ProviderAPI
-		if providerAPI == "" {
-			providerAPI = endpoint.APIKind
-		}
-		return resolutionInfo{
-			Input:          model,
-			MatchedAs:      matchedAs,
-			SourceAPI:      route.SourceAPI,
-			PublicModel:    route.Model,
-			NativeModel:    nativeModel,
-			Provider:       route.Provider,
-			ProviderType:   provider.Type,
-			ProviderAPI:    providerAPI,
-			Family:         endpoint.Family,
-			Weight:         route.Weight,
-			Priority:       provider.Priority,
-			ModelDBService: endpoint.Tags[adapterconfig.TagModelDBServiceID],
-			Capabilities:   endpoint.Capabilities,
-		}, nil
+	resolution, err := adapterconfig.ResolveModel(cfg, model, sourceAPI)
+	if err != nil {
+		return resolutionInfo{}, err
 	}
-	if sourceAPI != "" {
-		return resolutionInfo{}, fmt.Errorf("no route found for model %q and source_api %s", model, sourceAPI)
-	}
-	return resolutionInfo{}, fmt.Errorf("no route found for model %q", model)
-}
-
-func routeEndpoint(cfg adapterconfig.Config, route adapterconfig.RouteConfig) (adapterconfig.ProviderConfig, router.ProviderEndpoint, error) {
-	var provider adapterconfig.ProviderConfig
-	var endpoint router.ProviderEndpoint
-	matches := 0
-	for _, candidate := range cfg.Providers {
-		if candidate.Name != route.Provider {
-			continue
-		}
-		candidateEndpoint, err := adapterconfig.ProviderEndpointConfig(candidate)
-		if err != nil {
-			return adapterconfig.ProviderConfig{}, router.ProviderEndpoint{}, err
-		}
-		if route.ProviderAPI != "" && candidateEndpoint.APIKind != route.ProviderAPI {
-			continue
-		}
-		provider = candidate
-		endpoint = candidateEndpoint
-		matches++
-	}
-	switch matches {
-	case 0:
-		return adapterconfig.ProviderConfig{}, router.ProviderEndpoint{}, fmt.Errorf("route references unknown provider endpoint %q %q", route.Provider, route.ProviderAPI)
-	case 1:
-		return provider, endpoint, nil
-	default:
-		return adapterconfig.ProviderConfig{}, router.ProviderEndpoint{}, fmt.Errorf("route references provider %q without provider_api but multiple endpoints match", route.Provider)
-	}
+	return resolutionInfoFromAdapter(resolution), nil
 }
 
 func printResolution(w io.Writer, resolution resolutionInfo) {
@@ -1013,122 +944,32 @@ func printResolutionCandidates(w io.Writer, resolutions []resolutionInfo) {
 }
 
 func resolveModelCandidates(cfg adapterconfig.Config, model string) ([]resolutionInfo, error) {
-	resolutions := make([]resolutionInfo, 0)
-	for _, route := range cfg.Routes {
-		matchedAs := ""
-		switch {
-		case route.Model == model:
-			matchedAs = "public_model"
-		case route.NativeModel == model:
-			matchedAs = "native_model"
-		case route.DynamicModels:
-			matchedAs = "dynamic_model"
-		default:
-			continue
-		}
-		provider, endpoint, err := routeEndpoint(cfg, route)
-		if err != nil {
-			return nil, err
-		}
-		if adapterconfig.ConfigUsesModelDB(cfg) {
-			catalog, err := adapterconfig.LoadModelDBCatalog(cfg.ModelDB)
-			if err != nil {
-				return nil, err
-			}
-			route, err = adapterconfig.ResolveRouteModelDBModel(route, endpoint, catalog, cfg.ModelDB)
-			if err != nil {
-				continue
-			}
-			endpoint = adapterconfig.EndpointWithModelDBMetadata(endpoint, route, catalog)
-		}
-		providerAPI := route.ProviderAPI
-		if providerAPI == "" {
-			providerAPI = endpoint.APIKind
-		}
-		nativeModel := route.NativeModel
-		if nativeModel == "" && route.DynamicModels {
-			nativeModel = model
-		}
-		if nativeModel == "" {
-			nativeModel = provider.Model
-		}
-		resolutions = append(resolutions, resolutionInfo{
-			Input:          model,
-			MatchedAs:      matchedAs,
-			SourceAPI:      route.SourceAPI,
-			PublicModel:    route.Model,
-			NativeModel:    nativeModel,
-			Provider:       route.Provider,
-			ProviderType:   provider.Type,
-			ProviderAPI:    providerAPI,
-			Family:         endpoint.Family,
-			Weight:         route.Weight,
-			Priority:       provider.Priority,
-			ModelDBService: endpoint.Tags[adapterconfig.TagModelDBServiceID],
-			Capabilities:   endpoint.Capabilities,
-		})
+	candidates, err := adapterconfig.ResolveModelCandidates(cfg, model, "")
+	if err != nil {
+		return nil, err
 	}
-	if len(resolutions) == 0 {
-		return nil, fmt.Errorf("no route found for model %q", model)
+	resolutions := make([]resolutionInfo, 0, len(candidates))
+	for _, candidate := range candidates {
+		resolutions = append(resolutions, resolutionInfoFromAdapter(candidate))
 	}
-	sort.Slice(resolutions, func(i, j int) bool {
-		if pi := resolveCandidatePriority(resolutions[i]); pi != resolveCandidatePriority(resolutions[j]) {
-			return pi < resolveCandidatePriority(resolutions[j])
-		}
-		if resolutions[i].Weight != resolutions[j].Weight {
-			return resolutions[i].Weight > resolutions[j].Weight
-		}
-		if resolutions[i].Priority != resolutions[j].Priority {
-			return resolutions[i].Priority > resolutions[j].Priority
-		}
-		if resolutions[i].ProviderType != resolutions[j].ProviderType {
-			return resolutions[i].ProviderType < resolutions[j].ProviderType
-		}
-		return resolutions[i].Provider < resolutions[j].Provider
-	})
 	return resolutions, nil
 }
 
-func resolveCandidatePriority(resolution resolutionInfo) int {
-	return resolveMatchPriority(resolution.MatchedAs)*10000 + resolveSourceAPIPriority(resolution.SourceAPI)*1000 + resolveProviderTypePriority(resolution.ProviderType)
-}
-
-func resolveMatchPriority(matchedAs string) int {
-	switch matchedAs {
-	case "public_model":
-		return 0
-	case "native_model":
-		return 1
-	case "dynamic_model":
-		return 2
-	default:
-		return 10
-	}
-}
-
-func resolveSourceAPIPriority(sourceAPI adapt.ApiKind) int {
-	switch sourceAPI {
-	case adapt.ApiAnthropicMessages:
-		return 0
-	case adapt.ApiOpenAIResponses:
-		return 1
-	case adapt.ApiOpenAIChatCompletions:
-		return 2
-	default:
-		return 10
-	}
-}
-
-func resolveProviderTypePriority(providerType string) int {
-	switch providerType {
-	case "claude":
-		return 0
-	case "anthropic":
-		return 1
-	case "openrouter_messages", "openrouter_chat", "openrouter_responses":
-		return 4
-	default:
-		return 5
+func resolutionInfoFromAdapter(resolution adapterconfig.ModelResolutionCandidate) resolutionInfo {
+	return resolutionInfo{
+		Input:          resolution.Input,
+		MatchedAs:      resolution.MatchedAs,
+		SourceAPI:      resolution.SourceAPI,
+		PublicModel:    resolution.PublicModel,
+		NativeModel:    resolution.NativeModel,
+		Provider:       resolution.Provider,
+		ProviderType:   resolution.ProviderType,
+		ProviderAPI:    resolution.ProviderAPI,
+		Family:         resolution.Family,
+		Weight:         resolution.Weight,
+		Priority:       resolution.Priority,
+		ModelDBService: resolution.ModelDBService,
+		Capabilities:   resolution.Capabilities,
 	}
 }
 
@@ -1161,11 +1002,11 @@ func runSmokeRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 
 func runInferCommand(ctx context.Context, w io.Writer, params inferParams, prompt string) error {
 	sourceAPI := adapt.ApiKind(params.sourceAPI)
-	cfg, err := inferConfig(params.configPath)
+	model := params.model
+	cfg, err := inferConfig(params.configPath, sourceAPI, model)
 	if err != nil {
 		return err
 	}
-	model := params.model
 	if model == "" {
 		model = defaultModelFromRoutes(cfg.Routes, sourceAPI)
 	}
@@ -1185,7 +1026,7 @@ func runInferCommand(ctx context.Context, w io.Writer, params inferParams, promp
 	return runInferRequest(ctx, w, client, model, prompt, params)
 }
 
-func inferConfig(configPath string) (adapterconfig.Config, error) {
+func inferConfig(configPath string, sourceAPI adapt.ApiKind, model string) (adapterconfig.Config, error) {
 	if configPath != "" {
 		cfg, err := adapterconfig.Load(configPath)
 		if err != nil {
@@ -1199,11 +1040,23 @@ func inferConfig(configPath string) (adapterconfig.Config, error) {
 		EnableLocalCodex:  true,
 		UseModelDB:        true,
 		DynamicModels:     true,
+		SourceAPI:         sourceAPI,
+		Intents:           inferAutoIntents(model, sourceAPI),
 	})
 	if err != nil {
 		return result.Config, err
 	}
 	return result.Config, nil
+}
+
+func inferAutoIntents(model string, sourceAPI adapt.ApiKind) []adapterconfig.AutoIntent {
+	if model == "" {
+		return nil
+	}
+	return []adapterconfig.AutoIntent{{
+		Name:      model,
+		SourceAPI: sourceAPI,
+	}}
 }
 
 func resolveInferModel(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKind) (resolutionInfo, error) {

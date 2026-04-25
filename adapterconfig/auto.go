@@ -248,21 +248,18 @@ func routeForIntent(cfg Config, intent AutoIntent, opts AutoOptions, catalog mod
 			return route, true
 		}
 	}
-	route, ok := bestRouteForAPI(cfg, sourceAPI)
-	if !ok {
-		return RouteConfig{}, false
-	}
-	route.Model = intent.Name
-	return route, true
+	return RouteConfig{}, false
 }
 
 func modelDBRouteForIntent(cfg Config, intentName string, sourceAPI adapt.ApiKind, catalog modeldb.Catalog) (RouteConfig, bool) {
 	type candidate struct {
-		route        RouteConfig
-		providerType string
-		serviceID    string
-		creator      string
+		route            RouteConfig
+		providerType     string
+		serviceID        string
+		creator          string
+		requestedService string
 	}
+	requestedService, _, _ := modelDBServiceQualifiedName(intentName)
 	var candidates []candidate
 	for _, providerType := range preferredProviderTypes(sourceAPI) {
 		for _, provider := range cfg.Providers {
@@ -294,9 +291,10 @@ func modelDBRouteForIntent(cfg Config, intentName string, sourceAPI adapt.ApiKin
 					ModelDBModel: intentName,
 					Weight:       100,
 				},
-				providerType: provider.Type,
-				serviceID:    serviceID,
-				creator:      item.Model.Key.Creator,
+				providerType:     provider.Type,
+				serviceID:        serviceID,
+				creator:          item.Model.Key.Creator,
+				requestedService: requestedService,
 			})
 		}
 	}
@@ -310,13 +308,18 @@ func modelDBRouteForIntent(cfg Config, intentName string, sourceAPI adapt.ApiKin
 }
 
 func modelDBRouteCandidateRank(c struct {
-	route        RouteConfig
-	providerType string
-	serviceID    string
-	creator      string
+	route            RouteConfig
+	providerType     string
+	serviceID        string
+	creator          string
+	requestedService string
 }) int {
 	rank := 1000
-	if c.creator != "" && c.serviceID == c.creator {
+	if c.requestedService != "" && c.serviceID == c.requestedService {
+		rank = -100
+	} else if c.requestedService != "" {
+		rank = 10000
+	} else if c.creator != "" && c.serviceID == c.creator {
 		rank = 0
 	} else if c.creator != "" {
 		rank = 100

@@ -13,102 +13,41 @@ type AutoRouteSummary struct {
 }
 
 func (r AutoResult) RouteSummary(sourceAPI adapt.ApiKind, model string) (AutoRouteSummary, bool) {
-	bestRank := autoRouteSummaryRank{Source: 100, Weight: -1, ProviderPriority: -1, Index: len(r.Config.Routes)}
-	var best AutoRouteSummary
-	var found bool
-	for _, route := range r.Config.Routes {
+	if model == "" {
+		model = defaultSummaryModel(r.Config.Routes, sourceAPI)
+	}
+	resolution, err := ResolveModel(r.Config, model, sourceAPI)
+	if err != nil {
+		return AutoRouteSummary{}, false
+	}
+	summary := AutoRouteSummary{
+		SourceAPI:   resolution.SourceAPI,
+		Model:       resolution.PublicModel,
+		Provider:    resolution.Provider,
+		ProviderAPI: resolution.ProviderAPI,
+		NativeModel: resolution.NativeModel,
+	}
+	if summary.Model == "" {
+		summary.Model = model
+	}
+	for _, provider := range r.Enabled {
+		if provider.Name == summary.Provider {
+			summary.EnabledProvider = provider.Type
+			summary.EnabledReason = provider.Reason
+			break
+		}
+	}
+	return summary, true
+}
+
+func defaultSummaryModel(routes []RouteConfig, sourceAPI adapt.ApiKind) string {
+	for _, route := range routes {
 		if sourceAPI != "" && route.SourceAPI != sourceAPI {
 			continue
 		}
-		if model != "" && !route.DynamicModels && route.Model != "" && route.Model != model {
-			continue
-		}
-		summary := AutoRouteSummary{
-			SourceAPI:   route.SourceAPI,
-			Model:       route.Model,
-			Provider:    route.Provider,
-			ProviderAPI: route.ProviderAPI,
-			NativeModel: route.NativeModel,
-		}
-		if summary.Model == "" {
-			summary.Model = model
-		}
-		if summary.NativeModel == "" {
-			summary.NativeModel = summary.Model
-		}
-		for _, provider := range r.Enabled {
-			if provider.Name == route.Provider {
-				summary.EnabledProvider = provider.Type
-				summary.EnabledReason = provider.Reason
-				break
-			}
-		}
-		rank := r.routeSummaryRank(route)
-		if !found || rank.less(bestRank) {
-			best = summary
-			bestRank = rank
-			found = true
+		if route.Model != "" {
+			return route.Model
 		}
 	}
-	return best, found
-}
-
-type autoRouteSummaryRank struct {
-	Source           int
-	Weight           int
-	ProviderPriority int
-	Index            int
-}
-
-func (r autoRouteSummaryRank) less(other autoRouteSummaryRank) bool {
-	if r.Source != other.Source {
-		return r.Source < other.Source
-	}
-	if r.Weight != other.Weight {
-		return r.Weight > other.Weight
-	}
-	if r.ProviderPriority != other.ProviderPriority {
-		return r.ProviderPriority > other.ProviderPriority
-	}
-	return r.Index < other.Index
-}
-
-func (r AutoResult) routeSummaryRank(route RouteConfig) autoRouteSummaryRank {
-	return autoRouteSummaryRank{
-		Source:           autoRouteSummarySourceRank(route.SourceAPI),
-		Weight:           route.Weight,
-		ProviderPriority: r.providerPriority(route.Provider),
-		Index:            routeIndex(r.Config.Routes, route),
-	}
-}
-
-func (r AutoResult) providerPriority(providerName string) int {
-	for _, provider := range r.Config.Providers {
-		if provider.Name == providerName {
-			return provider.Priority
-		}
-	}
-	return 0
-}
-
-func autoRouteSummarySourceRank(api adapt.ApiKind) int {
-	switch api {
-	case adapt.ApiAnthropicMessages:
-		return 0
-	case adapt.ApiOpenAIResponses:
-		return 1
-	case adapt.ApiOpenAIChatCompletions:
-		return 2
-	default:
-		return 10
-	}
-}
-
-func routeIndex(routes []RouteConfig, route RouteConfig) int {
-	for i, candidate := range routes {
-		if candidate == route {
-			return i
-		}
-	}
-	return len(routes)
+	return ""
 }
