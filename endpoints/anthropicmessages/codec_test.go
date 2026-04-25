@@ -61,6 +61,31 @@ func TestDecodeHTTPPreservesRequestMetadata(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPEdgeCaseErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		code string
+	}{
+		{name: "invalid json", body: `{`, code: "invalid_json"},
+		{name: "missing model", body: `{"max_tokens":32,"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`, code: "missing_model"},
+		{name: "missing max tokens", body: `{"model":"claude-test","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`, code: "missing_max_tokens"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(tt.body))
+			_, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+			if err == nil {
+				t.Fatal("expected decode error")
+			}
+			got, ok := err.(httpError)
+			if !ok || got.code != tt.code {
+				t.Fatalf("error = %#v, want code %s", err, tt.code)
+			}
+		})
+	}
+}
+
 func TestDecodeHTTPSystemCacheControl(t *testing.T) {
 	body := `{
 		"model":"claude-test",
@@ -177,6 +202,26 @@ func TestDecodeHTTPWarnings(t *testing.T) {
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterProvider, `{"order":["openai"]}`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterTrace, `{"enabled":true}`)
 	assertRawExtension(t, req.Unified.Extensions, unified.ExtOpenRouterSessionID, `"sess_1"`)
+}
+
+func TestDecodeHTTPEdgeCaseWarnings(t *testing.T) {
+	body := `{
+		"model":"claude-test",
+		"max_tokens":32,
+		"messages":[{"role":"user","content":[
+			{"type":"image","source":{"type":"file","file_id":"file_1"}},
+			{"type":"tool_result","tool_use_id":"toolu","content":{"type":"text","text":"object shape"}}
+		]}],
+		"tool_choice":{"type":"future_choice"}
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertWarning(t, req.Warnings, "messages.0.content.0.source.type")
+	assertWarning(t, req.Warnings, "messages.0.content.1.content")
+	assertWarning(t, req.Warnings, "tool_choice.type")
 }
 
 func TestDecodeHTTPImageContent(t *testing.T) {

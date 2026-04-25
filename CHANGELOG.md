@@ -10,6 +10,19 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [0.48.26] - 2026-04-25
+
+### Added
+
+- Added endpoint decode edge-case fixtures for OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages compatibility surfaces.
+- Added provider reasoning conformance fixtures for Anthropic-family initial thinking blocks and Responses-family `response.reasoning_text.delta` streams.
+- Added citation metadata variant fixtures across Responses-family and Anthropic-family providers.
+- Added message-only stream error fixtures for Chat and Responses-family providers.
+
+### Changed
+
+- Narrowed the v1 conformance gap to future provider variants rather than currently known fixture classes.
+
 ## [0.48.25] - 2026-04-25
 
 ### Changed

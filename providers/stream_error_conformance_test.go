@@ -191,6 +191,71 @@ func TestProviderResponseObjectErrorConformance(t *testing.T) {
 	}
 }
 
+func TestProviderMessageOnlyStreamErrorConformance(t *testing.T) {
+	cases := []struct {
+		name      string
+		frames    [][]byte
+		newClient func(transport.ByteStreamTransport) (unified.Client, error)
+	}{
+		{
+			name:   "openai_chat",
+			frames: chatMessageOnlyErrorFrames(),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openaichat.NewClient(openaichat.WithAPIKey("key"), openaichat.WithTransport(t))
+			},
+		},
+		{
+			name:   "openrouter_chat",
+			frames: chatMessageOnlyErrorFrames(),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openrouterchat.NewClient(openrouterchat.WithAPIKey("key"), openrouterchat.WithTransport(t))
+			},
+		},
+		{
+			name:   "openai_responses",
+			frames: responsesMessageOnlyErrorFrames(),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openairesponses.NewClient(openairesponses.WithAPIKey("key"), openairesponses.WithTransport(t))
+			},
+		},
+		{
+			name:   "openrouter_responses",
+			frames: responsesMessageOnlyErrorFrames(),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey("key"), openrouterresponses.WithTransport(t))
+			},
+		},
+		{
+			name:   "codex_responses",
+			frames: responsesMessageOnlyErrorFrames(),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return codex.NewClient(codex.WithAccessToken("token"), codex.WithTransport(t))
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := tc.newClient(&transport.FakeByteStreamTransport{Frames: tc.frames})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events, err := client.Request(context.Background(), errorSmokeRequest())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = unified.Collect(context.Background(), events)
+			var apiErr *unified.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("error = %T %v, want APIError", err, err)
+			}
+			if apiErr.Message != "message-only failure" || len(apiErr.ProviderRaw) == 0 {
+				t.Fatalf("unexpected APIError: %+v", apiErr)
+			}
+		})
+	}
+}
+
 func anthropicErrorFrames() [][]byte {
 	return [][]byte{
 		[]byte(`event: message_start
@@ -207,10 +272,24 @@ func chatErrorFrames() [][]byte {
 	}
 }
 
+func chatMessageOnlyErrorFrames() [][]byte {
+	return [][]byte{
+		[]byte(`data: {"id":"chatcmpl","model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"}}]}`),
+		[]byte(`data: {"error":{"message":"message-only failure"}}`),
+	}
+}
+
 func responsesErrorFrames() [][]byte {
 	return [][]byte{
 		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","status":"in_progress"}}`),
 		[]byte(`data: {"type":"error","error":{"type":"server_error","code":"upstream_failed","message":"upstream failed"}}`),
+	}
+}
+
+func responsesMessageOnlyErrorFrames() [][]byte {
+	return [][]byte{
+		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","status":"in_progress"}}`),
+		[]byte(`data: {"type":"error","error":{"message":"message-only failure"}}`),
 	}
 }
 

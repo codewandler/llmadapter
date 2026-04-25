@@ -62,6 +62,32 @@ func TestDecodeHTTPPreservesRequestMetadata(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPEdgeCaseErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		code string
+	}{
+		{name: "invalid json", body: `{`, code: "invalid_json"},
+		{name: "missing model", body: `{"messages":[{"role":"user","content":"hello"}]}`, code: "missing_model"},
+		{name: "unsupported role", body: `{"model":"test-model","messages":[{"role":"critic","content":"hello"}]}`, code: "unsupported_role"},
+		{name: "unsupported content shape", body: `{"model":"test-model","messages":[{"role":"user","content":{"text":"hello"}}]}`, code: "unsupported_content"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(tt.body))
+			_, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+			if err == nil {
+				t.Fatal("expected decode error")
+			}
+			got, ok := err.(httpError)
+			if !ok || got.code != tt.code {
+				t.Fatalf("error = %#v, want code %s", err, tt.code)
+			}
+		})
+	}
+}
+
 func TestDecodeHTTPWarnings(t *testing.T) {
 	body := `{
 		"model":"test-model",

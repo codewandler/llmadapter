@@ -251,11 +251,10 @@ Base capabilities are still partly endpoint-family/provider defaults. Modeldb na
 
 ### Conformance Depth
 
-Live tests are strong smoke coverage, not full protocol conformance. Known gaps include:
+Live tests are strong smoke coverage, and deterministic offline fixtures cover the currently known compatibility classes: endpoint decode edge cases, reasoning variants, citation metadata variants, provider error shapes, raw/unmapped events, prompt-cache accounting where exposed, and unsupported-media/built-in-tool policy. Remaining conformance gaps are future-facing:
 
-- Additional endpoint codec edge-case fixtures.
 - Additional reasoning/citation variants as providers expose new event shapes.
-- Additional provider-specific error body and mid-stream error variants as new providers expose them.
+- Additional provider-specific error body and mid-stream error variants as providers evolve.
 - Actual audio, video, file, document, and built-in tool support if those features are added beyond the current warning/drop policy.
 - Broader provider-specific extension semantic validation for controls that are still intentionally raw.
 
@@ -291,14 +290,7 @@ Initial shared mechanics are implemented in `internal/routeattempt`; remaining w
 
 ### 4. Broaden Codec Conformance
 
-Add focused offline fixture tests for:
-
-- Additional endpoint codec edge cases.
-- Additional provider-specific error decoding variants.
-- Additional reasoning and citation variants.
-- Additional raw/unmapped provider events.
-- Prompt cache accounting variants where providers expose explicit counters.
-- Unsupported-media and built-in-tool policy regressions.
+Focused offline fixture tests now cover the known v1 classes. Future work should add fixtures as providers expose new event shapes, error bodies, citation annotations, cache accounting details, or supported media/tool types.
 
 ### 5. Validate Provider Extensions
 

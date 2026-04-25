@@ -118,6 +118,81 @@ func TestProviderCitationConformance(t *testing.T) {
 	}
 }
 
+func TestProviderAdditionalCitationMetaConformance(t *testing.T) {
+	cases := []struct {
+		name      string
+		frames    [][]byte
+		newClient func(transport.ByteStreamTransport) (unified.Client, error)
+	}{
+		{
+			name:   "openai_responses",
+			frames: responsesAdditionalCitationFrames("gpt-test"),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openairesponses.NewClient(openairesponses.WithAPIKey("key"), openairesponses.WithTransport(t))
+			},
+		},
+		{
+			name:   "openrouter_responses",
+			frames: responsesAdditionalCitationFrames("openai/gpt-test"),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openrouterresponses.NewClient(openrouterresponses.WithAPIKey("key"), openrouterresponses.WithTransport(t))
+			},
+		},
+		{
+			name:   "codex_responses",
+			frames: responsesAdditionalCitationFrames("gpt-5.4"),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return codex.NewClient(codex.WithAccessToken("token"), codex.WithTransport(t))
+			},
+		},
+		{
+			name:   "anthropic_messages",
+			frames: anthropicAdditionalCitationFrames("claude-test"),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return anthropic.NewClient(anthropic.WithAPIKey("key"), anthropic.WithTransport(t))
+			},
+		},
+		{
+			name:   "openrouter_messages",
+			frames: anthropicAdditionalCitationFrames("anthropic/claude-sonnet-4.5"),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return openroutermessages.NewClient(openroutermessages.WithAPIKey("key"), openroutermessages.WithTransport(t))
+			},
+		},
+		{
+			name:   "minimax_messages",
+			frames: anthropicAdditionalCitationFrames("MiniMax-M2.7"),
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return minimaxmessages.NewClient(minimaxmessages.WithAPIKey("key"), minimaxmessages.WithTransport(t))
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := tc.newClient(&transport.FakeByteStreamTransport{Frames: tc.frames})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events, err := client.Request(context.Background(), citationSmokeRequest())
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := unified.Collect(context.Background(), events)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(resp.Citations) != 1 {
+				t.Fatalf("citations = %+v, response=%+v", resp.Citations, resp)
+			}
+			citation := resp.Citations[0].Citation
+			if citation.Type != "unknown_citation" || citation.Text != "quoted text" || citation.Meta["source_id"] != "src_1" {
+				t.Fatalf("citation = %+v, response=%+v", citation, resp)
+			}
+		})
+	}
+}
+
 func citationSmokeRequest() unified.Request {
 	maxTokens := 16
 	return unified.Request{
@@ -179,6 +254,33 @@ func anthropicCitationFrames(model string) [][]byte {
 data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"` + model + `","content":[]}}`),
 		[]byte(`event: content_block_start
 data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"","citations":[{"type":"char_location","cited_text":"quoted text","document_title":"Manual","document_id":"doc_1","start_char_index":2,"end_char_index":8,"source":"pdf"}]}}`),
+		[]byte(`event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"answer"}}`),
+		[]byte(`event: content_block_stop
+data: {"type":"content_block_stop","index":0}`),
+		[]byte(`event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}`),
+		[]byte(`event: message_stop
+data: {"type":"message_stop"}`),
+	}
+}
+
+func responsesAdditionalCitationFrames(model string) [][]byte {
+	return [][]byte{
+		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"` + model + `","status":"in_progress"}}`),
+		[]byte(`data: {"type":"response.output_text.delta","response_id":"resp_1","output_index":0,"delta":"answer"}`),
+		[]byte(`data: {"type":"response.output_text.annotation.added","response_id":"resp_1","output_index":0,"annotation":{"type":"unknown_citation","source_id":"src_1","text":"quoted text"}}`),
+		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"` + model + `","status":"completed"}}`),
+		[]byte(`data: [DONE]`),
+	}
+}
+
+func anthropicAdditionalCitationFrames(model string) [][]byte {
+	return [][]byte{
+		[]byte(`event: message_start
+data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"` + model + `","content":[]}}`),
+		[]byte(`event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"","citations":[{"type":"unknown_citation","source_id":"src_1","cited_text":"quoted text"}]}}`),
 		[]byte(`event: content_block_delta
 data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"answer"}}`),
 		[]byte(`event: content_block_stop

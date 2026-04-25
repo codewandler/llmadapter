@@ -95,6 +95,7 @@ Citation conformance slice: Responses-family annotation events and Anthropic-fam
 Endpoint codec conformance slice: OpenAI Chat, OpenAI Responses, and Anthropic Messages endpoint codecs preserve HTTP/raw decode metadata; OpenAI Responses and Anthropic Messages endpoints project canonical citations back into compatible response annotation/citation fields
 Unsupported media/tool conformance slice: endpoint and provider fixtures pin current best-effort policy for unsupported audio/video/file/document content and built-in tools: supported images are preserved, unsupported fields warn/drop, and provider wire payloads do not leak unsupported media or built-in tool declarations
 V1 phase 1 docs/status truth slice: README, PLAN, ARCHITECTURE, and CHANGELOG now describe the current implementation accurately, split v1 blockers from non-blockers and post-v1 expansion, and require changelog updates before every tag/release
+V1 phase 2 conformance fixture slice: endpoint decode edge cases, additional reasoning event shapes, citation metadata variants, message-only stream errors, raw/unmapped events, and unsupported media/tool policy are covered by deterministic offline fixtures
 ```
 
 Verified:
@@ -267,7 +268,6 @@ CODEX_MODEL overrides the default codex_responses smoke-test model
 Known follow-up gaps before v1:
 
 ```text
-V1 blocker: conformance fixtures need one more deterministic pass for endpoint edge cases, reasoning/citation variants, provider error shapes, raw/unmapped events, and unsupported-media/built-in-tool policy regressions.
 V1 blocker: gateway/mux fallback policy needs explicit retry-limit and non-retryable-failure tests; HTTP response-start behavior remains gateway-specific by design.
 V1 blocker: capability/model decisions need final inspectability polish so catalog-confirmed metadata and endpoint-family defaults are clearly distinguishable.
 V1 blocker: CLI/config/examples need a final usability pass covering auto mux, config mux, direct infer, gateway serve, Docker, model resolution, redaction, and provider identity terminology.
@@ -303,7 +303,7 @@ Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stat
 Next planned phase:
 
 ```text
-The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 2: conformance fixture closure, followed by routing/fallback policy, capability/model policy, CLI/examples, provider smoke matrix, public API freeze, and a v1.0.0 release candidate.
+The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 3: routing/fallback policy finalization, followed by capability/model policy, CLI/examples, provider smoke matrix, public API freeze, and a v1.0.0 release candidate.
 ```
 
 V1 completion roadmap:

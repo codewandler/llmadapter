@@ -60,6 +60,30 @@ func TestDecodeHTTPPreservesRequestMetadata(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPEdgeCaseErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		code string
+	}{
+		{name: "invalid json", body: `{`, code: "invalid_json"},
+		{name: "missing model", body: `{"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}]}`, code: "missing_model"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(tt.body))
+			_, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+			if err == nil {
+				t.Fatal("expected decode error")
+			}
+			got, ok := err.(httpError)
+			if !ok || got.code != tt.code {
+				t.Fatalf("error = %#v, want code %s", err, tt.code)
+			}
+		})
+	}
+}
+
 func TestDecodeHTTPFunctionCallOutput(t *testing.T) {
 	body := `{
 		"model":"gpt-test",
@@ -73,6 +97,25 @@ func TestDecodeHTTPFunctionCallOutput(t *testing.T) {
 	if len(req.Unified.Messages) != 1 || req.Unified.Messages[0].Role != unified.RoleTool || len(req.Unified.Messages[0].ToolResults) != 1 {
 		t.Fatalf("unexpected messages: %+v", req.Unified.Messages)
 	}
+}
+
+func TestDecodeHTTPEdgeCaseWarnings(t *testing.T) {
+	body := `{
+		"model":"gpt-test",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_image"}]},
+			{"type":"unknown_future_item"}
+		],
+		"text":{"format":{"type":"future_format"}}
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertWarning(t, req.Warnings, "input.0.content.0")
+	assertWarning(t, req.Warnings, "input.1.type")
+	assertWarning(t, req.Warnings, "text.format.type")
 }
 
 func TestDecodeHTTPWarnings(t *testing.T) {
