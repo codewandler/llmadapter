@@ -10,6 +10,28 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] - 2026-04-25
+
+### Added
+
+- Cut the first v1 release candidate for llmadapter's stable stateless adapter/gateway/mux surface.
+- Added final release-candidate documentation tying together the v1 provider matrix, public API surface, architecture review, examples, and verification status.
+- Tightened the live tool-continuation smoke prompt so providers are forced into the initial tool call through `ToolChoice` without carrying an instruction that discourages the final post-tool answer.
+
+### Stable Surface
+
+- Canonical `unified.Request` / `unified.Event` model with stream-first provider clients.
+- HTTP gateway endpoints for OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages compatibility surfaces.
+- In-process mux client and auto-detected mux construction through the same `adapterconfig` and modeldb-backed resolution path as the gateway and CLI.
+- Provider endpoint support for Anthropic, Claude Code-compatible access, OpenAI Chat, OpenAI Responses, Codex Responses, OpenRouter Chat/Responses/Messages, and MiniMax Chat/Messages.
+- Explicit usage, pricing, prompt-cache intent, reasoning signatures, citations, provider errors, raw provider metadata, and namespaced extension primitives.
+
+### Verification
+
+- Mandatory local test, vet, and build gates pass.
+- Full available `TEST_INTEGRATION=1` e2e provider smoke matrix passes with local credentials available.
+- Docker image build passes.
+
 ## [0.48.31] - 2026-04-25
 
 ### Added

@@ -101,6 +101,7 @@ V1 phase 4 capability/model policy slice: config inspection and model resolution
 V1 phase 5 CLI/config/examples slice: README usage examples cover auto mux, config mux, direct infer, gateway serve, Docker, model resolution, and provider identity inspection; `examples/llmadapter.example.json` plus a modeldb overlay are load-tested
 V1 phase 6 provider matrix slice: `docs/PROVIDER_MATRIX.md` documents the v1 provider endpoints, feature coverage, credential triggers, live smoke commands, skip behavior, and latest full matrix result
 V1 phase 7 public API freeze slice: primary public packages have package docs, `docs/API_SURFACE.md` records stable consumer/extension/internal boundaries, and no pre-v1 exported renames are required
+V1 phase 8 release-candidate slice: CHANGELOG documents the v1 stable surface, stale blocker wording is removed, non-secret CLI examples plus Docker build are verified, and v1.0.0-rc.1 is ready to cut
 ```
 
 Verified:
@@ -133,7 +134,7 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestAnthr
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestResponsesGatewaySmoke' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokePromptCache/(anthropic|claude)' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke(TextStream|ToolUse|ToolResultContinuation|ResponsesContinuation)/openai_responses|TestResponsesGatewaySmoke(NonStreaming|Streaming)/openai_responses' -count=1 -v
-env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -count=1 -v
 env GOCACHE=/tmp/go-cache go test ./...
 ```
 
@@ -305,7 +306,7 @@ Compared with ../agentapis and ../llmproviders, llmadapter is stronger as a stat
 Next planned phase:
 
 ```text
-The remaining work is the v1 completion roadmap below. The immediate next implementation phase is V1 phase 8: final hardening and a v1.0.0 release candidate.
+The remaining work is the v1 completion roadmap below. The immediate next implementation phase after v1.0.0-rc.1 is V1 phase 9: promote v1.0.0 after any release-candidate regressions or documentation inaccuracies are fixed.
 ```
 
 V1 completion roadmap:

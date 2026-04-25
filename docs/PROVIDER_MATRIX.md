@@ -46,7 +46,7 @@ Prompt cache accounting means the live smoke test checks provider-reported cache
 Full available matrix:
 
 ```sh
-env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -count=1 -v
 ```
 
 Focused slices:

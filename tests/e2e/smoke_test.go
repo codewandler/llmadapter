@@ -219,7 +219,7 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 			userMessage := unified.Message{
 				Role: unified.RoleUser,
 				Content: []unified.ContentPart{
-					unified.TextPart{Text: "Use the lookup_city tool with city set to Berlin. Do not answer directly."},
+					unified.TextPart{Text: "Use the lookup_city tool with city set to Berlin."},
 				},
 			}
 			tool := unified.Tool{
