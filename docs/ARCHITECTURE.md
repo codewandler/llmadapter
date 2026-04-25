@@ -223,6 +223,7 @@ unified.Request
 - Provider-specific controls are carried through namespaced `unified.Request.Extensions` instead of being added as core fields too early.
 - Reasoning stream projection is fixture-tested across Anthropic-family Messages surfaces, OpenAI Responses-compatible surfaces, and Codex Responses. `unified.Collect` preserves reasoning signatures, citations, and raw provider events for higher layers that need continuation or provider-specific metadata.
 - Citation projection is fixture-tested for Responses-family output annotations and Anthropic-family text-block citations; canonical citations retain URL/title/text/ranges/document IDs and unknown citation metadata where available.
+- Endpoint codecs preserve HTTP/raw decode metadata for diagnostics, and compatible endpoints project canonical citations back into provider-shaped response annotation/citation fields.
 - Provider metadata preservation is fixture-tested for raw usage payloads and unmapped provider stream events across OpenAI Chat, Responses-family, Codex Responses, and Anthropic-family Messages surfaces.
 - `cmd/llmadapter-gateway` is now a thin compatibility binary over the shared `adapterconfig` and `gatewayserver` path.
 - Live smoke tests cover text, tools, tool-result continuation, reasoning streams, prompt caching, and gateway paths across supported providers.
@@ -257,7 +258,7 @@ Live tests are strong smoke coverage, not full protocol conformance. Known gaps 
 
 - Invalid credentials and invalid model behavior.
 - Parallel tool calls.
-- More complete endpoint codec fixtures.
+- Additional endpoint codec edge-case fixtures.
 - Additional reasoning/citation variants as providers expose new event shapes.
 - Additional provider-specific error body and mid-stream error variants as new providers expose them.
 - Audio, video, file, document, and built-in tool conformance.

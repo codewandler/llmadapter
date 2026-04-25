@@ -42,6 +42,25 @@ func TestDecodeHTTP(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPPreservesRequestMetadata(t *testing.T) {
+	body := `{"model":"claude-test","max_tokens":32,"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages?trace=1", strings.NewReader(body))
+	httpReq.Header.Set("X-Test", "yes")
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.SourceAPI != adapt.ApiAnthropicMessages || req.HTTP == nil || req.HTTP.Path != "/v1/messages" || req.HTTP.Query.Get("trace") != "1" || req.HTTP.Headers.Get("X-Test") != "yes" {
+		t.Fatalf("unexpected request metadata: %+v", req)
+	}
+	if string(req.RawBody) != body {
+		t.Fatalf("raw body = %s, want %s", req.RawBody, body)
+	}
+	if _, ok := req.Raw.(anthropic.MessageRequest); !ok {
+		t.Fatalf("raw request = %T, want MessageRequest", req.Raw)
+	}
+}
+
 func TestDecodeHTTPSystemCacheControl(t *testing.T) {
 	body := `{
 		"model":"claude-test",
@@ -207,6 +226,34 @@ func TestWriteEventsNonStreaming(t *testing.T) {
 	}
 	if resp.Usage == nil || resp.Usage.InputTokens != 1 || resp.Usage.OutputTokens != 2 {
 		t.Fatalf("unexpected usage: %+v", resp.Usage)
+	}
+}
+
+func TestWriteEventsNonStreamingCitation(t *testing.T) {
+	events := make(chan unified.Event, 8)
+	events <- unified.MessageStartEvent{ID: "msg", Model: "model"}
+	events <- unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindText}
+	events <- unified.TextDeltaEvent{Index: 0, Text: "hello"}
+	events <- unified.CitationEvent{Index: 0, Citation: unified.Citation{Type: "char_location", Title: "Manual", Text: "quote", DocumentID: "doc_1", StartOffset: 1, EndOffset: 5, Meta: map[string]any{"source": "pdf"}}}
+	events <- unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText}
+	events <- unified.CompletedEvent{FinishReason: unified.FinishReasonStop}
+	close(events)
+
+	w := httptest.NewRecorder()
+	err := (Codec{}).WriteEvents(context.Background(), w, decodedReq(false), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp anthropic.MessageResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Content) != 1 || len(resp.Content[0].Citations) != 1 {
+		t.Fatalf("content = %+v", resp.Content)
+	}
+	citation, ok := resp.Content[0].Citations[0].(map[string]any)
+	if !ok || citation["document_id"] != "doc_1" || citation["source"] != "pdf" {
+		t.Fatalf("citation = %#v", resp.Content[0].Citations[0])
 	}
 }
 

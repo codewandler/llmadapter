@@ -43,6 +43,25 @@ func TestDecodeHTTP(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPPreservesRequestMetadata(t *testing.T) {
+	body := `{"model":"test-model","messages":[{"role":"user","content":"hello"}]}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions?trace=1", strings.NewReader(body))
+	httpReq.Header.Set("X-Test", "yes")
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.SourceAPI != adapt.ApiOpenAIChatCompletions || req.HTTP == nil || req.HTTP.Path != "/v1/chat/completions" || req.HTTP.Query.Get("trace") != "1" || req.HTTP.Headers.Get("X-Test") != "yes" {
+		t.Fatalf("unexpected request metadata: %+v", req)
+	}
+	if string(req.RawBody) != body {
+		t.Fatalf("raw body = %s, want %s", req.RawBody, body)
+	}
+	if _, ok := req.Raw.(Request); !ok {
+		t.Fatalf("raw request = %T, want Request", req.Raw)
+	}
+}
+
 func TestDecodeHTTPWarnings(t *testing.T) {
 	body := `{
 		"model":"test-model",

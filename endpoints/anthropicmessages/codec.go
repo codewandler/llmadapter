@@ -12,6 +12,7 @@ import (
 
 	"github.com/codewandler/llmadapter/adapt"
 	anthropic "github.com/codewandler/llmadapter/anthropicwire"
+	"github.com/codewandler/llmadapter/internal/citations"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -305,10 +306,11 @@ func responseFromUnified(resp unified.Response) anthropic.MessageResponse {
 
 func contentBlocksFromResponse(resp unified.Response) []anthropic.ContentBlock {
 	var blocks []anthropic.ContentBlock
-	for _, part := range resp.Content {
+	citationsByIndex := anthropicCitationsByIndex(resp.Citations)
+	for i, part := range resp.Content {
 		switch p := part.(type) {
 		case unified.TextPart:
-			blocks = append(blocks, anthropic.ContentBlock{Type: "text", Text: p.Text})
+			blocks = append(blocks, anthropic.ContentBlock{Type: "text", Text: p.Text, Citations: citationsByIndex[i]})
 		case unified.ReasoningPart:
 			blocks = append(blocks, anthropic.ContentBlock{Type: "thinking", Thinking: p.Text, Signature: p.Signature})
 		}
@@ -326,6 +328,24 @@ func contentBlocksFromResponse(resp unified.Response) []anthropic.ContentBlock {
 		})
 	}
 	return blocks
+}
+
+func anthropicCitationsByIndex(events []unified.CitationEvent) map[int][]any {
+	out := make(map[int][]any)
+	for _, event := range events {
+		out[event.Index] = append(out[event.Index], anthropicCitation(event.Citation))
+	}
+	return out
+}
+
+func anthropicCitation(citation unified.Citation) map[string]any {
+	return citations.ToMap(citation, citations.OutputSpec{
+		TextKey:       "cited_text",
+		TitleKey:      "document_title",
+		DocumentIDKey: "document_id",
+		StartKey:      "start_char_index",
+		EndKey:        "end_char_index",
+	})
 }
 
 func usageFromUnified(usage unified.Usage) *anthropic.UsageWire {

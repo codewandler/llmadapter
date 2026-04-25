@@ -45,10 +45,11 @@ type InputItem struct {
 }
 
 type ContentPart struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	ImageURL string `json:"image_url,omitempty"`
-	FileID   string `json:"file_id,omitempty"`
+	Type        string `json:"type"`
+	Text        string `json:"text,omitempty"`
+	ImageURL    string `json:"image_url,omitempty"`
+	FileID      string `json:"file_id,omitempty"`
+	Annotations []any  `json:"annotations,omitempty"`
 }
 
 type Tool struct {
@@ -100,6 +101,7 @@ type Event struct {
 	Response     *Response    `json:"response,omitempty"`
 	Item         *OutputItem  `json:"item,omitempty"`
 	Part         *ContentPart `json:"part,omitempty"`
+	Annotation   any          `json:"annotation,omitempty"`
 	Arguments    string       `json:"arguments,omitempty"`
 	Error        *ErrorBody   `json:"error,omitempty"`
 }

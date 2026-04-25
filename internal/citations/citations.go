@@ -14,6 +14,14 @@ type Spec struct {
 	EndKeys        []string
 }
 
+type OutputSpec struct {
+	TextKey       string
+	TitleKey      string
+	DocumentIDKey string
+	StartKey      string
+	EndKey        string
+}
+
 func FromMap(values map[string]any, spec Spec) unified.Citation {
 	known := map[string]bool{"type": true, "url": true}
 	markKnown(known, spec.TextKeys...)
@@ -83,6 +91,37 @@ func ExtraMeta(values map[string]any, known map[string]bool) map[string]any {
 		meta[key] = value
 	}
 	return meta
+}
+
+func ToMap(citation unified.Citation, spec OutputSpec) map[string]any {
+	out := make(map[string]any)
+	if citation.Type != "" {
+		out["type"] = citation.Type
+	}
+	if citation.URL != "" {
+		out["url"] = citation.URL
+	}
+	if citation.Text != "" && spec.TextKey != "" {
+		out[spec.TextKey] = citation.Text
+	}
+	if citation.Title != "" && spec.TitleKey != "" {
+		out[spec.TitleKey] = citation.Title
+	}
+	if citation.DocumentID != "" && spec.DocumentIDKey != "" {
+		out[spec.DocumentIDKey] = citation.DocumentID
+	}
+	if citation.StartOffset != 0 && spec.StartKey != "" {
+		out[spec.StartKey] = citation.StartOffset
+	}
+	if citation.EndOffset != 0 && spec.EndKey != "" {
+		out[spec.EndKey] = citation.EndOffset
+	}
+	for key, value := range citation.Meta {
+		if _, exists := out[key]; !exists {
+			out[key] = value
+		}
+	}
+	return out
 }
 
 func markKnown(known map[string]bool, keys ...string) {

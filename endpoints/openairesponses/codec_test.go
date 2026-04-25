@@ -41,6 +41,25 @@ func TestDecodeHTTP(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPPreservesRequestMetadata(t *testing.T) {
+	body := `{"model":"gpt-test","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}]}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses?trace=1", strings.NewReader(body))
+	httpReq.Header.Set("X-Test", "yes")
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.SourceAPI != adapt.ApiOpenAIResponses || req.HTTP == nil || req.HTTP.Path != "/v1/responses" || req.HTTP.Query.Get("trace") != "1" || req.HTTP.Headers.Get("X-Test") != "yes" {
+		t.Fatalf("unexpected request metadata: %+v", req)
+	}
+	if string(req.RawBody) != body {
+		t.Fatalf("raw body = %s, want %s", req.RawBody, body)
+	}
+	if _, ok := req.Raw.(Request); !ok {
+		t.Fatalf("raw request = %T, want Request", req.Raw)
+	}
+}
+
 func TestDecodeHTTPFunctionCallOutput(t *testing.T) {
 	body := `{
 		"model":"gpt-test",
@@ -182,6 +201,35 @@ func TestWriteEventsNonStreaming(t *testing.T) {
 	}
 }
 
+func TestWriteEventsNonStreamingCitation(t *testing.T) {
+	events := make(chan unified.Event, 8)
+	events <- unified.MessageStartEvent{ID: "resp", Model: "model"}
+	events <- unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindText}
+	events <- unified.TextDeltaEvent{Index: 0, Text: "hello"}
+	events <- unified.CitationEvent{Index: 0, Citation: unified.Citation{Type: "url_citation", URL: "https://example.test", Title: "Example", Text: "quote", StartOffset: 1, EndOffset: 5, Meta: map[string]any{"source": "web"}}}
+	events <- unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText}
+	events <- unified.CompletedEvent{FinishReason: unified.FinishReasonStop}
+	close(events)
+
+	w := httptest.NewRecorder()
+	err := (Codec{}).WriteEvents(context.Background(), w, decodedReq(false), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp Response
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	annotations := resp.Output[0].Content[0].Annotations
+	if len(annotations) != 1 {
+		t.Fatalf("annotations = %+v", annotations)
+	}
+	annotation, ok := annotations[0].(map[string]any)
+	if !ok || annotation["url"] != "https://example.test" || annotation["source"] != "web" {
+		t.Fatalf("annotation = %#v", annotations[0])
+	}
+}
+
 func TestWriteEventsStreaming(t *testing.T) {
 	events := make(chan unified.Event, 8)
 	events <- unified.MessageStartEvent{ID: "resp", Model: "model"}
@@ -197,6 +245,25 @@ func TestWriteEventsStreaming(t *testing.T) {
 	}
 	body := w.Body.String()
 	if !strings.Contains(body, `"type":"response.created"`) || !strings.Contains(body, `"type":"response.output_text.delta"`) || !strings.Contains(body, `"delta":"hello"`) || !strings.Contains(body, `"type":"response.done"`) {
+		t.Fatalf("unexpected stream body: %s", body)
+	}
+}
+
+func TestWriteEventsStreamingCitation(t *testing.T) {
+	events := make(chan unified.Event, 8)
+	events <- unified.MessageStartEvent{ID: "resp", Model: "model"}
+	events <- unified.TextDeltaEvent{Index: 0, Text: "hello"}
+	events <- unified.CitationEvent{Index: 0, Citation: unified.Citation{Type: "url_citation", URL: "https://example.test", Title: "Example", Text: "quote", StartOffset: 1, EndOffset: 5, Meta: map[string]any{"source": "web"}}}
+	events <- unified.CompletedEvent{FinishReason: unified.FinishReasonStop}
+	close(events)
+
+	w := httptest.NewRecorder()
+	err := (Codec{}).WriteEvents(context.Background(), w, decodedReq(true), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"type":"response.output_text.annotation.added"`) || !strings.Contains(body, `"url":"https://example.test"`) || !strings.Contains(body, `"source":"web"`) {
 		t.Fatalf("unexpected stream body: %s", body)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/internal/citations"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -307,9 +308,10 @@ func responseFromUnified(resp unified.Response) Response {
 func outputFromUnified(resp unified.Response) []OutputItem {
 	var out []OutputItem
 	var content []ContentPart
-	for _, part := range resp.Content {
+	citationsByIndex := responsesCitationsByIndex(resp.Citations)
+	for i, part := range resp.Content {
 		if text, ok := part.(unified.TextPart); ok {
-			content = append(content, ContentPart{Type: "output_text", Text: text.Text})
+			content = append(content, ContentPart{Type: "output_text", Text: text.Text, Annotations: citationsByIndex[i]})
 		}
 	}
 	if len(content) > 0 {
@@ -403,6 +405,14 @@ func (s *streamState) push(ev unified.Event) []Event {
 		frames := s.startTextPart()
 		frames = append(frames, Event{Type: "response.output_text.delta", ResponseID: s.id, OutputIndex: 0, ContentIndex: 0, Delta: e.Text})
 		return frames
+	case unified.CitationEvent:
+		return []Event{{
+			Type:         "response.output_text.annotation.added",
+			ResponseID:   s.id,
+			OutputIndex:  e.Index,
+			ContentIndex: 0,
+			Annotation:   responseCitationAnnotation(e.Citation),
+		}}
 	case unified.ToolCallStartEvent:
 		return s.startToolCall(e.Index, e.ID, e.Name)
 	case unified.ToolCallArgsDeltaEvent:
@@ -432,6 +442,24 @@ func (s *streamState) push(ev unified.Event) []Event {
 	default:
 		return nil
 	}
+}
+
+func responsesCitationsByIndex(events []unified.CitationEvent) map[int][]any {
+	out := make(map[int][]any)
+	for _, event := range events {
+		out[event.Index] = append(out[event.Index], responseCitationAnnotation(event.Citation))
+	}
+	return out
+}
+
+func responseCitationAnnotation(citation unified.Citation) map[string]any {
+	return citations.ToMap(citation, citations.OutputSpec{
+		TextKey:       "text",
+		TitleKey:      "title",
+		DocumentIDKey: "document_id",
+		StartKey:      "start_index",
+		EndKey:        "end_index",
+	})
 }
 
 func (s *streamState) startTextPart() []Event {
