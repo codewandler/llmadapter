@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/internal/routeattempt"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -50,21 +51,18 @@ func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unifi
 		SourceAPI: c.source,
 		Unified:   req,
 	}
-	routes, err := routeCandidates(ctx, c.router, adaptReq)
+	routes, err := routeattempt.Candidates(ctx, c.router, adaptReq)
 	if err != nil {
 		return nil, err
 	}
 	var failures []error
 	for _, route := range routes {
-		attempt := req
-		if route.NativeModel != "" {
-			attempt.Model = route.NativeModel
-		}
+		attempt := routeattempt.RequestForRoute(req, route)
 		events, err := route.Client.Request(ctx, attempt)
 		if err == nil {
 			return prependRouteEvent(ctx, route, events), nil
 		}
-		failures = append(failures, fmt.Errorf("provider %s/%s failed: %w", route.ProviderName, route.TargetAPI, err))
+		failures = append(failures, routeattempt.Error(route, err))
 		if !c.fallback {
 			break
 		}
@@ -109,15 +107,4 @@ func prependRouteEvent(ctx context.Context, route router.Route, events <-chan un
 		}
 	}()
 	return out
-}
-
-func routeCandidates(ctx context.Context, r router.Router, req adapt.Request) ([]router.Route, error) {
-	if candidateRouter, ok := r.(router.CandidateRouter); ok {
-		return candidateRouter.Routes(ctx, req)
-	}
-	route, err := r.Route(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return []router.Route{route}, nil
 }

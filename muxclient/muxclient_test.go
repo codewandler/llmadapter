@@ -3,6 +3,7 @@ package muxclient
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
@@ -117,6 +118,27 @@ func TestClientFallsBackWhenRequestFails(t *testing.T) {
 	}
 	if primary.calls != 1 || fallback.calls != 1 || fallback.req.Model != "fallback" {
 		t.Fatalf("unexpected provider calls: primary=%d fallback=%d req=%+v", primary.calls, fallback.calls, fallback.req)
+	}
+}
+
+func TestClientFallbackDisabledReturnsRouteAttemptError(t *testing.T) {
+	primary := &fakeClient{err: errors.New("down")}
+	client := New(router.NewStaticRouter(router.StaticRoute{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: "primary",
+			APIKind:      adapt.ApiOpenAIResponses,
+			Family:       adapt.FamilyOpenAIResponses,
+			Client:       primary,
+		},
+	}), WithFallback(false))
+
+	_, err := client.Request(context.Background(), unified.Request{Model: "public"})
+	if err == nil {
+		t.Fatalf("expected request error")
+	}
+	if !strings.Contains(err.Error(), "provider primary/openai.responses failed: down") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

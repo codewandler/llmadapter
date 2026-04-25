@@ -3,11 +3,11 @@ package gateway
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/internal/routeattempt"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -32,7 +32,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = h.Endpoint.WriteError(ctx, tw, err)
 		return
 	}
-	routes, err := routeCandidates(ctx, h.Router, req)
+	routes, err := routeattempt.Candidates(ctx, h.Router, req)
 	if err != nil {
 		_ = h.Endpoint.WriteError(ctx, tw, err)
 		return
@@ -40,13 +40,11 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var failures []error
 	for _, route := range orderByHealth(routes, h.Health) {
 		attempt := req
-		if route.NativeModel != "" {
-			attempt.Unified.Model = route.NativeModel
-		}
+		attempt.Unified = routeattempt.RequestForRoute(req.Unified, route)
 		events, err := route.Client.Request(ctx, attempt.Unified)
 		if err != nil {
 			h.Health.MarkFailure(route)
-			failures = append(failures, routeError(route, err))
+			failures = append(failures, routeattempt.Error(route, err))
 			continue
 		}
 		if err := h.Endpoint.WriteEvents(ctx, tw, attempt, events); err != nil {
@@ -55,7 +53,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			h.Health.MarkFailure(route)
-			failures = append(failures, routeError(route, err))
+			failures = append(failures, routeattempt.Error(route, err))
 			continue
 		}
 		h.Health.MarkSuccess(route)
@@ -65,21 +63,6 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = h.Endpoint.WriteError(ctx, tw, err)
 		return
 	}
-}
-
-func routeCandidates(ctx context.Context, r router.Router, req adapt.Request) ([]router.Route, error) {
-	if candidateRouter, ok := r.(router.CandidateRouter); ok {
-		return candidateRouter.Routes(ctx, req)
-	}
-	route, err := r.Route(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return []router.Route{route}, nil
-}
-
-func routeError(route router.Route, err error) error {
-	return fmt.Errorf("provider %s/%s failed: %w", route.ProviderName, route.TargetAPI, err)
 }
 
 func orderByHealth(routes []router.Route, health *HealthTracker) []router.Route {

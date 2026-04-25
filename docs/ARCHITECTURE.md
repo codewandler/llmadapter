@@ -234,11 +234,11 @@ The Anthropic downstream endpoint reuses types from the Anthropic provider packa
 
 If endpoint and provider behavior diverge further, shared Anthropic wire structs should move to a neutral package.
 
-### Duplicate Fallback Loops
+### Gateway/Mux Fallback Boundary
 
-Gateway and mux client both implement route candidate fallback. The behavior is similar but not identical because the HTTP gateway must care about whether response bytes were already written.
+Gateway and mux client both implement route candidate fallback. Shared route-attempt mechanics live in `internal/routeattempt`: candidate lookup, native model rewrite, and provider/API error formatting.
 
-The duplication is small, but future changes to retry/fallback policy must keep both paths aligned.
+The HTTP-specific response-start rule stays in `gateway`: once response bytes are written, the gateway cannot transparently retry another upstream. Future retry policy changes should keep shared route mechanics in `internal/routeattempt` and only keep transport-specific behavior at the boundary.
 
 ### Capability Defaults
 
@@ -291,6 +291,8 @@ Only extract shared wire packages when there is real duplication or cross-bounda
 ### 3. Align Gateway And Mux Fallback Policy
 
 Keep the HTTP-specific response-start behavior in `gateway`, but factor shared route attempt/error metadata where useful so mux and gateway report failures consistently.
+
+Initial shared mechanics are implemented in `internal/routeattempt`; remaining work is policy-level only, such as configurable retry limits, backoff, or richer failure classification.
 
 ### 4. Broaden E2E And Codec Conformance
 
