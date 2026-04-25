@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -47,7 +49,7 @@ func (t *HTTPByteStreamTransport) Open(ctx context.Context, req *Request) (ByteS
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, apiErrorFromHTTP(resp.StatusCode, body)
+		return nil, apiErrorFromHTTP(resp.StatusCode, resp.Header, body)
 	}
 
 	stream := &httpByteStream{body: resp.Body, format: t.frameFormat}
@@ -64,12 +66,13 @@ func (t *HTTPByteStreamTransport) Open(ctx context.Context, req *Request) (ByteS
 	return stream, nil
 }
 
-func apiErrorFromHTTP(statusCode int, body []byte) *unified.APIError {
+func apiErrorFromHTTP(statusCode int, header http.Header, body []byte) *unified.APIError {
 	apiErr := &unified.APIError{
 		StatusCode:  statusCode,
 		Message:     strings.TrimSpace(string(body)),
 		ProviderRaw: append([]byte(nil), body...),
 	}
+	apiErr.RetryAfter = retryAfter(header.Get("Retry-After"))
 	var openAI struct {
 		Error struct {
 			Type    string `json:"type"`
@@ -97,6 +100,23 @@ func apiErrorFromHTTP(statusCode int, body []byte) *unified.APIError {
 		return apiErr
 	}
 	return apiErr
+}
+
+func retryAfter(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(value); err == nil && seconds >= 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	if when, err := http.ParseTime(value); err == nil {
+		delay := time.Until(when)
+		if delay > 0 {
+			return delay
+		}
+	}
+	return 0
 }
 
 type httpByteStream struct {

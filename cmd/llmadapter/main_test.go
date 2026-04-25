@@ -256,6 +256,47 @@ func TestResolveCommandWithDynamicRoute(t *testing.T) {
 	}
 }
 
+func TestResolveCommandWithModelDBDynamicRoute(t *testing.T) {
+	path := writeTestModelDBDynamicConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"resolve", "fast", "--config", path, "--source-api", "openai.responses"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{"Matched as:   dynamic_model", "Native model: gpt-fast-wire", "ModelDB svc:  openai"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestResolveCommandWithModelDBDynamicRouteRejectsMissingModel(t *testing.T) {
+	path := writeTestModelDBDynamicConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"resolve", "missing-model", "--config", path, "--source-api", "openai.responses"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing dynamic model to be rejected")
+	}
+	if !strings.Contains(err.Error(), `no route found for model "missing-model"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveInferModelWithModelDBDynamicRoute(t *testing.T) {
+	cfg := readTestConfig(t, writeTestModelDBDynamicConfig(t))
+	resolution, err := resolveInferModel(cfg, "fast", adapt.ApiOpenAIResponses)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolution.MatchedAs != "dynamic_model" || resolution.NativeModel != "gpt-fast-wire" || resolution.Provider != "openai" {
+		t.Fatalf("unexpected infer resolution: %+v", resolution)
+	}
+}
+
 func TestInferCommandModelDefaultIsHaiku(t *testing.T) {
 	var out, errOut bytes.Buffer
 	cmd := newRootCommand(&out, &errOut)
@@ -447,6 +488,42 @@ func writeTestDynamicConfig(t *testing.T) string {
 	data := []byte(`{
 		"providers":[{"name":"openai","type":"openai_responses","api_key":"test","model":"gpt-test"}],
 		"routes":[{"source_api":"openai.responses","provider":"openai","dynamic_models":true,"weight":1}]
+	}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func writeTestModelDBDynamicConfig(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	catalogPath := filepath.Join(dir, "catalog.json")
+	catalog := modeldb.NewCatalog()
+	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "fast"}
+	catalog.Services["openai"] = modeldb.Service{ID: "openai", Name: "OpenAI"}
+	catalog.Models[key] = modeldb.ModelRecord{Key: key, Name: "GPT Fast", Aliases: []string{"fast"}}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "openai", WireModelID: "gpt-fast-wire"}] = modeldb.Offering{
+		ServiceID:   "openai",
+		WireModelID: "gpt-fast-wire",
+		ModelKey:    key,
+		Exposures: []modeldb.OfferingExposure{{
+			APIType: modeldb.APITypeOpenAIResponses,
+			ExposedCapabilities: &modeldb.Capabilities{
+				Streaming:        true,
+				ToolUse:          true,
+				StructuredOutput: true,
+			},
+		}},
+	}
+	if err := modeldb.SaveJSON(catalogPath, catalog); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "llmadapter.json")
+	data := []byte(`{
+		"modeldb":{"catalog_path":` + strconv.Quote(catalogPath) + `},
+		"providers":[{"name":"openai","type":"openai_responses","api_key":"test","modeldb_service_id":"openai"}],
+		"routes":[{"source_api":"openai.responses","provider":"openai","provider_api":"openai.responses","dynamic_models":true,"weight":1}]
 	}`)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)

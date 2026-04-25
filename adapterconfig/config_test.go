@@ -209,6 +209,52 @@ func TestBuildRouterDynamicModelCapabilitiesUseModelDBExposure(t *testing.T) {
 	}
 }
 
+func TestDynamicModelResolutionMatchesRouterModelDBResolution(t *testing.T) {
+	catalogPath := filepath.Join(t.TempDir(), "catalog.json")
+	if err := modeldb.SaveJSON(catalogPath, testDynamicAliasCatalog("openai")); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{
+		ModelDB: ModelDBConfig{CatalogPath: catalogPath},
+		Providers: []ProviderConfig{{
+			Name:             "openai",
+			Type:             "openai_responses",
+			APIKey:           "key",
+			ModelDBServiceID: "openai",
+		}},
+		Routes: []RouteConfig{{
+			SourceAPI:     adapt.ApiOpenAIResponses,
+			Provider:      "openai",
+			ProviderAPI:   adapt.ApiOpenAIResponses,
+			DynamicModels: true,
+		}},
+	}
+	ApplyDefaults(&cfg)
+
+	resolution, err := ResolveModel(cfg, "fast", adapt.ApiOpenAIResponses)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolution.MatchedAs != "dynamic_model" || resolution.NativeModel != "gpt-fast-wire" || resolution.ModelDBService != "openai" {
+		t.Fatalf("unexpected diagnostic resolution: %+v", resolution)
+	}
+
+	r, err := BuildRouter(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified:   unified.Request{Model: "fast", Stream: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.NativeModel != resolution.NativeModel || route.TargetAPI != resolution.ProviderAPI {
+		t.Fatalf("router/diagnostic mismatch: route=%+v resolution=%+v", route, resolution)
+	}
+}
+
 func TestValidateRejectsDynamicRouteWithFixedModel(t *testing.T) {
 	err := Validate(Config{
 		Providers: []ProviderConfig{{Name: "openai", Type: "openai_responses"}},
@@ -490,5 +536,26 @@ func testDynamicCapabilityCatalog(serviceID string) modeldb.Catalog {
 	}
 	add("no-tools", false)
 	add("with-tools", true)
+	return catalog
+}
+
+func testDynamicAliasCatalog(serviceID string) modeldb.Catalog {
+	catalog := modeldb.NewCatalog()
+	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "fast"}
+	catalog.Services[serviceID] = modeldb.Service{ID: serviceID, Name: "Test Service"}
+	catalog.Models[key] = modeldb.ModelRecord{Key: key, Name: "GPT Fast", Aliases: []string{"fast"}}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: serviceID, WireModelID: "gpt-fast-wire"}] = modeldb.Offering{
+		ServiceID:   serviceID,
+		WireModelID: "gpt-fast-wire",
+		ModelKey:    key,
+		Exposures: []modeldb.OfferingExposure{{
+			APIType: modeldb.APITypeOpenAIResponses,
+			ExposedCapabilities: &modeldb.Capabilities{
+				Streaming:        true,
+				ToolUse:          true,
+				StructuredOutput: true,
+			},
+		}},
+	}
 	return catalog
 }

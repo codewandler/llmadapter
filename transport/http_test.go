@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -64,7 +65,7 @@ func TestHTTPByteStreamTransportNon2xx(t *testing.T) {
 		return &http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","code":"bad_model","message":"bad model","param":"model"}}`)),
-			Header:     make(http.Header),
+			Header:     http.Header{"Retry-After": []string{"3"}},
 		}, nil
 	})
 
@@ -77,7 +78,7 @@ func TestHTTPByteStreamTransportNon2xx(t *testing.T) {
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("error = %T, want APIError", err)
 	}
-	if apiErr.StatusCode != http.StatusTooManyRequests || apiErr.Type != "invalid_request_error" || apiErr.Code != "bad_model" || apiErr.Message != "bad model" || apiErr.Param != "model" {
+	if apiErr.StatusCode != http.StatusTooManyRequests || apiErr.Type != "invalid_request_error" || apiErr.Code != "bad_model" || apiErr.Message != "bad model" || apiErr.Param != "model" || apiErr.RetryAfter != 3*time.Second {
 		t.Fatalf("unexpected API error: %+v", apiErr)
 	}
 }

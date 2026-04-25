@@ -215,6 +215,7 @@ unified.Request
 - The gateway and mux client share the same router/provider endpoint model.
 - Library mux clients can leave source API unset to let routing choose the best provider endpoint for a model alias; compatibility gateways still route from an explicit inbound API kind.
 - Modeldb integration is explicit: fixed routes can resolve aliases, narrow capabilities, attach limits, and enrich costs; known dynamic model requests can narrow capabilities and price per requested native model.
+- Shared HTTP transport normalizes non-2xx provider responses into `unified.APIError`, including status, JSON error fields, raw provider body, and `Retry-After` hints.
 - Prompt-cache primitives are explicit on `unified.Request`: policy/key/TTL intent is mapped by provider codecs, while session-level cache strategy and stable-prefix projection stay in agentsdk.
 - Provider-specific controls are carried through namespaced `unified.Request.Extensions` instead of being added as core fields too early.
 - `cmd/llmadapter-gateway` is now a thin compatibility binary over the shared `adapterconfig` and `gatewayserver` path.
