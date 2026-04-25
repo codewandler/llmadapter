@@ -71,9 +71,11 @@ Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as 
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
 Claude compatibility slice: `claude` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, Anthropic modeldb service identity, and Anthropic extended-thinking request mapping
 Codex compatibility slice: `codex_responses` registers a Codex/ChatGPT OAuth-backed Responses endpoint with API kind `codex.responses`, OpenAI Responses family routing, Codex-specific URL/header/body handling, local auth detection, and Codex modeldb service identity
-Prompt cache slice: canonical `CachePolicy`, `CacheKey`, and `CacheTTL` primitives are available on unified requests; `TextPart.CacheControl` hints encode through Anthropic-family system/content blocks, including OpenRouter Messages and MiniMax Messages; Responses-style prompt cache keys are available for OpenAI/OpenRouter Responses and Codex Responses, with Codex mapping the key into session/window headers; live prompt-cache smoke verifies provider-reported cache write/read usage for Anthropic, Claude Code-compatible access, Codex, and MiniMax Messages where credentials are available
+Prompt cache slice: canonical `CachePolicy`, `CacheKey`, and `CacheTTL` primitives are available on unified requests; `TextPart.CacheControl` hints encode through Anthropic-family system/content blocks, including OpenRouter Messages and MiniMax Messages; Responses-style prompt cache keys are available for OpenAI/OpenRouter Responses and Codex Responses, with Codex mapping the key into session/window headers; live prompt-cache smoke verifies provider-reported cache write/read usage for Anthropic-family entries and Codex where credentials are available
 OpenAI Responses provider slice: native OpenAI Responses provider endpoint is registered and live-verified for text, tools, gateway routing, and previous_response_id continuation
 Architecture cleanup slice: `cmd/llmadapter-gateway` is now a thin compatibility binary over shared `adapterconfig` inspection/config validation and `gatewayserver` serving; duplicated command-local config, provider construction, modeldb, pricing, and inspection code was removed
+Reasoning signature slice: canonical reasoning content/events now preserve provider signatures; Anthropic-family providers and endpoints decode/encode thinking signatures for Anthropic, Claude Code-compatible access, OpenRouter Messages, and MiniMax Messages continuations
+Codex parity hardening slice: Codex Responses is included in the shared text, reasoning, tool, tool-continuation, prompt-cache, and `/v1/responses` gateway smoke matrices; prompt-cache smoke uses the Codex session/window cache key path and a larger stable prefix while allowing the warmup request to omit write counters
 ```
 
 Verified:
@@ -270,7 +272,7 @@ runnable gateway uses one Anthropic route and can optionally override upstream m
 modeldb metadata is integrated only for fixed-route enrichment; provider endpoint base capabilities still come from hardcoded family defaults plus manual config overrides
 usage now carries structured token and cost item fields as the canonical accounting surface; modeldb-backed pricing enrichment is wired for configured fixed-model gateway routes and dynamic per-request models when catalog pricing exists
 stateful conversations are intentionally absent from llmadapter core; conversation/session belongs in agentsdk or another wrapper above unified.Client
-Prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter
+Prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter. Codex uses the session/window cache key path and the live smoke checks follow-up cache-read accounting.
 ```
 
 Implementation assessment:
@@ -298,7 +300,8 @@ Mux client layer: stateless router-backed unified.Client, config/modeldb-backed 
 Dynamic model access slice: routes can opt into `dynamic_models` to resolve requested model IDs against modeldb for that provider endpoint while fixed weighted routes remain deterministic.
 Dynamic model capability slice: modeldb-backed dynamic routes narrow route capabilities for the selected provider offering before route selection; unknown dynamic model IDs are rejected rather than treated as provider defaults.
 Provider parity backlog: MiniMax Chat tool validation is complete; continue expanding endpoint conformance after the metadata/accounting boundaries are in place.
-Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, and shared smoke entries are in place; next harden live tool/stream semantics and any Codex-specific reasoning/caching extensions after successful live verification.
+Codex provider parity: Codex Responses endpoint, auto-detection, catalog service identity, and text/tool/tool-continuation/reasoning/prompt-cache/gateway smoke entries are in place.
+Reasoning signature preservation is now part of the canonical stream surface for providers that emit signed thinking blocks; raw chain-of-thought still remains provider-controlled, while signed reasoning summaries/blocks can round-trip when the upstream API exposes them.
 ```
 
 Prototype parity notes from ../agentapis and ../llmproviders:
@@ -490,8 +493,7 @@ Implemented behavior:
 - modeldb service identity is codex so catalog metadata/pricing stays separate from normal OpenAI platform offerings
 
 Open hardening:
-- live e2e should validate text, tools, and gateway smokes against a real Codex account
-- Codex-specific reasoning, prompt-cache, and session headers should remain namespaced extensions when they need caller control
+- Codex-specific prompt-cache/session headers should remain namespaced extensions when they need caller control
 ```
 
 Caching, usage, pricing, and agentsdk conversation integration plan:

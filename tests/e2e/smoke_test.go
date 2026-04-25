@@ -30,6 +30,8 @@ type smokeProvider struct {
 	tools                 bool
 	reasoning             bool
 	promptCache           bool
+	cacheWarmupNoUsage    bool
+	cachePrefixRepeat     int
 	responsesContinuation bool
 	maxOutputTokens       int
 	newClient             func(apiKey string) (unified.Client, error)
@@ -305,11 +307,11 @@ func TestSmokePromptCache(t *testing.T) {
 				Model:           model,
 				MaxOutputTokens: &maxTokens,
 				CachePolicy:     unified.CachePolicyOn,
-				CacheKey:        "llmadapter-smoke-" + provider.name,
+				CacheKey:        cacheSmokeKey(provider.name),
 				Instructions: []unified.Instruction{{
 					Kind: unified.InstructionSystem,
 					Content: []unified.ContentPart{unified.TextPart{
-						Text:         cacheSmokePrefix(),
+						Text:         cacheSmokePrefix(provider.cachePrefixRepeat),
 						CacheControl: unified.EphemeralCache(""),
 					}},
 				}},
@@ -325,10 +327,15 @@ func TestSmokePromptCache(t *testing.T) {
 				t.Fatalf("first request: %v", err)
 			}
 			if first.Usage.CacheWriteTokens() == 0 && first.Usage.CacheReadTokens() == 0 {
-				t.Fatalf("first request did not report cache usage: %+v", first.Usage)
+				if !provider.cacheWarmupNoUsage {
+					t.Fatalf("first request did not report cache usage: %+v", first.Usage)
+				}
 			}
 			if first.Usage.CacheReadTokens() > 0 {
 				return
+			}
+			if first.Usage.CacheWriteTokens() == 0 && provider.cacheWarmupNoUsage {
+				t.Logf("first request did not report cache write usage; checking follow-up cache reads: %+v", first.Usage)
 			}
 
 			var last unified.Response
@@ -464,14 +471,17 @@ func smokeProviders() []smokeProvider {
 			},
 		},
 		{
-			name:            "codex_responses",
-			apiKeyEnv:       []string{codex.EnvAccessToken, codex.EnvOAuthToken},
-			localCodexOAuth: true,
-			modelEnv:        codex.EnvModel,
-			model:           codex.DefaultModel,
-			tools:           true,
-			promptCache:     true,
-			newClient:       newCodexSmokeClient,
+			name:               "codex_responses",
+			apiKeyEnv:          []string{codex.EnvAccessToken, codex.EnvOAuthToken},
+			localCodexOAuth:    true,
+			modelEnv:           codex.EnvModel,
+			model:              codex.DefaultModel,
+			tools:              true,
+			reasoning:          true,
+			promptCache:        true,
+			cacheWarmupNoUsage: true,
+			cachePrefixRepeat:  1200,
+			newClient:          newCodexSmokeClient,
 		},
 		{
 			name:      "openrouter_chat",
@@ -539,13 +549,21 @@ func collectSmokeResponse(ctx context.Context, client unified.Client, req unifie
 	return unified.Collect(ctx, events)
 }
 
-func cacheSmokePrefix() string {
+func cacheSmokePrefix(repeat int) string {
+	if repeat <= 0 {
+		repeat = 320
+	}
 	const sentence = "This stable llmadapter prompt-cache smoke prefix is intentionally repetitive so Anthropic can store it as reusable context. "
 	var b strings.Builder
-	for i := 0; i < 320; i++ {
+	for i := 0; i < repeat; i++ {
 		b.WriteString(sentence)
 	}
 	return b.String()
+}
+
+func cacheSmokeKey(providerName string) string {
+	replacer := strings.NewReplacer("_", "-", ".", "-")
+	return "llmadapter-smoke-" + replacer.Replace(strings.ToLower(providerName))
 }
 
 func (p smokeProvider) maxTokens(defaultValue int) int {

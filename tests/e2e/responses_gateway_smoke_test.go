@@ -15,6 +15,7 @@ import (
 	"github.com/codewandler/llmadapter/adapt"
 	responsesendpoint "github.com/codewandler/llmadapter/endpoints/openairesponses"
 	"github.com/codewandler/llmadapter/gateway"
+	codex "github.com/codewandler/llmadapter/providers/openai/codex"
 	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
 	"github.com/codewandler/llmadapter/router"
@@ -92,12 +93,13 @@ func TestResponsesGatewaySmokeStreaming(t *testing.T) {
 }
 
 type responsesGatewayProvider struct {
-	name      string
-	apiKind   adapt.ApiKind
-	apiKeyEnv []string
-	modelEnv  string
-	model     string
-	newClient func(apiKey string) (unified.Client, error)
+	name            string
+	apiKind         adapt.ApiKind
+	apiKeyEnv       []string
+	localCodexOAuth bool
+	modelEnv        string
+	model           string
+	newClient       func(apiKey string) (unified.Client, error)
 }
 
 func responsesGatewayProviders() []responsesGatewayProvider {
@@ -110,6 +112,20 @@ func responsesGatewayProviders() []responsesGatewayProvider {
 			model:     "gpt-4.1-mini",
 			newClient: func(apiKey string) (unified.Client, error) {
 				return openairesponses.NewClient(openairesponses.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:            "codex_responses",
+			apiKind:         adapt.ApiCodexResponses,
+			apiKeyEnv:       []string{codex.EnvAccessToken, codex.EnvOAuthToken},
+			localCodexOAuth: true,
+			modelEnv:        codex.EnvModel,
+			model:           codex.DefaultModel,
+			newClient: func(apiKey string) (unified.Client, error) {
+				if apiKey == "" {
+					return codex.NewClient()
+				}
+				return codex.NewClient(codex.WithAccessToken(apiKey))
 			},
 		},
 		{
@@ -131,7 +147,7 @@ func newResponsesGateway(t *testing.T, provider responsesGatewayProvider) (http.
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
 	}
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
-	if apiKey == "" {
+	if apiKey == "" && !(provider.localCodexOAuth && codex.LocalAvailable()) {
 		t.Skipf("set one of %s to run %s Responses gateway e2e smoke tests", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
 	model := provider.model
@@ -155,7 +171,7 @@ func newResponsesGateway(t *testing.T, provider responsesGatewayProvider) (http.
 					APIKind:      provider.apiKind,
 					Family:       adapt.FamilyOpenAIResponses,
 					Client:       client,
-					Capabilities: router.CapabilitySet{Streaming: true, Tools: true},
+					Capabilities: router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true},
 				},
 			}),
 		},

@@ -391,7 +391,10 @@ func (s *streamState) push(ev unified.Event) []Response {
 	case unified.TextDeltaEvent:
 		return []Response{streamChunk(s.id, s.model, s.created, Choice{Index: 0, Delta: &ResponseDelta{Content: e.Text}})}
 	case unified.ReasoningDeltaEvent:
-		return []Response{streamChunk(s.id, s.model, s.created, Choice{Index: 0, Delta: &ResponseDelta{ReasoningDetails: []ReasoningDetail{{Type: "text", Text: e.Text}}}})}
+		if e.Text == "" && e.Signature == "" {
+			return nil
+		}
+		return []Response{streamChunk(s.id, s.model, s.created, Choice{Index: 0, Delta: &ResponseDelta{ReasoningDetails: []ReasoningDetail{{Type: "text", Text: e.Text, Signature: e.Signature}}}})}
 	case unified.ToolCallStartEvent:
 		return []Response{streamChunk(s.id, s.model, s.created, Choice{Index: 0, Delta: &ResponseDelta{ToolCalls: []ToolCall{{ID: e.ID, Type: "function", Function: ToolCallFunction{Name: e.Name}}}}})}
 	case unified.ToolCallArgsDeltaEvent:
@@ -426,7 +429,7 @@ func responseFromUnified(resp unified.Response) Response {
 		case unified.TextPart:
 			content.WriteString(text.Text)
 		case unified.ReasoningPart:
-			reasoning = append(reasoning, ReasoningDetail{Type: "text", Text: text.Text})
+			reasoning = append(reasoning, ReasoningDetail{Type: "text", Text: text.Text, Signature: text.Signature})
 		}
 	}
 	toolCalls := make([]ToolCall, 0, len(resp.ToolCalls))

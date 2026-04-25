@@ -287,6 +287,11 @@ func encodeContentPart(req *adapt.Request, part unified.ContentPart) (ContentBlo
 			return ContentBlock{}, nil
 		}
 		return ContentBlock{Type: "image", Source: &src}, nil
+	case unified.ReasoningPart:
+		if p.Text == "" && p.Signature == "" {
+			return ContentBlock{}, nil
+		}
+		return ContentBlock{Type: "thinking", Thinking: p.Text, Signature: p.Signature}, nil
 	default:
 		if err := unsupported(req, "content", true); err != nil {
 			return ContentBlock{}, err

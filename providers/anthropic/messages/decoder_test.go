@@ -73,6 +73,35 @@ func TestEventDecoderErrorEvent(t *testing.T) {
 	}
 }
 
+func TestEventDecoderReasoningSignature(t *testing.T) {
+	dec := NewEventDecoder()
+	input := []Event{
+		ContentBlockStartEvent{Index: 0, ContentBlock: ContentBlock{Type: "thinking"}},
+		ContentBlockDeltaEvent{Index: 0, Delta: Delta{Type: "thinking_delta", Thinking: "think"}},
+		ContentBlockDeltaEvent{Index: 0, Delta: Delta{Type: "signature_delta", Signature: "sig"}},
+		ContentBlockStopEvent{Index: 0},
+	}
+	var out []unified.Event
+	for _, ev := range input {
+		got, err := dec.Push(context.Background(), ev)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, got...)
+	}
+	resp, err := unified.Collect(context.Background(), sliceEvents(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Content) != 1 {
+		t.Fatalf("content = %+v", resp.Content)
+	}
+	part, ok := resp.Content[0].(unified.ReasoningPart)
+	if !ok || part.Text != "think" || part.Signature != "sig" {
+		t.Fatalf("reasoning = %+v", resp.Content[0])
+	}
+}
+
 func sliceEvents(events []unified.Event) <-chan unified.Event {
 	ch := make(chan unified.Event, len(events))
 	for _, ev := range events {

@@ -21,6 +21,7 @@ func Collect(ctx context.Context, events <-chan Event) (Response, error) {
 	var resp Response
 	texts := map[int]*bytes.Buffer{}
 	reasoning := map[int]*bytes.Buffer{}
+	reasoningSignatures := map[int]*bytes.Buffer{}
 	refusals := map[int]*bytes.Buffer{}
 	kinds := map[int]ContentKind{}
 	toolIndexes := map[int]int{}
@@ -33,8 +34,17 @@ func Collect(ctx context.Context, events <-chan Event) (Response, error) {
 				resp.Content = append(resp.Content, TextPart{Text: b.String()})
 			}
 		case ContentKindReasoning:
-			if b := reasoning[index]; b != nil && b.Len() > 0 {
-				resp.Content = append(resp.Content, ReasoningPart{Text: b.String()})
+			b := reasoning[index]
+			sig := reasoningSignatures[index]
+			if (b != nil && b.Len() > 0) || (sig != nil && sig.Len() > 0) {
+				part := ReasoningPart{}
+				if b != nil {
+					part.Text = b.String()
+				}
+				if sig != nil {
+					part.Signature = sig.String()
+				}
+				resp.Content = append(resp.Content, part)
 			}
 		case ContentKindRefusal:
 			if b := refusals[index]; b != nil && b.Len() > 0 {
@@ -43,6 +53,7 @@ func Collect(ctx context.Context, events <-chan Event) (Response, error) {
 		}
 		delete(texts, index)
 		delete(reasoning, index)
+		delete(reasoningSignatures, index)
 		delete(refusals, index)
 		delete(kinds, index)
 	}
@@ -70,6 +81,7 @@ func Collect(ctx context.Context, events <-chan Event) (Response, error) {
 				}
 				if e.Kind == ContentKindReasoning {
 					reasoning[e.Index] = &bytes.Buffer{}
+					reasoningSignatures[e.Index] = &bytes.Buffer{}
 				}
 				if e.Kind == ContentKindRefusal {
 					refusals[e.Index] = &bytes.Buffer{}
@@ -87,7 +99,11 @@ func Collect(ctx context.Context, events <-chan Event) (Response, error) {
 					reasoning[e.Index] = &bytes.Buffer{}
 					kinds[e.Index] = ContentKindReasoning
 				}
+				if reasoningSignatures[e.Index] == nil {
+					reasoningSignatures[e.Index] = &bytes.Buffer{}
+				}
 				reasoning[e.Index].WriteString(e.Text)
+				reasoningSignatures[e.Index].WriteString(e.Signature)
 			case RefusalDeltaEvent:
 				if refusals[e.Index] == nil {
 					refusals[e.Index] = &bytes.Buffer{}

@@ -31,6 +31,18 @@ func TestAnthropicFamilyDescriptorsAdvertiseReasoning(t *testing.T) {
 	}
 }
 
+func TestResponsesDescriptorsAdvertiseReasoning(t *testing.T) {
+	for _, providerType := range []string{"openai_responses", "openrouter_responses", "codex_responses"} {
+		descriptor, ok := Lookup(providerType)
+		if !ok {
+			t.Fatalf("missing descriptor %q", providerType)
+		}
+		if !descriptor.Capabilities.Reasoning {
+			t.Fatalf("%s should advertise reasoning: %+v", providerType, descriptor.Capabilities)
+		}
+	}
+}
+
 func TestAnthropicCacheControlDescriptorsAdvertisePromptCaching(t *testing.T) {
 	for _, providerType := range []string{"anthropic", "claude", "openrouter_messages", "minimax_messages"} {
 		descriptor, ok := Lookup(providerType)
@@ -44,7 +56,7 @@ func TestAnthropicCacheControlDescriptorsAdvertisePromptCaching(t *testing.T) {
 }
 
 func TestResponsesCacheKeyDescriptorsAdvertisePromptCaching(t *testing.T) {
-	for _, providerType := range []string{"codex_responses"} {
+	for _, providerType := range []string{"openai_responses", "openrouter_responses", "codex_responses"} {
 		descriptor, ok := Lookup(providerType)
 		if !ok {
 			t.Fatalf("missing descriptor %q", providerType)

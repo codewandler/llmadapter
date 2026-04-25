@@ -64,7 +64,11 @@ func (d *EventDecoder) contentBlockStart(e ContentBlockStartEvent) []unified.Eve
 	case "text":
 		return []unified.Event{unified.ContentBlockStartEvent{Index: e.Index, Kind: unified.ContentKindText}}
 	case "thinking":
-		return []unified.Event{unified.ContentBlockStartEvent{Index: e.Index, Kind: unified.ContentKindReasoning}}
+		out := []unified.Event{unified.ContentBlockStartEvent{Index: e.Index, Kind: unified.ContentKindReasoning}}
+		if block.Thinking != "" || block.Signature != "" {
+			out = append(out, unified.ReasoningDeltaEvent{Index: e.Index, Text: block.Thinking, Signature: block.Signature})
+		}
+		return out
 	case "tool_use":
 		d.toolIDs[e.Index] = block.ID
 		d.toolNames[e.Index] = block.Name
@@ -95,7 +99,7 @@ func (d *EventDecoder) contentBlockDelta(e ContentBlockDeltaEvent) ([]unified.Ev
 	case "thinking_delta":
 		return []unified.Event{unified.ReasoningDeltaEvent{Index: e.Index, Text: e.Delta.Thinking}}, nil
 	case "signature_delta":
-		return nil, nil
+		return []unified.Event{unified.ReasoningDeltaEvent{Index: e.Index, Signature: e.Delta.Signature}}, nil
 	default:
 		return nil, fmt.Errorf("unsupported Anthropic content block delta type %q", e.Delta.Type)
 	}

@@ -48,3 +48,24 @@ func TestCollectTextToolUsageAndError(t *testing.T) {
 		t.Fatalf("Collect err = %v, want %v", err, want)
 	}
 }
+
+func TestCollectReasoningSignature(t *testing.T) {
+	ch := make(chan Event, 5)
+	ch <- ContentBlockStartEvent{Index: 0, Kind: ContentKindReasoning}
+	ch <- ReasoningDeltaEvent{Index: 0, Text: "think"}
+	ch <- ReasoningDeltaEvent{Index: 0, Signature: "sig"}
+	ch <- ContentBlockDoneEvent{Index: 0, Kind: ContentKindReasoning}
+	close(ch)
+
+	resp, err := Collect(context.Background(), ch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Content) != 1 {
+		t.Fatalf("content = %+v", resp.Content)
+	}
+	part, ok := resp.Content[0].(ReasoningPart)
+	if !ok || part.Text != "think" || part.Signature != "sig" {
+		t.Fatalf("reasoning = %+v", resp.Content[0])
+	}
+}

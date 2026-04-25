@@ -167,6 +167,34 @@ func TestCodecEncodeReasoningThinking(t *testing.T) {
 	}
 }
 
+func TestCodecEncodeAssistantReasoningSignature(t *testing.T) {
+	maxTokens := 128
+	req := adapt.Request{Unified: unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role: unified.RoleAssistant,
+			Content: []unified.ContentPart{
+				unified.ReasoningPart{Text: "think", Signature: "sig"},
+				unified.TextPart{Text: "answer"},
+			},
+		}},
+		Stream: true,
+	}}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.Messages) != 1 || len(wire.Messages[0].Content) != 2 {
+		t.Fatalf("messages = %+v", wire.Messages)
+	}
+	block := wire.Messages[0].Content[0]
+	if block.Type != "thinking" || block.Thinking != "think" || block.Signature != "sig" {
+		t.Fatalf("thinking block = %+v", block)
+	}
+}
+
 func TestCodecStrictUnsupported(t *testing.T) {
 	maxTokens := 128
 	seed := int64(1)

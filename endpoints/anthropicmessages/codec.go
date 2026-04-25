@@ -161,7 +161,7 @@ func decodeSystemContent(blocks []anthropic.ContentBlock) []unified.ContentPart 
 		case "text":
 			out = append(out, unified.TextPart{Text: block.Text, CacheControl: decodeCacheControl(block.Cache)})
 		case "thinking":
-			out = append(out, unified.ReasoningPart{Text: block.Thinking})
+			out = append(out, unified.ReasoningPart{Text: block.Thinking, Signature: block.Signature})
 		}
 	}
 	return out
@@ -178,7 +178,7 @@ func decodeMessage(msg anthropic.InputMessage, field string) ([]unified.Message,
 		case "text":
 			content = append(content, unified.TextPart{Text: block.Text, CacheControl: decodeCacheControl(block.Cache)})
 		case "thinking":
-			content = append(content, unified.ReasoningPart{Text: block.Thinking})
+			content = append(content, unified.ReasoningPart{Text: block.Thinking, Signature: block.Signature})
 		case "image":
 			if block.Source == nil {
 				warnings = append(warnings, decodeWarning(blockField+".source", "empty image source was dropped"))
@@ -310,7 +310,7 @@ func contentBlocksFromResponse(resp unified.Response) []anthropic.ContentBlock {
 		case unified.TextPart:
 			blocks = append(blocks, anthropic.ContentBlock{Type: "text", Text: p.Text})
 		case unified.ReasoningPart:
-			blocks = append(blocks, anthropic.ContentBlock{Type: "thinking", Thinking: p.Text})
+			blocks = append(blocks, anthropic.ContentBlock{Type: "thinking", Thinking: p.Text, Signature: p.Signature})
 		}
 	}
 	for _, call := range resp.ToolCalls {
@@ -444,11 +444,20 @@ func (s *streamState) push(ev unified.Event) []streamFrame {
 		return frames
 	case unified.ReasoningDeltaEvent:
 		frames := s.startBlock(e.Index, unified.ContentKindReasoning, "", "")
-		frames = append(frames, streamFrame{event: "content_block_delta", data: anthropic.ContentBlockDeltaEvent{
-			Type:  "content_block_delta",
-			Index: e.Index,
-			Delta: anthropic.Delta{Type: "thinking_delta", Thinking: e.Text},
-		}})
+		if e.Text != "" {
+			frames = append(frames, streamFrame{event: "content_block_delta", data: anthropic.ContentBlockDeltaEvent{
+				Type:  "content_block_delta",
+				Index: e.Index,
+				Delta: anthropic.Delta{Type: "thinking_delta", Thinking: e.Text},
+			}})
+		}
+		if e.Signature != "" {
+			frames = append(frames, streamFrame{event: "content_block_delta", data: anthropic.ContentBlockDeltaEvent{
+				Type:  "content_block_delta",
+				Index: e.Index,
+				Delta: anthropic.Delta{Type: "signature_delta", Signature: e.Signature},
+			}})
+		}
 		return frames
 	case unified.ToolCallStartEvent:
 		return s.startBlock(e.Index, unified.ContentKindToolCall, e.ID, e.Name)

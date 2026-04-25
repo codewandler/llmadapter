@@ -48,8 +48,9 @@ type TextDeltaEvent struct {
 func (TextDeltaEvent) isEvent() {}
 
 type ReasoningDeltaEvent struct {
-	Index int    `json:"index"`
-	Text  string `json:"text"`
+	Index     int    `json:"index"`
+	Text      string `json:"text,omitempty"`
+	Signature string `json:"signature,omitempty"`
 }
 
 func (ReasoningDeltaEvent) isEvent() {}

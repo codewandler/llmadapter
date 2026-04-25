@@ -63,6 +63,26 @@ func TestDecodeHTTPSystemCacheControl(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPReasoningSignature(t *testing.T) {
+	body := `{
+		"model":"claude-test",
+		"max_tokens":32,
+		"messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"think","signature":"sig"}]}]
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(req.Unified.Messages) != 1 || len(req.Unified.Messages[0].Content) != 1 {
+		t.Fatalf("messages = %+v", req.Unified.Messages)
+	}
+	part, ok := req.Unified.Messages[0].Content[0].(unified.ReasoningPart)
+	if !ok || part.Text != "think" || part.Signature != "sig" {
+		t.Fatalf("reasoning = %+v", req.Unified.Messages[0].Content[0])
+	}
+}
+
 func TestDecodeHTTPToolResult(t *testing.T) {
 	body := `{
 		"model":"claude-test",
@@ -206,6 +226,27 @@ func TestWriteEventsStreaming(t *testing.T) {
 	}
 	body := w.Body.String()
 	if !strings.Contains(body, "event: message_start") || !strings.Contains(body, `"text":"hello"`) || !strings.Contains(body, "event: message_stop") {
+		t.Fatalf("unexpected stream body: %s", body)
+	}
+}
+
+func TestWriteEventsReasoningSignature(t *testing.T) {
+	events := make(chan unified.Event, 8)
+	events <- unified.MessageStartEvent{ID: "msg", Model: "model"}
+	events <- unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindReasoning}
+	events <- unified.ReasoningDeltaEvent{Index: 0, Text: "think"}
+	events <- unified.ReasoningDeltaEvent{Index: 0, Signature: "sig"}
+	events <- unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindReasoning}
+	events <- unified.CompletedEvent{FinishReason: unified.FinishReasonStop}
+	close(events)
+
+	w := httptest.NewRecorder()
+	err := (Codec{}).WriteEvents(context.Background(), w, decodedReq(true), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"type":"thinking_delta","thinking":"think"`) || !strings.Contains(body, `"type":"signature_delta","signature":"sig"`) {
 		t.Fatalf("unexpected stream body: %s", body)
 	}
 }

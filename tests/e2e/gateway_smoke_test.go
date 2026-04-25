@@ -189,7 +189,7 @@ func gatewayProviders() []gatewayProvider {
 			name:            "codex_responses",
 			apiKind:         adapt.ApiCodexResponses,
 			family:          adapt.FamilyOpenAIResponses,
-			capabilities:    router.CapabilitySet{Streaming: true, Tools: true},
+			capabilities:    router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true, PromptCaching: true},
 			apiKeyEnv:       []string{codex.EnvAccessToken, codex.EnvOAuthToken},
 			localCodexOAuth: true,
 			modelEnv:        codex.EnvModel,

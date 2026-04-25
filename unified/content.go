@@ -54,7 +54,8 @@ type FilePart struct {
 func (FilePart) contentKind() ContentKind { return ContentKindFile }
 
 type ReasoningPart struct {
-	Text string `json:"text,omitempty"`
+	Text      string `json:"text,omitempty"`
+	Signature string `json:"signature,omitempty"`
 }
 
 func (ReasoningPart) contentKind() ContentKind { return ContentKindReasoning }

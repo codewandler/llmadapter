@@ -218,6 +218,8 @@ Malformed tool-call argument JSON from OpenAI Chat and OpenAI Responses inputs i
 
 OpenRouter-specific request controls are carried through `unified.Request.Extensions` using namespaced keys such as `openrouter.provider`, `openrouter.plugins`, `openrouter.debug`, `openrouter.trace`, and `openrouter.session_id`. The OpenRouter Chat, Responses, and Messages providers encode those extensions back into upstream request bodies.
 
+Reasoning is represented as canonical `ReasoningPart` content and `ReasoningDeltaEvent` stream events. Providers that expose signed thinking blocks, such as Anthropic-family APIs, preserve the signature on the canonical reasoning part/event so continuation requests can round-trip provider-required reasoning signatures. Providers that only expose hidden reasoning or summary text report what the upstream API makes available; raw private chain-of-thought is not synthesized.
+
 OpenAI Responses-compatible continuation and cache-key controls are also carried through extensions. `openai.responses.previous_response_id`, `openai.responses.store`, `openai.responses.prompt_cache_key`, and `openai.responses.prompt_cache_retention` are decoded by the `/v1/responses` endpoint and encoded by OpenAI/OpenRouter Responses providers without adding gateway/session state.
 
 Conversation/session state belongs above llmadapter, for example in `agentsdk`. llmadapter only exposes stateless request/event/provider primitives needed by those layers.
@@ -230,7 +232,7 @@ Built-in modeldb aliases are centralized in `adapterconfig.DefaultModelDBAliases
 
 Usage events use structured token/cost items as the canonical accounting surface. Endpoint codecs derive flat API-specific usage counters from token categories such as `input.new`, `input.cache_read`, `input.cache_write`, `output`, and `output.reasoning` where upstream usage details are available.
 
-Canonical requests can carry `CachePolicy`, `CacheKey`, and `CacheTTL` as provider-neutral prompt-cache intent. Responses-family providers use `CacheKey` as `prompt_cache_key` with best-effort retention, and Codex maps that key into Codex session/window headers. Anthropic-family providers, including OpenRouter Messages and MiniMax Messages, map `CachePolicy` to block-level `cache_control` on the last cacheable system/tool block; explicit `TextPart.CacheControl` hints are still encoded directly. The shared prompt-cache smoke verifies provider-reported cache write/read accounting for Anthropic, Claude Code-compatible access, Codex, and MiniMax Messages where credentials are available.
+Canonical requests can carry `CachePolicy`, `CacheKey`, and `CacheTTL` as provider-neutral prompt-cache intent. Responses-family providers use `CacheKey` as `prompt_cache_key` with best-effort retention, and Codex maps that key into Codex session/window headers. Anthropic-family providers, including OpenRouter Messages and MiniMax Messages, map `CachePolicy` to block-level `cache_control` on the last cacheable system/tool block; explicit `TextPart.CacheControl` hints are still encoded directly. The shared prompt-cache smoke verifies provider-reported cache write/read accounting for Anthropic-family entries and Codex where credentials are available.
 
 ## Prompt Caching
 
@@ -263,7 +265,7 @@ Provider mappings are best-effort:
 
 - Anthropic-family Messages providers encode explicit block/tool `CacheControl` as native `cache_control`; `CachePolicy` can also derive cache control for the last cacheable system/tool block.
 - OpenAI/OpenRouter Responses-style providers use `CacheKey` as `prompt_cache_key` with best-effort retention.
-- Codex maps `CacheKey` into Codex session/window cache headers.
+- Codex maps `CacheKey` into Codex session/window cache headers; live cache smoke uses a larger stable prefix and accepts that Codex may report cache read only on follow-up requests.
 - `CachePolicyOff` disables llmadapter's policy-derived cache mapping, but explicit provider extensions remain expert overrides.
 
 Session-level cache strategy belongs above llmadapter. Higher layers such as `agentsdk` should decide which conversation prefix is stable, derive stable cache keys, and attach explicit block controls before sending a stateless `unified.Request`.

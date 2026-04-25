@@ -94,6 +94,7 @@ type UsageWire struct {
 }
 
 type ReasoningDetail struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	Signature string `json:"signature,omitempty"`
 }
