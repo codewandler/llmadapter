@@ -121,6 +121,8 @@ Model resolution is centralized in `adapterconfig`. CLI diagnostics, `llmadapter
 
 `pricing` enriches canonical usage events with modeldb-backed cost items.
 
+`compatibility` evaluates route candidates against workload profiles such as `agentic_coding` and `summarization`. It consumes candidates produced by `adapterconfig`; it does not perform a separate modeldb lookup or instantiate providers.
+
 Modeldb is metadata and pricing input. It must not secretly instantiate providers or own credentials.
 
 ## Dependency Diagram
@@ -143,6 +145,7 @@ flowchart TB
   Config --> Mux[muxclient]
   Config --> Pricing[pricing]
   Config --> Meta[modelmeta]
+  Config --> Compat[compatibility]
   Config --> ModelDB[github.com/codewandler/modeldb]
 
   Mux --> Router

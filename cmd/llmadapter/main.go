@@ -13,6 +13,7 @@ import (
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/adapterconfig"
+	"github.com/codewandler/llmadapter/compatibility"
 	"github.com/codewandler/llmadapter/gatewayserver"
 	"github.com/codewandler/llmadapter/muxclient"
 	"github.com/codewandler/llmadapter/providerregistry"
@@ -50,6 +51,7 @@ func newRootCommand(out, errOut io.Writer) *cobra.Command {
 	cmd.AddCommand(newRoutesCommand())
 	cmd.AddCommand(newModelsCommand())
 	cmd.AddCommand(newResolveCommand())
+	cmd.AddCommand(newCompatibilityCommand())
 	cmd.AddCommand(newServeCommand())
 	cmd.AddCommand(newSmokeCommand())
 	cmd.AddCommand(newInferCommand())
@@ -187,6 +189,7 @@ func newModelsCommand() *cobra.Command {
 func newResolveCommand() *cobra.Command {
 	var configPath string
 	var sourceAPI string
+	var useCase string
 	var jsonOut bool
 	cmd := &cobra.Command{
 		Use:   "resolve <model>",
@@ -196,6 +199,21 @@ func newResolveCommand() *cobra.Command {
 			cfg, err := loadResolveConfig(configPath, adapt.ApiKind(sourceAPI), args[0])
 			if err != nil {
 				return err
+			}
+			if useCase != "" {
+				evaluations, err := resolveCompatibilityEvaluations(cfg, args[0], adapt.ApiKind(sourceAPI), compatibility.UseCase(useCase))
+				if err != nil {
+					return err
+				}
+				if jsonOut {
+					return writeJSON(cmd.OutOrStdout(), map[string]any{
+						"input":       args[0],
+						"use_case":    useCase,
+						"evaluations": evaluations,
+					})
+				}
+				printCompatibilityEvaluations(cmd.OutOrStdout(), evaluations)
+				return nil
 			}
 			if sourceAPI == "" {
 				resolutions, err := resolveModelCandidates(cfg, args[0])
@@ -224,7 +242,49 @@ func newResolveCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&configPath, "config", "", "llmadapter JSON config path; defaults to auto-detected env/local credentials")
 	cmd.Flags().StringVar(&sourceAPI, "source-api", "", "source API to resolve; omit for candidates across all source APIs")
+	cmd.Flags().StringVar(&useCase, "use-case", "", "annotate candidates for use case: agentic_coding or summarization")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print resolution as JSON")
+	return cmd
+}
+
+func newCompatibilityCommand() *cobra.Command {
+	var configPath string
+	var sourceAPI string
+	var model string
+	var useCase string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "compatibility",
+		Short: "Evaluate route candidates for a workload use case",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			parsedUseCase, err := compatibility.ParseUseCase(useCase)
+			if err != nil {
+				return err
+			}
+			cfg, err := loadCompatibilityConfig(configPath, adapt.ApiKind(sourceAPI), model)
+			if err != nil {
+				return err
+			}
+			evaluations, err := compatibilityEvaluations(cfg, model, adapt.ApiKind(sourceAPI), parsedUseCase)
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return writeJSON(cmd.OutOrStdout(), map[string]any{
+					"use_case":    parsedUseCase,
+					"model":       model,
+					"evaluations": evaluations,
+				})
+			}
+			printCompatibilityEvaluations(cmd.OutOrStdout(), evaluations)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "llmadapter JSON config path; defaults to auto-detected env/local credentials")
+	cmd.Flags().StringVar(&sourceAPI, "source-api", "", "source API to evaluate")
+	cmd.Flags().StringVarP(&model, "model", "m", "", "model alias or provider-native model to evaluate")
+	cmd.Flags().StringVar(&useCase, "use-case", string(compatibility.UseCaseAgenticCoding), "use case: agentic_coding or summarization")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "print compatibility result as JSON")
 	return cmd
 }
 
@@ -645,6 +705,13 @@ func loadResolveConfig(path string, sourceAPI adapt.ApiKind, model string) (adap
 	return result.Config, err
 }
 
+func loadCompatibilityConfig(path string, sourceAPI adapt.ApiKind, model string) (adapterconfig.Config, error) {
+	if model != "" {
+		return loadResolveConfig(path, sourceAPI, model)
+	}
+	return loadCLIConfig(path, sourceAPI)
+}
+
 func loadServeConfig(path string, addr string) (adapterconfig.Config, error) {
 	var (
 		cfg adapterconfig.Config
@@ -715,6 +782,128 @@ func modelInfos(cfg adapterconfig.Config, sourceAPI adapt.ApiKind, query string)
 		out = append(out, info)
 	}
 	return out
+}
+
+func compatibilityEvaluations(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKind, useCase compatibility.UseCase) ([]compatibility.Evaluation, error) {
+	profile, ok := compatibility.BuiltinProfile(useCase)
+	if !ok {
+		return nil, fmt.Errorf("unknown use case %q", useCase)
+	}
+	if model != "" {
+		return resolveCompatibilityEvaluations(cfg, model, sourceAPI, useCase)
+	}
+	models := modelInfos(cfg, sourceAPI, "")
+	evaluations := make([]compatibility.Evaluation, 0, len(models))
+	seen := map[string]bool{}
+	for _, info := range models {
+		modelName := info.Model
+		if modelName == "" {
+			modelName = info.NativeModel
+		}
+		if modelName == "" {
+			continue
+		}
+		key := string(info.SourceAPI) + "\x00" + modelName
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		candidates, err := adapterconfig.CompatibilityCandidates(cfg, modelName, info.SourceAPI)
+		if err != nil {
+			return nil, err
+		}
+		evaluations = append(evaluations, compatibility.EvaluateMany(candidates, profile)...)
+	}
+	return evaluations, nil
+}
+
+func resolveCompatibilityEvaluations(cfg adapterconfig.Config, model string, sourceAPI adapt.ApiKind, useCase compatibility.UseCase) ([]compatibility.Evaluation, error) {
+	profile, ok := compatibility.BuiltinProfile(useCase)
+	if !ok {
+		return nil, fmt.Errorf("unknown use case %q", useCase)
+	}
+	candidates, err := adapterconfig.CompatibilityCandidates(cfg, model, sourceAPI)
+	if err != nil {
+		return nil, err
+	}
+	return compatibility.EvaluateMany(candidates, profile), nil
+}
+
+func printCompatibilityEvaluations(w io.Writer, evaluations []compatibility.Evaluation) {
+	if len(evaluations) == 0 {
+		fmt.Fprintln(w, "No compatibility candidates")
+		return
+	}
+	if len(evaluations) == 1 {
+		printCompatibilityEvaluation(w, evaluations[0])
+		return
+	}
+	fmt.Fprintf(w, "Matches: %d candidates\n", len(evaluations))
+	for i, evaluation := range evaluations {
+		candidate := evaluation.Candidate
+		fmt.Fprintf(w, "\n[%.2d] status=%s provider=%s type=%s source=%s api=%s model=%s native=%s\n",
+			i+1,
+			evaluation.Status,
+			candidate.Provider,
+			candidate.ProviderType,
+			candidate.SourceAPI,
+			candidate.ProviderAPI,
+			candidate.PublicModel,
+			candidate.NativeModel,
+		)
+		printCompatibilityEvaluation(w, evaluation)
+	}
+}
+
+func printCompatibilityEvaluation(w io.Writer, evaluation compatibility.Evaluation) {
+	candidate := evaluation.Candidate
+	fmt.Fprintf(w, "Use case:     %s\n", evaluation.UseCase)
+	fmt.Fprintf(w, "Status:       %s\n", evaluation.Status)
+	fmt.Fprintf(w, "Input:        %s\n", candidate.Input)
+	fmt.Fprintf(w, "Source API:   %s\n", candidate.SourceAPI)
+	fmt.Fprintf(w, "Public model: %s\n", candidate.PublicModel)
+	fmt.Fprintf(w, "Native model: %s\n", candidate.NativeModel)
+	fmt.Fprintf(w, "Provider:     %s\n", candidate.Provider)
+	fmt.Fprintf(w, "Provider type: %s\n", candidate.ProviderType)
+	fmt.Fprintf(w, "Provider API: %s\n", candidate.ProviderAPI)
+	fmt.Fprintf(w, "Family:       %s\n", candidate.Family)
+	if candidate.ModelDBService != "" {
+		fmt.Fprintf(w, "ModelDB svc:  %s\n", candidate.ModelDBService)
+	}
+	if candidate.CapabilitySource != "" {
+		fmt.Fprintf(w, "Capability source: %s\n", candidate.CapabilitySource)
+	}
+	if len(evaluation.MissingRequired) > 0 {
+		fmt.Fprintf(w, "Missing required: %s\n", joinFeatures(evaluation.MissingRequired))
+	}
+	if len(evaluation.UntestedRequired) > 0 {
+		fmt.Fprintf(w, "Untested required: %s\n", joinFeatures(evaluation.UntestedRequired))
+	}
+	if len(evaluation.DegradedPreferred) > 0 {
+		fmt.Fprintf(w, "Degraded preferred: %s\n", joinFeatures(evaluation.DegradedPreferred))
+	}
+	fmt.Fprintln(w, "Features:")
+	for _, feature := range evaluation.Features {
+		fmt.Fprintf(w, "  %s: requirement=%s supported=%t evidence=%s",
+			feature.Feature,
+			feature.Requirement,
+			feature.Supported,
+			feature.Evidence,
+		)
+		if feature.Detail != "" {
+			fmt.Fprintf(w, " detail=%q", feature.Detail)
+		}
+		fmt.Fprintln(w)
+	}
+}
+
+func joinFeatures(features []compatibility.Feature) string {
+	out := make([]string, 0, len(features))
+	for _, feature := range features {
+		out = append(out, string(feature))
+	}
+	sort.Strings(out)
+	return strings.Join(out, ",")
 }
 
 func loadCLICatalog(configPath string) (modeldb.Catalog, error) {

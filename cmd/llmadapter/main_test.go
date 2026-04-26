@@ -208,6 +208,65 @@ func TestResolveCommandShowsRankedCandidates(t *testing.T) {
 	}
 }
 
+func TestResolveCommandAnnotatesUseCase(t *testing.T) {
+	path := writeTestResolveCandidateConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"resolve", "haiku", "--config", path, "--use-case", "agentic_coding"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"Use case:     agentic_coding",
+		"Status:       degraded",
+		"Provider type: claude",
+		"Degraded preferred: cache_accounting",
+		"structured_output: requirement=required supported=true",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestCompatibilityCommandWithConfig(t *testing.T) {
+	path := writeTestResolveCandidateConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"compatibility", "--config", path, "--model", "haiku", "--use-case", "agentic_coding"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"Matches: 3 candidates",
+		"status=degraded provider=claude type=claude",
+		"provider=openrouter type=openrouter_responses",
+		"prompt_caching: requirement=required supported=true",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestCompatibilityCommandJSON(t *testing.T) {
+	path := writeTestResolveCandidateConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"compatibility", "--config", path, "--model", "haiku", "--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{`"use_case": "agentic_coding"`, `"status": "degraded"`, `"provider_type": "claude"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestResolveInferModelUsesBestCandidateWhenSourceAPIOmitted(t *testing.T) {
 	cfg := readTestConfig(t, writeTestResolveCandidateConfig(t))
 	resolution, err := resolveInferModel(cfg, "haiku", "")

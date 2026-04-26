@@ -2,6 +2,8 @@
 
 This matrix is the v1 supported provider endpoint surface. It describes what llmadapter routes and smoke-tests today; it is not a promise that every upstream provider-specific field is implemented.
 
+This is endpoint evidence, not workload approval. For agentic-coding suitability, see `docs/USE_CASE_MATRIX.md`.
+
 Legend:
 
 - `live`: covered by `TEST_INTEGRATION=1` smoke tests when credentials are available.

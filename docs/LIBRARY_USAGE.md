@@ -51,6 +51,36 @@ Useful options:
 - `Intents`: add routes for specific model names.
 - `ModelDBAliases`: inject or override aliases from the host application.
 
+## Workload Compatibility
+
+Use `adapterconfig` plus `compatibility` when a host application needs to list candidates suitable for a workload such as agentic coding:
+
+```go
+evaluations, err := adapterconfig.EvaluateCompatibilityCandidates(
+	result.Config,
+	"haiku",
+	"",
+	compatibility.UseCaseAgenticCoding,
+)
+if err != nil {
+	return err
+}
+```
+
+To return only approved candidates, or optionally include degraded candidates:
+
+```go
+candidates, err := adapterconfig.CompatibleCandidates(
+	result.Config,
+	"haiku",
+	"",
+	compatibility.UseCaseAgenticCoding,
+	true,
+)
+```
+
+This API consumes the same modeldb-backed route candidates used by the mux client and gateway. It does not perform a separate model lookup or live provider call.
+
 ## Config-Driven Mux Client
 
 Load JSON config and build a client:

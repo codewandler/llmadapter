@@ -12,6 +12,7 @@ These packages are the primary v1 surface for library consumers:
 - `router`: provider endpoint metadata, route definitions, capability checks, model resolution hooks, and deterministic candidate ranking.
 - `providerregistry`: provider endpoint descriptors and descriptor-backed client construction.
 - `gatewayserver`: shared HTTP server wiring used by `llmadapter serve` and `cmd/llmadapter-gateway`.
+- `compatibility`: workload profile definitions and candidate evaluation for use cases such as agentic coding.
 
 ## Extension Packages
 
@@ -48,5 +49,6 @@ No exported renames are required from the current surface before v1.0.0 promotio
 
 - Provider identity is `ProviderName`/configured provider instance plus provider `Type`; OpenRouter, MiniMax, Claude, and Codex endpoint variants are modeled as provider endpoint types with concrete API kinds/families.
 - Model resolution lives in `adapterconfig` and modeldb overlays; CLI, gateway, mux, and auto construction use that path.
+- Workload compatibility consumes adapterconfig candidates; it does not add another model resolver.
 - Gateway/mux fallback mechanics share `internal/routeattempt`, while HTTP response-start behavior remains in `gateway`.
 - Prompt-cache primitives are request-level intent plus explicit block controls; conversation-level cache policy belongs above llmadapter.

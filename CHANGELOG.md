@@ -10,6 +10,16 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.3] - 2026-04-26
+
+### Added
+
+- Added a `compatibility` package for workload profiles, feature evidence, and candidate evaluation.
+- Added `adapterconfig` compatibility helpers so library consumers can evaluate or filter existing model-resolution candidates by use case.
+- Added `llmadapter compatibility` plus `llmadapter resolve --use-case` to inspect agentic-coding and summarization suitability from the same adapterconfig/modeldb resolution path.
+- Added `docs/USE_CASE_MATRIX.md` and an implementation plan for live use-case compatibility certification.
+- Added live `TestUseCaseAgenticCoding` e2e coverage and recorded the first agentic-coding compatibility evidence artifact.
+
 ## [1.0.0-rc.2] - 2026-04-26
 
 ### Added

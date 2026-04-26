@@ -23,6 +23,7 @@ go build -o llmadapter ./cmd/llmadapter
 | `routes` | List configured or auto-detected routes. |
 | `models` | List route models or modeldb catalog models. |
 | `resolve` | Explain how a model routes to a provider endpoint. |
+| `compatibility` | Evaluate route candidates for a workload use case. |
 | `infer` | Send a prompt through the mux client and stream output. |
 | `serve` | Run the HTTP compatibility gateway. |
 | `smoke` | Run minimal direct, mux, config, or auto provider smoke calls. |
@@ -131,6 +132,39 @@ Use JSON for automation:
 ```sh
 go run ./cmd/llmadapter resolve haiku --json
 ```
+
+Annotate route candidates for a workload:
+
+```sh
+go run ./cmd/llmadapter resolve haiku --use-case agentic_coding
+```
+
+## compatibility
+
+Evaluate whether configured or auto-detected route candidates satisfy a workload profile:
+
+```sh
+go run ./cmd/llmadapter compatibility --use-case agentic_coding --model haiku
+```
+
+Use a config:
+
+```sh
+go run ./cmd/llmadapter compatibility --config examples/llmadapter.example.json --model fast
+```
+
+Use JSON for downstream tools:
+
+```sh
+go run ./cmd/llmadapter compatibility --use-case agentic_coding --model haiku --json
+```
+
+Initial use cases:
+
+- `agentic_coding`: requires streaming text, tools, tool continuation, structured output, reasoning, prompt caching, and usage; prefers cache accounting and pricing.
+- `summarization`: requires streaming text and usage; tools, reasoning, prompt caching, cache accounting, pricing, and gateway support are optional.
+
+Compatibility output is offline inspection. It uses provider descriptors, config/modeldb capability provenance, and existing route resolution. Live workload-specific approval is tracked separately in the use-case matrix.
 
 ## infer
 
