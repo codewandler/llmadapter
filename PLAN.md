@@ -10,7 +10,7 @@ Primary goal: keep the adapter buildable and incrementally useful while hardenin
 
 Status date: 2026-04-26.
 
-`v1.0.0-rc.3` has been cut. The current remaining v1 work is release-candidate validation, use-case compatibility certification, and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
+`v1.0.0-rc.4` has been cut. The current remaining v1 work is release-candidate validation, approved use-case selection hardening, and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
 
 Highest-priority post-rc work:
 
@@ -116,6 +116,7 @@ V1 phase 8 release-candidate slice: CHANGELOG documents the v1 stable surface, s
 Use-case compatibility foundation slice: `compatibility` defines workload profiles and feature evidence, `adapterconfig` converts existing model-resolution candidates into compatibility candidates and exposes compatibility filtering helpers, `llmadapter compatibility` and `resolve --use-case` expose offline use-case inspection, and docs now split endpoint evidence from workload suitability
 Use-case compatibility live slice: `tests/e2e/TestUseCaseAgenticCoding` verifies promoted OpenAI, Codex, OpenRouter, Claude, Anthropic, MiniMax, and Moonshot Kimi through OpenRouter rows for streaming text, tools, tool continuation, structured output, reasoning, prompt caching, and usage; `docs/compatibility/agentic_coding.json` records the latest live result
 Agentic cache-accounting slice: `agentic_coding` now requires provider-reported cache read/write token accounting, OpenRouter Responses decodes both Responses-style and Chat/Completions-style cache usage details, and the latest live matrix approves every promoted row with cache-accounting evidence
+Runtime-view selection slice: configured provider instances are projected into modeldb runtime views, compatibility evidence artifacts can be loaded by consumers, `adapterconfig.SelectModelForUseCase` and `AutoResult.SelectModelForUseCase` fail closed unless a provider/API/native model row is approved, and `llmadapter resolve --use-case ... --approved-only` exposes the same strict selection path
 ```
 
 Verified:

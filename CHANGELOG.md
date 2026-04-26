@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.5] - 2026-04-26
+
+### Added
+
+- Added modeldb runtime-view based use-case selection APIs for consumers that need approved provider/model/API choices.
+- Added compatibility evidence loading and `llmadapter resolve --approved-only` for strict workload-approved model resolution.
+
 ## [1.0.0-rc.4] - 2026-04-26
 
 ### Added

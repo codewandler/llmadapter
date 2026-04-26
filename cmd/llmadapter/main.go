@@ -190,6 +190,8 @@ func newResolveCommand() *cobra.Command {
 	var configPath string
 	var sourceAPI string
 	var useCase string
+	var approvedOnly bool
+	var evidencePath string
 	var jsonOut bool
 	cmd := &cobra.Command{
 		Use:   "resolve <model>",
@@ -201,6 +203,33 @@ func newResolveCommand() *cobra.Command {
 				return err
 			}
 			if useCase != "" {
+				if approvedOnly {
+					parsedUseCase := compatibility.UseCase(useCase)
+					if evidencePath == "" {
+						evidencePath = adapterconfig.DefaultCompatibilityEvidencePath(parsedUseCase)
+					}
+					evidence, err := adapterconfig.LoadCompatibilityEvidence(evidencePath)
+					if err != nil {
+						return err
+					}
+					selections, err := adapterconfig.SelectModelsForUseCase(cfg, args[0], adapt.ApiKind(sourceAPI), adapterconfig.UseCaseSelectionOptions{
+						UseCase:  parsedUseCase,
+						Evidence: evidence,
+					})
+					if err != nil {
+						return err
+					}
+					if jsonOut {
+						return writeJSON(cmd.OutOrStdout(), map[string]any{
+							"input":      args[0],
+							"use_case":   useCase,
+							"evidence":   evidencePath,
+							"selections": selections,
+						})
+					}
+					printUseCaseSelections(cmd.OutOrStdout(), selections)
+					return nil
+				}
 				evaluations, err := resolveCompatibilityEvaluations(cfg, args[0], adapt.ApiKind(sourceAPI), compatibility.UseCase(useCase))
 				if err != nil {
 					return err
@@ -243,6 +272,8 @@ func newResolveCommand() *cobra.Command {
 	cmd.Flags().StringVar(&configPath, "config", "", "llmadapter JSON config path; defaults to auto-detected env/local credentials")
 	cmd.Flags().StringVar(&sourceAPI, "source-api", "", "source API to resolve; omit for candidates across all source APIs")
 	cmd.Flags().StringVar(&useCase, "use-case", "", "annotate candidates for use case: agentic_coding or summarization")
+	cmd.Flags().BoolVar(&approvedOnly, "approved-only", false, "with --use-case, return only candidates approved by compatibility evidence")
+	cmd.Flags().StringVar(&evidencePath, "compatibility-evidence", "", "compatibility evidence JSON path for --approved-only")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print resolution as JSON")
 	return cmd
 }
@@ -852,6 +883,29 @@ func printCompatibilityEvaluations(w io.Writer, evaluations []compatibility.Eval
 			candidate.NativeModel,
 		)
 		printCompatibilityEvaluation(w, evaluation)
+	}
+}
+
+func printUseCaseSelections(w io.Writer, selections []adapterconfig.UseCaseModelSelection) {
+	if len(selections) == 0 {
+		fmt.Fprintln(w, "No approved use-case selections")
+		return
+	}
+	if len(selections) > 1 {
+		fmt.Fprintf(w, "Approved matches: %d candidates\n", len(selections))
+	}
+	for i, selection := range selections {
+		if len(selections) > 1 {
+			fmt.Fprintf(w, "\n[%.2d] provider=%s api=%s native=%s status=%s\n",
+				i+1,
+				selection.Resolution.Provider,
+				selection.Resolution.ProviderAPI,
+				selection.Resolution.NativeModel,
+				selection.Evaluation.Status,
+			)
+		}
+		fmt.Fprintf(w, "Runtime ID:   %s\n", selection.RuntimeID)
+		printCompatibilityEvaluation(w, selection.Evaluation)
 	}
 }
 

@@ -230,6 +230,30 @@ func TestResolveCommandAnnotatesUseCase(t *testing.T) {
 	}
 }
 
+func TestResolveCommandApprovedOnlyUsesCompatibilityEvidence(t *testing.T) {
+	configPath, evidencePath := writeTestApprovedUseCaseConfig(t)
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"resolve", "haiku", "--config", configPath, "--use-case", "agentic_coding", "--approved-only", "--compatibility-evidence", evidencePath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"Runtime ID:   llmadapter-anthropic-messages-claude",
+		"Status:       approved",
+		"Provider:     claude",
+		"Native model: claude-haiku-test",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "Provider:     anthropic") {
+		t.Fatalf("unexpected unapproved candidate in output:\n%s", got)
+	}
+}
+
 func TestCompatibilityCommandWithConfig(t *testing.T) {
 	path := writeTestResolveCandidateConfig(t)
 	var out, errOut bytes.Buffer
@@ -610,4 +634,59 @@ func writeTestResolveCandidateConfig(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func writeTestApprovedUseCaseConfig(t *testing.T) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	catalogPath := filepath.Join(dir, "catalog.json")
+	key := modeldb.ModelKey{Creator: "anthropic", Family: "claude", Series: "haiku", Version: "test"}
+	catalog := modeldb.NewCatalog()
+	catalog.Services["anthropic"] = modeldb.Service{ID: "anthropic", Name: "Anthropic"}
+	catalog.Models[key] = modeldb.ModelRecord{Key: key, Name: "Claude Haiku Test", Aliases: []string{"haiku"}}
+	catalog.Offerings[modeldb.OfferingRef{ServiceID: "anthropic", WireModelID: "claude-haiku-test"}] = modeldb.Offering{
+		ServiceID:   "anthropic",
+		WireModelID: "claude-haiku-test",
+		ModelKey:    key,
+		Aliases:     []string{"haiku"},
+		Exposures: []modeldb.OfferingExposure{{
+			APIType: modeldb.APITypeAnthropicMessages,
+			ExposedCapabilities: &modeldb.Capabilities{
+				Streaming:        true,
+				ToolUse:          true,
+				StructuredOutput: true,
+				Reasoning:        &modeldb.ReasoningCapability{Available: true},
+				Caching:          &modeldb.CachingCapability{Available: true},
+			},
+		}},
+	}
+	if err := modeldb.SaveJSON(catalogPath, catalog); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(dir, "llmadapter.json")
+	config := `{
+		"modeldb":{"catalog_path":` + strconv.Quote(catalogPath) + `},
+		"providers":[
+			{"name":"claude","type":"claude","modeldb_service_id":"anthropic"},
+			{"name":"anthropic","type":"anthropic","api_key":"test","modeldb_service_id":"anthropic"}
+		],
+		"routes":[
+			{"source_api":"anthropic.messages","model":"haiku","provider":"claude","provider_api":"anthropic.messages","modeldb_model":"haiku","weight":100},
+			{"source_api":"anthropic.messages","model":"haiku","provider":"anthropic","provider_api":"anthropic.messages","modeldb_model":"haiku","weight":100}
+		]
+	}`
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	evidencePath := filepath.Join(dir, "agentic_coding.json")
+	evidence := `{
+		"use_case":"agentic_coding",
+		"rows":[
+			{"public_model":"haiku","native_model":"claude-haiku-test","provider":"claude","provider_api":"anthropic.messages","status":"approved","text":"live","tools":"live","tool_continuation":"live","structured_output":"live","reasoning":"live","prompt_caching":"live","usage":"live","cache_accounting":"live"}
+		]
+	}`
+	if err := os.WriteFile(evidencePath, []byte(evidence), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return configPath, evidencePath
 }

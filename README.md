@@ -98,6 +98,12 @@ Explain how a model will route:
 go run ./cmd/llmadapter resolve haiku
 ```
 
+Select only provider/model/API paths approved for agentic coding:
+
+```sh
+go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only
+```
+
 Run a config-driven gateway:
 
 ```sh

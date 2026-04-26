@@ -119,9 +119,11 @@ This matters for providers such as OpenRouter, MiniMax, Azure, Bedrock, Vertex, 
 
 Model resolution is centralized in `adapterconfig`. CLI diagnostics, `llmadapter infer`, auto route summaries, mux routing, and gateway routing use the same catalog-backed route/native-model decision. Modeldb is the source of truth for whether a model or alias exists when modeldb-backed routing is enabled; dynamic routes reject catalog-missing models instead of falling through to provider defaults. Config inspection and model resolution expose capability provenance as `provider_descriptor`, `config_override`, or `modeldb_exposure`.
 
+Provider instances are projected into modeldb runtime views for strict workload selection. In that path, modeldb `View` handles aliases, offerings, runtime access, and provider/service preference, while llmadapter compatibility evidence filters the view to provider/API/model rows that have passed the requested workload profile.
+
 `pricing` enriches canonical usage events with modeldb-backed cost items.
 
-`compatibility` evaluates route candidates against workload profiles such as `agentic_coding` and `summarization`. It consumes candidates produced by `adapterconfig`; it does not perform a separate modeldb lookup or instantiate providers.
+`compatibility` evaluates route candidates against workload profiles such as `agentic_coding` and `summarization`. It consumes candidates produced by `adapterconfig`; it does not perform a separate modeldb lookup or instantiate providers. Live compatibility artifacts are workload certification evidence, not model identity data; they are joined with modeldb runtime views when consumers request approved-only selection.
 
 Modeldb is metadata and pricing input. It must not secretly instantiate providers or own credentials.
 

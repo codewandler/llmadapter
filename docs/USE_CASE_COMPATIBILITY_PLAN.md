@@ -11,6 +11,7 @@ The answer must be derived from the existing llmadapter architecture:
 ```text
 modeldb catalog + overlays
   -> configured or auto-detected provider endpoints
+  -> modeldb runtime views for configured provider instances
   -> adapterconfig model resolution
   -> route capabilities and pricing metadata
   -> live/fixture compatibility evidence
@@ -26,7 +27,7 @@ Phases 1-3 are implemented for offline compatibility inspection.
 Phase 4 is implemented for agentic_coding through docs/compatibility/agentic_coding.json.
 Phase 5 live workload smoke tests are implemented for the first agentic_coding matrix.
 Phase 6 library filtering is implemented through adapterconfig compatibility helpers.
-Phase 7 optional workload-aware routing is still pending.
+Phase 7 strict workload-aware selection is implemented through modeldb runtime views plus live compatibility evidence.
 ```
 
 ## Definitions
@@ -53,7 +54,7 @@ Initial agentic-coding features:
 | `reasoning` | required |
 | `prompt_caching` | required |
 | `usage` | required |
-| `cache_accounting` | preferred |
+| `cache_accounting` | required |
 | `pricing` | preferred |
 | `gateway` | optional |
 
@@ -277,38 +278,37 @@ Release checkpoint:
 - Commit: `feat: expose use-case compatibility filters`
 - Release after changelog update.
 
-## Phase 7: Optional Routing Preference
+## Phase 7: Runtime-View Selection
 
-Goal: allow a caller to request workload-aware routing without making it implicit global behavior.
+Goal: allow a caller to request workload-aware model selection without making it implicit global routing behavior.
 
 Files:
 
-- `adapterconfig/config.go`
-- `adapterconfig/runtime.go`
-- `muxclient/muxclient.go`
-- `router/router.go`
-- `docs/CONFIGURATION.md`
+- `adapterconfig/compatibility_evidence.go`
+- `adapterconfig/usecase_selection.go`
+- `cmd/llmadapter/main.go`
+- `docs/CLI.md`
 - `docs/LIBRARY_USAGE.md`
 
 Steps:
 
-1. Add optional config field for route use-case preference.
-2. Add mux option for use-case preference.
-3. Keep provider-owned model preference from modeldb/overlays ahead of generic compatibility routes.
-4. Prefer approved candidates over degraded candidates.
-5. Reject failed candidates when the use case is explicitly required.
-6. Preserve current deterministic routing when no use case is provided.
-7. Add tests for `haiku` preferring `claude`, then `anthropic`, then OpenRouter when all are available.
+1. Load live compatibility evidence artifacts.
+2. Project configured provider instances into modeldb runtime views.
+3. Resolve aliases and offerings through modeldb `RuntimeView`.
+4. Join runtime-view candidates with compatibility evidence by provider instance, provider API, and native model.
+5. Fail closed by default unless a row is approved for the requested use case.
+6. Preserve current deterministic routing when no approved-only selection is requested.
+7. Add CLI inspection through `resolve --use-case ... --approved-only`.
 
 Done criteria:
 
-- `miniagent --model haiku` can opt into agentic-coding routing without hard-coding provider names.
-- Existing users that do not set a use case see unchanged routing.
-- `go test ./router ./muxclient ./adapterconfig` passes.
+- `agentsdk`/`miniagent` can ask llmadapter for an approved provider/model/API selection without hard-coding provider names.
+- Existing users that do not request approved-only selection see unchanged routing.
+- `go test ./adapterconfig ./cmd/llmadapter` passes.
 
 Release checkpoint:
 
-- Commit: `feat: support workload-aware routing`
+- Commit: `feat: select models by use-case evidence`
 - Release after changelog update.
 
 ## Phase 8: Documentation And V1 Gate

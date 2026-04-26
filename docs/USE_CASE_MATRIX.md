@@ -52,6 +52,14 @@ go run ./cmd/llmadapter compatibility --use-case agentic_coding --model haiku --
 
 The CLI uses the same `adapterconfig` and modeldb-backed candidate resolution as `resolve`, `infer`, gateway, and mux construction. It does not perform a separate model lookup.
 
+Strict approved-only selection is available through modeldb runtime views plus this live evidence artifact:
+
+```sh
+go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only
+```
+
+Library consumers can use `adapterconfig.SelectModelForUseCase` or `AutoResult.SelectModelForUseCase` with `LoadCompatibilityEvidence`. This fails closed unless a configured provider instance, API kind, and native model match an approved row.
+
 ## Initial Candidate Set
 
 These rows are covered by the live agentic-coding compatibility smoke test:

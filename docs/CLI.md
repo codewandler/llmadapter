@@ -139,6 +139,18 @@ Annotate route candidates for a workload:
 go run ./cmd/llmadapter resolve haiku --use-case agentic_coding
 ```
 
+Return only candidates approved by live compatibility evidence:
+
+```sh
+go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only
+```
+
+Use an explicit evidence artifact:
+
+```sh
+go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only --compatibility-evidence docs/compatibility/agentic_coding.json
+```
+
 ## compatibility
 
 Evaluate whether configured or auto-detected route candidates satisfy a workload profile:
@@ -161,10 +173,10 @@ go run ./cmd/llmadapter compatibility --use-case agentic_coding --model haiku --
 
 Initial use cases:
 
-- `agentic_coding`: requires streaming text, tools, tool continuation, structured output, reasoning, prompt caching, and usage; prefers cache accounting and pricing.
+- `agentic_coding`: requires streaming text, tools, tool continuation, structured output, reasoning, prompt caching, usage, and cache accounting; prefers pricing.
 - `summarization`: requires streaming text and usage; tools, reasoning, prompt caching, cache accounting, pricing, and gateway support are optional.
 
-Compatibility output is offline inspection. It uses provider descriptors, config/modeldb capability provenance, and existing route resolution. Live workload-specific approval is tracked separately in the use-case matrix.
+Compatibility output is offline inspection. It uses provider descriptors, config/modeldb capability provenance, and existing route resolution. `resolve --approved-only` joins that route resolution with modeldb runtime views and the live workload-specific evidence artifact.
 
 ## infer
 

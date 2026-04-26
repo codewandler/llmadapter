@@ -67,7 +67,7 @@ if err != nil {
 }
 ```
 
-To return only approved candidates, or optionally include degraded candidates:
+To return candidates whose offline capability evidence satisfies the profile:
 
 ```go
 candidates, err := adapterconfig.CompatibleCandidates(
@@ -80,6 +80,34 @@ candidates, err := adapterconfig.CompatibleCandidates(
 ```
 
 This API consumes the same modeldb-backed route candidates used by the mux client and gateway. It does not perform a separate model lookup or live provider call.
+
+For strict workload selection, load a live compatibility evidence artifact and select through modeldb runtime views. This is the path consumers such as `agentsdk` should use when they only want provider/model/API combinations that are approved for a workload:
+
+```go
+evidence, err := adapterconfig.LoadCompatibilityEvidence(
+	adapterconfig.DefaultCompatibilityEvidencePath(compatibility.UseCaseAgenticCoding),
+)
+if err != nil {
+	return err
+}
+
+selection, err := result.SelectModelForUseCase(
+	"haiku",
+	"",
+	adapterconfig.UseCaseSelectionOptions{
+		UseCase:  compatibility.UseCaseAgenticCoding,
+		Evidence: evidence,
+	},
+)
+if err != nil {
+	return err
+}
+
+// Use selection.Resolution.Provider, ProviderAPI, SourceAPI, and NativeModel
+// to show or pin the selected route.
+```
+
+Strict selection fails closed when no approved live evidence matches. Modeldb remains responsible for aliases, offerings, runtime access, pricing, and capability metadata; the compatibility artifact supplies workload certification.
 
 ## Config-Driven Mux Client
 
