@@ -46,7 +46,7 @@ func TestEvaluateFailsWhenRequiredUnsupported(t *testing.T) {
 	}
 }
 
-func TestEvaluateDegradesWhenPreferredUntested(t *testing.T) {
+func TestEvaluateFailsWhenCacheAccountingUntested(t *testing.T) {
 	candidate := Candidate{
 		ModelDBService: "anthropic",
 		Features: CandidateFeatures(router.CapabilitySet{
@@ -58,11 +58,11 @@ func TestEvaluateDegradesWhenPreferredUntested(t *testing.T) {
 	}
 
 	evaluation := Evaluate(candidate, AgenticCodingProfile())
-	if evaluation.Status != StatusDegraded {
-		t.Fatalf("status = %s, want %s", evaluation.Status, StatusDegraded)
+	if evaluation.Status != StatusUntested {
+		t.Fatalf("status = %s, want %s", evaluation.Status, StatusUntested)
 	}
-	if !containsFeature(evaluation.DegradedPreferred, FeatureCacheAccounting) {
-		t.Fatalf("degraded preferred = %v, want cache_accounting", evaluation.DegradedPreferred)
+	if !containsFeature(evaluation.UntestedRequired, FeatureCacheAccounting) {
+		t.Fatalf("untested required = %v, want cache_accounting", evaluation.UntestedRequired)
 	}
 }
 

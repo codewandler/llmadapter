@@ -26,7 +26,7 @@ The current implementation provides the compatibility vocabulary, evaluator, `ad
 | Reasoning | required | Thinking/reasoning must be requestable and observable where the provider exposes it. |
 | Prompt caching | required | llmadapter must be able to encode useful cache controls. |
 | Usage | required | Usage events must be mapped when the provider reports usage. |
-| Cache accounting | preferred | Provider-reported cache write/read counters are preferred but not required for first-pass approval. |
+| Cache accounting | required | Provider-reported cache write/read counters are mandatory for agentic coding cost tracking. |
 | Pricing | preferred | modeldb-backed pricing is preferred. |
 | Gateway | optional | The mux/library path is enough for agentic coding; gateway coverage remains useful operator evidence. |
 
@@ -60,12 +60,43 @@ These rows are covered by the live agentic-coding compatibility smoke test:
 | --- | --- |
 | `gpt-5.5` | `openai_responses`, `codex_responses`, `openrouter_responses` |
 | `gpt-5.4` | `openai_responses`, `codex_responses`, `openrouter_responses` |
+| `kimi-k2.6` | `openrouter_responses` |
 | `haiku` | `claude`, `anthropic`, `openrouter_messages` |
 | `sonnet` | `claude`, `anthropic`, `openrouter_messages` |
 | `opus` | `claude`, `anthropic`, `openrouter_messages` |
 | `minimax-latest` | `minimax_messages` |
 
 Bedrock is intentionally excluded until a Bedrock provider endpoint exists.
+
+## Latest Agentic-Coding Result
+
+Latest command:
+
+```sh
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestUseCaseAgenticCoding -count=1 -v
+```
+
+Total duration: 232.313 seconds.
+
+| Candidate | Provider endpoint | Native model | Required checks | Cache accounting | Status | Duration |
+| --- | --- | --- | --- | --- | --- | --- |
+| `openai_gpt_5_5` | `openai_responses` | `gpt-5.5` | pass | live | approved | 10.42s |
+| `codex_gpt_5_5` | `codex_responses` | `gpt-5.5` | pass | live | approved | 9.49s |
+| `openrouter_gpt_5_5` | `openrouter_responses` | `openai/gpt-5.5` | pass | live | approved | 10.85s |
+| `openai_gpt_5_4` | `openai_responses` | `gpt-5.4` | pass | live | approved | 8.13s |
+| `codex_gpt_5_4` | `codex_responses` | `gpt-5.4` | pass | live | approved | 7.96s |
+| `openrouter_gpt_5_4` | `openrouter_responses` | `openai/gpt-5.4` | pass | live | approved | 7.22s |
+| `openrouter_kimi_k2_6` | `openrouter_responses` | `moonshotai/kimi-k2.6` | pass | live | approved | 58.22s |
+| `claude_haiku` | `claude` | `claude-haiku-4-5-20251001` | pass | live | approved | 8.35s |
+| `anthropic_haiku` | `anthropic` | `claude-haiku-4-5-20251001` | pass | live | approved | 4.42s |
+| `openrouter_haiku` | `openrouter_messages` | `anthropic/claude-haiku-4.5` | pass | live | approved | 7.74s |
+| `claude_sonnet` | `claude` | `claude-sonnet-4-6` | pass | live | approved | 8.29s |
+| `anthropic_sonnet` | `anthropic` | `claude-sonnet-4-6` | pass | live | approved | 7.16s |
+| `openrouter_sonnet` | `openrouter_messages` | `anthropic/claude-sonnet-4.6` | pass | live | approved | 10.31s |
+| `claude_opus` | `claude` | `claude-opus-4-6` | pass | live | approved | 12.47s |
+| `anthropic_opus` | `anthropic` | `claude-opus-4-6` | pass | live | approved | 16.55s |
+| `openrouter_opus` | `openrouter_messages` | `anthropic/claude-opus-4.6` | pass | live | approved | 13.53s |
+| `minimax_latest` | `minimax_messages` | `MiniMax-M2.7` | pass | live | approved | 31.17s |
 
 ## Status Meaning
 
@@ -77,7 +108,7 @@ Bedrock is intentionally excluded until a Bedrock provider endpoint exists.
 | `untested` | At least one required feature lacks evidence. |
 | `unavailable` | The model/provider/API candidate cannot be resolved from the configured catalog/routes. |
 
-## Current Limitation
+## Current Result
 
 The latest live run on 2026-04-26 passed all required agentic-coding checks for every row above:
 
@@ -85,6 +116,8 @@ The latest live run on 2026-04-26 passed all required agentic-coding checks for 
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestUseCaseAgenticCoding -count=1 -v
 ```
 
-Cache accounting remains provider-dependent. Claude, Anthropic, and Codex rows reported live cache write/read evidence. OpenAI Responses, OpenRouter, and MiniMax rows passed prompt-cache control checks but did not report cache write/read counters in this test, so they are degraded rather than fully approved when `cache_accounting` is treated as preferred.
+Cache accounting is mandatory for agentic coding. Every approved row reported provider cache write or cache read counters in this run.
 
-Sonnet and Opus rows use the current repository/modeldb aliases `claude-sonnet-4-6` and `claude-opus-4-6`.
+OpenRouter documentation says prompt caching can report `cached_tokens` and `cache_write_tokens` in detailed usage. The adapter now decodes both Responses-style `input_tokens_details` and Chat/Completions-style `prompt_tokens_details`, which is required because OpenRouter can expose the latter shape on Responses-compatible streams.
+
+Kimi uses OpenRouter model `moonshotai/kimi-k2.6`. Sonnet and Opus rows use the current repository/modeldb aliases `claude-sonnet-4-6` and `claude-opus-4-6`.

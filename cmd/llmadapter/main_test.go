@@ -219,9 +219,9 @@ func TestResolveCommandAnnotatesUseCase(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"Use case:     agentic_coding",
-		"Status:       degraded",
+		"Status:       untested",
 		"Provider type: claude",
-		"Degraded preferred: cache_accounting",
+		"Untested required: cache_accounting",
 		"structured_output: requirement=required supported=true",
 	} {
 		if !strings.Contains(got, want) {
@@ -241,7 +241,7 @@ func TestCompatibilityCommandWithConfig(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"Matches: 3 candidates",
-		"status=degraded provider=claude type=claude",
+		"status=untested provider=claude type=claude",
 		"provider=openrouter type=openrouter_responses",
 		"prompt_caching: requirement=required supported=true",
 	} {
@@ -260,7 +260,7 @@ func TestCompatibilityCommandJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, want := range []string{`"use_case": "agentic_coding"`, `"status": "degraded"`, `"provider_type": "claude"`} {
+	for _, want := range []string{`"use_case": "agentic_coding"`, `"status": "untested"`, `"provider_type": "claude"`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}

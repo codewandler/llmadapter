@@ -96,6 +96,49 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 	}
 }
 
+func TestClientStreamMapsOpenRouterPromptCacheWriteUsage(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"openai/test","status":"completed","usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15,"prompt_tokens_details":{"cached_tokens":3,"cache_write_tokens":2},"completion_tokens_details":{"reasoning_tokens":1}}}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 8
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "openai/test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindInputNew), 5; got != want {
+		t.Fatalf("input.new = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindInputCacheRead), 3; got != want {
+		t.Fatalf("input.cache_read = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindInputCacheWrite), 2; got != want {
+		t.Fatalf("input.cache_write = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindOutput), 4; got != want {
+		t.Fatalf("output = %d, want %d", got, want)
+	}
+	if got, want := resp.Usage.Tokens.Count(unified.TokenKindOutputReasoning), 1; got != want {
+		t.Fatalf("output.reasoning = %d, want %d", got, want)
+	}
+}
+
 func TestEncodeRequest(t *testing.T) {
 	maxTokens := 8
 	wire, _ := encodeRequest(unified.Request{

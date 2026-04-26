@@ -524,11 +524,29 @@ func tokenItemsFromUsage(usage *usageWire) unified.TokenItems {
 	if usage == nil {
 		return nil
 	}
+	inputTokens := usage.InputTokens
+	if inputTokens == 0 {
+		inputTokens = usage.PromptTokens
+	}
+	outputTokens := usage.OutputTokens
+	if outputTokens == 0 {
+		outputTokens = usage.CompletionTokens
+	}
 	cachedInput := 0
+	cacheWrite := 0
 	if usage.InputTokensDetails != nil {
 		cachedInput = usage.InputTokensDetails.CachedTokens
+		cacheWrite = usage.InputTokensDetails.CacheWriteTokens
 	}
-	newInput := usage.InputTokens - cachedInput
+	if usage.PromptTokensDetails != nil {
+		if cachedInput == 0 {
+			cachedInput = usage.PromptTokensDetails.CachedTokens
+		}
+		if cacheWrite == 0 {
+			cacheWrite = usage.PromptTokensDetails.CacheWriteTokens
+		}
+	}
+	newInput := inputTokens - cachedInput - cacheWrite
 	if newInput < 0 {
 		newInput = 0
 	}
@@ -536,13 +554,17 @@ func tokenItemsFromUsage(usage *usageWire) unified.TokenItems {
 	if usage.OutputTokensDetails != nil {
 		reasoningOutput = usage.OutputTokensDetails.ReasoningTokens
 	}
-	output := usage.OutputTokens - reasoningOutput
+	if usage.CompletionTokensDetails != nil && reasoningOutput == 0 {
+		reasoningOutput = usage.CompletionTokensDetails.ReasoningTokens
+	}
+	output := outputTokens - reasoningOutput
 	if output < 0 {
 		output = 0
 	}
 	return unified.TokenItems{
 		{Kind: unified.TokenKindInputNew, Count: newInput},
 		{Kind: unified.TokenKindInputCacheRead, Count: cachedInput},
+		{Kind: unified.TokenKindInputCacheWrite, Count: cacheWrite},
 		{Kind: unified.TokenKindOutput, Count: output},
 		{Kind: unified.TokenKindOutputReasoning, Count: reasoningOutput},
 	}.NonZero()

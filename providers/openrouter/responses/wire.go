@@ -101,16 +101,21 @@ type outputItemWire struct {
 }
 
 type usageWire struct {
-	InputTokens         int               `json:"input_tokens,omitempty"`
-	OutputTokens        int               `json:"output_tokens,omitempty"`
-	TotalTokens         int               `json:"total_tokens,omitempty"`
-	InputTokensDetails  *tokenDetailsWire `json:"input_tokens_details,omitempty"`
-	OutputTokensDetails *tokenDetailsWire `json:"output_tokens_details,omitempty"`
+	InputTokens             int               `json:"input_tokens,omitempty"`
+	OutputTokens            int               `json:"output_tokens,omitempty"`
+	TotalTokens             int               `json:"total_tokens,omitempty"`
+	InputTokensDetails      *tokenDetailsWire `json:"input_tokens_details,omitempty"`
+	OutputTokensDetails     *tokenDetailsWire `json:"output_tokens_details,omitempty"`
+	PromptTokens            int               `json:"prompt_tokens,omitempty"`
+	CompletionTokens        int               `json:"completion_tokens,omitempty"`
+	PromptTokensDetails     *tokenDetailsWire `json:"prompt_tokens_details,omitempty"`
+	CompletionTokensDetails *tokenDetailsWire `json:"completion_tokens_details,omitempty"`
 }
 
 type tokenDetailsWire struct {
-	CachedTokens    int `json:"cached_tokens,omitempty"`
-	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
+	CachedTokens     int `json:"cached_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
+	ReasoningTokens  int `json:"reasoning_tokens,omitempty"`
 }
 
 type errorWire struct {

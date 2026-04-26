@@ -28,7 +28,6 @@ type agenticCodingCandidate struct {
 	localClaudeOAuth      bool
 	localCodexOAuth       bool
 	maxOutputTokens       int
-	cacheAccounting       bool
 	cacheWarmupNoUsage    bool
 	cachePrefixRepeat     int
 	responseFormatSchema  bool
@@ -43,6 +42,7 @@ func TestUseCaseAgenticCoding(t *testing.T) {
 
 	for _, candidate := range agenticCodingCandidates() {
 		t.Run(candidate.name, func(t *testing.T) {
+			started := time.Now()
 			client, model := newAgenticCodingClient(t, candidate)
 			result := agenticCodingResult{Candidate: candidate.name, Model: model}
 
@@ -51,10 +51,12 @@ func TestUseCaseAgenticCoding(t *testing.T) {
 			result.StructuredOutput = checkAgenticStructuredOutput(t, client, model, candidate)
 			result.Reasoning = checkAgenticReasoning(t, client, model, candidate)
 			result.PromptCaching, result.CacheAccounting = checkAgenticPromptCache(t, client, model, candidate)
+			result.DurationSeconds = time.Since(started).Seconds()
 
-			t.Logf("agentic_coding result: candidate=%s model=%s text=%s tools=%s structured_output=%s reasoning=%s prompt_caching=%s cache_accounting=%s",
+			t.Logf("agentic_coding result: candidate=%s model=%s duration_seconds=%.2f text=%s tools=%s structured_output=%s reasoning=%s prompt_caching=%s cache_accounting=%s",
 				result.Candidate,
 				result.Model,
+				result.DurationSeconds,
 				result.Text,
 				result.Tools,
 				result.StructuredOutput,
@@ -75,6 +77,7 @@ type agenticCodingResult struct {
 	Reasoning        string
 	PromptCaching    string
 	CacheAccounting  string
+	DurationSeconds  float64
 }
 
 func agenticCodingCandidates() []agenticCodingCandidate {
@@ -85,6 +88,7 @@ func agenticCodingCandidates() []agenticCodingCandidate {
 		openAIResponsesAgenticCandidate("openai_gpt_5_4", "gpt-5.4", "OPENAI_AGENTIC_GPT54_MODEL"),
 		codexAgenticCandidate("codex_gpt_5_4", "gpt-5.4", "CODEX_AGENTIC_GPT54_MODEL"),
 		openRouterResponsesAgenticCandidate("openrouter_gpt_5_4", "gpt-5.4", "openai/gpt-5.4", "OPENROUTER_AGENTIC_GPT54_MODEL"),
+		openRouterResponsesAgenticCandidate("openrouter_kimi_k2_6", "kimi-k2.6", "moonshotai/kimi-k2.6", "OPENROUTER_AGENTIC_KIMI_MODEL"),
 		claudeFamilyAgenticCandidate("claude_haiku", "haiku", "claude-haiku-4-5-20251001", "CLAUDE_AGENTIC_HAIKU_MODEL", "claude", nil, true),
 		anthropicAgenticCandidate("anthropic_haiku", "haiku", "claude-haiku-4-5-20251001", "ANTHROPIC_AGENTIC_HAIKU_MODEL"),
 		openRouterMessagesAgenticCandidate("openrouter_haiku", "haiku", "anthropic/claude-haiku-4.5", "OPENROUTER_AGENTIC_HAIKU_MODEL"),
@@ -110,6 +114,8 @@ func openAIResponsesAgenticCandidate(name, model, env string) agenticCodingCandi
 		modelDBService:       "openai",
 		apiKeyEnv:            []string{"OPENAI_API_KEY", "OPENAI_KEY"},
 		maxOutputTokens:      2048,
+		cacheWarmupNoUsage:   true,
+		cachePrefixRepeat:    1200,
 		responseFormatSchema: true,
 	}
 }
@@ -127,7 +133,6 @@ func codexAgenticCandidate(name, model, env string) agenticCodingCandidate {
 		apiKeyEnv:          []string{codex.EnvAccessToken, codex.EnvOAuthToken},
 		localCodexOAuth:    true,
 		maxOutputTokens:    2048,
-		cacheAccounting:    true,
 		cacheWarmupNoUsage: true,
 		cachePrefixRepeat:  1200,
 	}
@@ -145,6 +150,8 @@ func openRouterResponsesAgenticCandidate(name, publicModel, nativeModel, env str
 		modelDBService:       "openrouter",
 		apiKeyEnv:            []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
 		maxOutputTokens:      2048,
+		cacheWarmupNoUsage:   true,
+		cachePrefixRepeat:    1200,
 		responseFormatSchema: true,
 	}
 }
@@ -166,7 +173,6 @@ func claudeFamilyAgenticCandidate(name, publicModel, nativeModel, env, providerT
 		apiKeyEnv:          apiKeyEnv,
 		localClaudeOAuth:   localClaude,
 		maxOutputTokens:    2048,
-		cacheAccounting:    true,
 		cachePrefixRepeat:  360,
 		skipReasoningText:  false,
 		cacheWarmupNoUsage: false,
@@ -175,32 +181,35 @@ func claudeFamilyAgenticCandidate(name, publicModel, nativeModel, env, providerT
 
 func openRouterMessagesAgenticCandidate(name, publicModel, nativeModel, env string) agenticCodingCandidate {
 	return agenticCodingCandidate{
-		name:              name,
-		publicModel:       publicModel,
-		nativeModel:       nativeModel,
-		modelEnv:          env,
-		providerType:      "openrouter_messages",
-		providerAPI:       adapt.ApiOpenRouterAnthropicMessages,
-		sourceAPI:         adapt.ApiAnthropicMessages,
-		modelDBService:    "openrouter",
-		apiKeyEnv:         []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
-		maxOutputTokens:   2048,
-		cachePrefixRepeat: 360,
+		name:               name,
+		publicModel:        publicModel,
+		nativeModel:        nativeModel,
+		modelEnv:           env,
+		providerType:       "openrouter_messages",
+		providerAPI:        adapt.ApiOpenRouterAnthropicMessages,
+		sourceAPI:          adapt.ApiAnthropicMessages,
+		modelDBService:     "openrouter",
+		apiKeyEnv:          []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
+		maxOutputTokens:    2048,
+		cacheWarmupNoUsage: true,
+		cachePrefixRepeat:  1200,
 	}
 }
 
 func minimaxMessagesAgenticCandidate() agenticCodingCandidate {
 	return agenticCodingCandidate{
-		name:              "minimax_latest",
-		publicModel:       "minimax-latest",
-		nativeModel:       "MiniMax-M2.7",
-		modelEnv:          "MINIMAX_AGENTIC_MODEL",
-		providerType:      "minimax_messages",
-		providerAPI:       adapt.ApiMiniMaxAnthropicMessages,
-		sourceAPI:         adapt.ApiAnthropicMessages,
-		apiKeyEnv:         []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
-		maxOutputTokens:   1024,
-		skipReasoningText: true,
+		name:               "minimax_latest",
+		publicModel:        "minimax-latest",
+		nativeModel:        "MiniMax-M2.7",
+		modelEnv:           "MINIMAX_AGENTIC_MODEL",
+		providerType:       "minimax_messages",
+		providerAPI:        adapt.ApiMiniMaxAnthropicMessages,
+		sourceAPI:          adapt.ApiAnthropicMessages,
+		apiKeyEnv:          []string{"MINIMAX_API_KEY", "MINIMAX_KEY"},
+		maxOutputTokens:    1024,
+		cacheWarmupNoUsage: true,
+		cachePrefixRepeat:  1200,
+		skipReasoningText:  true,
 	}
 }
 
@@ -443,9 +452,6 @@ func checkAgenticPromptCache(t *testing.T, client unified.Client, model string, 
 	}
 	if !strings.Contains(strings.ToLower(responseText(first)), "agentic cache ok") {
 		t.Fatalf("cache response text = %q", responseText(first))
-	}
-	if !candidate.cacheAccounting {
-		return "live", "not_required"
 	}
 	if first.Usage.CacheReadTokens() > 0 || first.Usage.CacheWriteTokens() > 0 {
 		return "live", "live"

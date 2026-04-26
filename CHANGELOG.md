@@ -10,6 +10,22 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.4] - 2026-04-26
+
+### Added
+
+- Added OpenRouter Kimi K2.6 to the live agentic-coding compatibility matrix.
+- Added per-candidate and total timing evidence to the agentic-coding compatibility artifact and result table.
+
+### Changed
+
+- Made cache accounting a required feature for the `agentic_coding` compatibility profile.
+- Updated the live agentic-coding matrix so every approved row must report cache read/write token evidence.
+
+### Fixed
+
+- Decoded OpenRouter Responses cache usage from Chat/Completions-style `prompt_tokens_details` fields as well as Responses-style `input_tokens_details` fields.
+
 ## [1.0.0-rc.3] - 2026-04-26
 
 ### Added

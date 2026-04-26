@@ -36,12 +36,15 @@ func TestCompatibilityCandidatesUseModelResolution(t *testing.T) {
 		t.Fatalf("unexpected candidate: %+v", candidate)
 	}
 	evaluation := compatibility.Evaluate(candidate, compatibility.AgenticCodingProfile())
-	if evaluation.Status != compatibility.StatusDegraded {
-		t.Fatalf("status = %s, want degraded: %+v", evaluation.Status, evaluation)
+	if evaluation.Status != compatibility.StatusUntested {
+		t.Fatalf("status = %s, want untested: %+v", evaluation.Status, evaluation)
+	}
+	if !containsFeature(evaluation.UntestedRequired, compatibility.FeatureCacheAccounting) {
+		t.Fatalf("untested required = %v, want cache_accounting", evaluation.UntestedRequired)
 	}
 }
 
-func TestCompatibleCandidatesCanIncludeDegraded(t *testing.T) {
+func TestCompatibleCandidatesExcludeUntestedRequired(t *testing.T) {
 	cfg := Config{
 		Providers: []ProviderConfig{{
 			Name:             "anthropic",
@@ -70,7 +73,16 @@ func TestCompatibleCandidatesCanIncludeDegraded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(withDegraded) != 1 {
-		t.Fatalf("withDegraded = %d, want 1", len(withDegraded))
+	if len(withDegraded) != 0 {
+		t.Fatalf("withDegraded = %d, want 0 because required cache accounting is untested", len(withDegraded))
 	}
+}
+
+func containsFeature(features []compatibility.Feature, want compatibility.Feature) bool {
+	for _, feature := range features {
+		if feature == want {
+			return true
+		}
+	}
+	return false
 }

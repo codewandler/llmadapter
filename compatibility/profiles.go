@@ -33,7 +33,7 @@ func AgenticCodingProfile() Profile {
 			FeatureReasoning:        RequirementRequired,
 			FeaturePromptCaching:    RequirementRequired,
 			FeatureUsage:            RequirementRequired,
-			FeatureCacheAccounting:  RequirementPreferred,
+			FeatureCacheAccounting:  RequirementRequired,
 			FeaturePricing:          RequirementPreferred,
 			FeatureGateway:          RequirementOptional,
 		},
