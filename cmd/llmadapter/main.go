@@ -52,6 +52,7 @@ func newRootCommand(out, errOut io.Writer) *cobra.Command {
 	cmd.AddCommand(newModelsCommand())
 	cmd.AddCommand(newResolveCommand())
 	cmd.AddCommand(newCompatibilityCommand())
+	cmd.AddCommand(newCompatibilityRecordCommand())
 	cmd.AddCommand(newServeCommand())
 	cmd.AddCommand(newSmokeCommand())
 	cmd.AddCommand(newInferCommand())
@@ -316,6 +317,54 @@ func newCompatibilityCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&model, "model", "m", "", "model alias or provider-native model to evaluate")
 	cmd.Flags().StringVar(&useCase, "use-case", string(compatibility.UseCaseAgenticCoding), "use case: agentic_coding or summarization")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print compatibility result as JSON")
+	return cmd
+}
+
+func newCompatibilityRecordCommand() *cobra.Command {
+	var useCase string
+	var artifactPath string
+	var matrixPath string
+	var command string
+	cmd := &cobra.Command{
+		Use:   "compatibility-record",
+		Short: "Refresh generated compatibility documentation from an artifact",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			parsedUseCase, err := compatibility.ParseUseCase(useCase)
+			if err != nil {
+				return err
+			}
+			if artifactPath == "" {
+				artifactPath = adapterconfig.DefaultCompatibilityEvidencePath(parsedUseCase)
+			}
+			artifact, err := compatibility.LoadArtifact(artifactPath)
+			if err != nil {
+				return err
+			}
+			if artifact.UseCase != parsedUseCase {
+				return fmt.Errorf("artifact use case %q does not match requested use case %q", artifact.UseCase, parsedUseCase)
+			}
+			if command != "" {
+				artifact.Command = command
+				if err := compatibility.SaveArtifact(artifactPath, artifact); err != nil {
+					return err
+				}
+			}
+			if matrixPath != "" {
+				if err := updateCompatibilityMatrix(matrixPath, artifact); err != nil {
+					return err
+				}
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "updated %s\n", artifactPath)
+			if matrixPath != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "updated %s\n", matrixPath)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&useCase, "use-case", string(compatibility.UseCaseAgenticCoding), "use case to record")
+	cmd.Flags().StringVar(&artifactPath, "artifact", "", "compatibility artifact path; defaults by use case")
+	cmd.Flags().StringVar(&matrixPath, "matrix", "docs/USE_CASE_MATRIX.md", "markdown matrix path to refresh; empty disables markdown update")
+	cmd.Flags().StringVar(&command, "command", "", "override recorded command in the artifact")
 	return cmd
 }
 
@@ -958,6 +1007,21 @@ func joinFeatures(features []compatibility.Feature) string {
 	}
 	sort.Strings(out)
 	return strings.Join(out, ",")
+}
+
+func updateCompatibilityMatrix(path string, artifact compatibility.Artifact) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read compatibility matrix %q: %w", path, err)
+	}
+	updated, err := compatibility.ReplaceGeneratedSection(string(data), compatibility.RenderArtifactMarkdown(artifact))
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		return fmt.Errorf("write compatibility matrix %q: %w", path, err)
+	}
+	return nil
 }
 
 func loadCLICatalog(configPath string) (modeldb.Catalog, error) {

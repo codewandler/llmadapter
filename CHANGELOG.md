@@ -10,6 +10,11 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added compatibility artifact helpers and `llmadapter compatibility-record` to regenerate the use-case matrix from the JSON evidence artifact.
+- Added optional live e2e artifact writing through `LLMADAPTER_COMPAT_ARTIFACT`.
+
 ## [1.0.0-rc.5] - 2026-04-26
 
 ### Added

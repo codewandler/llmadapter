@@ -117,6 +117,7 @@ Use-case compatibility foundation slice: `compatibility` defines workload profil
 Use-case compatibility live slice: `tests/e2e/TestUseCaseAgenticCoding` verifies promoted OpenAI, Codex, OpenRouter, Claude, Anthropic, MiniMax, and Moonshot Kimi through OpenRouter rows for streaming text, tools, tool continuation, structured output, reasoning, prompt caching, and usage; `docs/compatibility/agentic_coding.json` records the latest live result
 Agentic cache-accounting slice: `agentic_coding` now requires provider-reported cache read/write token accounting, OpenRouter Responses decodes both Responses-style and Chat/Completions-style cache usage details, and the latest live matrix approves every promoted row with cache-accounting evidence
 Runtime-view selection slice: configured provider instances are projected into modeldb runtime views, compatibility evidence artifacts can be loaded by consumers, `adapterconfig.SelectModelForUseCase` and `AutoResult.SelectModelForUseCase` fail closed unless a provider/API/native model row is approved, and `llmadapter resolve --use-case ... --approved-only` exposes the same strict selection path
+Compatibility artifact automation slice: `compatibility` can load/save/render evidence artifacts, live agentic-coding e2e can write the JSON artifact when `LLMADAPTER_COMPAT_ARTIFACT` is set, and `llmadapter compatibility-record` regenerates the use-case matrix generated section from the artifact
 ```
 
 Verified:

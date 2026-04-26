@@ -24,6 +24,7 @@ go build -o llmadapter ./cmd/llmadapter
 | `models` | List route models or modeldb catalog models. |
 | `resolve` | Explain how a model routes to a provider endpoint. |
 | `compatibility` | Evaluate route candidates for a workload use case. |
+| `compatibility-record` | Refresh generated compatibility docs from an artifact. |
 | `infer` | Send a prompt through the mux client and stream output. |
 | `serve` | Run the HTTP compatibility gateway. |
 | `smoke` | Run minimal direct, mux, config, or auto provider smoke calls. |
@@ -177,6 +178,16 @@ Initial use cases:
 - `summarization`: requires streaming text and usage; tools, reasoning, prompt caching, cache accounting, pricing, and gateway support are optional.
 
 Compatibility output is offline inspection. It uses provider descriptors, config/modeldb capability provenance, and existing route resolution. `resolve --approved-only` joins that route resolution with modeldb runtime views and the live workload-specific evidence artifact.
+
+## compatibility-record
+
+Refresh generated documentation from a compatibility artifact:
+
+```sh
+go run ./cmd/llmadapter compatibility-record --use-case agentic_coding
+```
+
+The command reads `docs/compatibility/agentic_coding.json` by default and rewrites the generated section in `docs/USE_CASE_MATRIX.md`. Use `--artifact`, `--matrix`, or `--command` to override those inputs.
 
 ## infer
 

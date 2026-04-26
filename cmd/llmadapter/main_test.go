@@ -12,6 +12,7 @@ import (
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/adapterconfig"
+	"github.com/codewandler/llmadapter/compatibility"
 	"github.com/codewandler/llmadapter/unified"
 	"github.com/codewandler/modeldb"
 )
@@ -272,6 +273,49 @@ func TestCompatibilityCommandWithConfig(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestCompatibilityRecordCommandUpdatesMatrix(t *testing.T) {
+	dir := t.TempDir()
+	artifactPath := filepath.Join(dir, "agentic_coding.json")
+	matrixPath := filepath.Join(dir, "USE_CASE_MATRIX.md")
+	artifact := `{
+		"use_case":"agentic_coding",
+		"result_date":"2026-04-26",
+		"command":"old command",
+		"total_duration_seconds":1.25,
+		"required_features":["streaming_text","cache_accounting"],
+		"preferred_features":["pricing"],
+		"rows":[
+			{"candidate":"demo","provider":"openai_responses","native_model":"gpt-demo","provider_api":"openai.responses","required_status":"passed","status":"approved","cache_accounting":"live","duration_seconds":1.2}
+		]
+	}`
+	if err := os.WriteFile(artifactPath, []byte(artifact), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	matrix := "before\n" + compatibility.MatrixGeneratedStart + "\nold table\n" + compatibility.MatrixGeneratedEnd + "\nafter\n"
+	if err := os.WriteFile(matrixPath, []byte(matrix), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"compatibility-record", "--artifact", artifactPath, "--matrix", matrixPath, "--command", "new command"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := os.ReadFile(matrixPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(updated)
+	for _, want := range []string{"new command", "`demo`", "`openai_responses`", "approved"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("matrix missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "old table") {
+		t.Fatalf("matrix still contains old generated content:\n%s", got)
 	}
 }
 

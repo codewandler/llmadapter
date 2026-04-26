@@ -28,6 +28,7 @@ Phase 4 is implemented for agentic_coding through docs/compatibility/agentic_cod
 Phase 5 live workload smoke tests are implemented for the first agentic_coding matrix.
 Phase 6 library filtering is implemented through adapterconfig compatibility helpers.
 Phase 7 strict workload-aware selection is implemented through modeldb runtime views plus live compatibility evidence.
+Phase 8 artifact-to-doc generation is implemented through `compatibility-record` and generated matrix markers.
 ```
 
 ## Definitions
@@ -335,10 +336,12 @@ Steps:
 4. Show Go examples for compatibility filtering.
 5. Update architecture docs with the compatibility layer.
 6. Update PLAN current status.
-7. Run local test, vet, and build.
-8. Run available live agentic-coding smoke tests.
-9. Update CHANGELOG.
-10. Cut the release.
+7. Add generated-section markers for the compatibility result table.
+8. Add `compatibility-record` so the JSON artifact rewrites the markdown table.
+9. Run local test, vet, and build.
+10. Run available live agentic-coding smoke tests.
+11. Update CHANGELOG.
+12. Cut the release.
 
 Done criteria:
 

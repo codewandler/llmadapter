@@ -8,6 +8,12 @@ This document describes workload suitability: whether a specific model through a
 
 The current implementation provides the compatibility vocabulary, evaluator, `adapterconfig` bridge, CLI inspection, library filtering helpers, and a live agentic-coding e2e matrix. The latest recorded live evidence is stored in `docs/compatibility/agentic_coding.json`.
 
+The result table below is generated from that JSON artifact. Refresh it with:
+
+```sh
+go run ./cmd/llmadapter compatibility-record --use-case agentic_coding
+```
+
 ## Use Cases
 
 | Use case | Purpose |
@@ -78,6 +84,8 @@ Bedrock is intentionally excluded until a Bedrock provider endpoint exists.
 
 ## Latest Agentic-Coding Result
 
+<!-- agentic-coding-result:start -->
+
 Latest command:
 
 ```sh
@@ -105,6 +113,8 @@ Total duration: 232.313 seconds.
 | `anthropic_opus` | `anthropic` | `claude-opus-4-6` | pass | live | approved | 16.55s |
 | `openrouter_opus` | `openrouter_messages` | `anthropic/claude-opus-4.6` | pass | live | approved | 13.53s |
 | `minimax_latest` | `minimax_messages` | `MiniMax-M2.7` | pass | live | approved | 31.17s |
+
+<!-- agentic-coding-result:end -->
 
 ## Status Meaning
 
