@@ -19,9 +19,11 @@ func TestEventsSatisfyInterface(t *testing.T) {
 		CompletedEvent{},
 		WarningEvent{},
 		RawEvent{},
+		RouteEvent{},
+		ProviderExecutionEvent{},
 		ErrorEvent{},
 	}
-	if len(events) != 16 {
+	if len(events) != 18 {
 		t.Fatalf("unexpected event count")
 	}
 }

@@ -3,8 +3,8 @@ package responses
 import (
 	"strings"
 
-	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
 	"github.com/codewandler/llmadapter/transport"
+	"github.com/codewandler/llmadapter/unified"
 )
 
 type Option interface {
@@ -12,9 +12,12 @@ type Option interface {
 }
 
 type config struct {
-	apiKey    string
-	baseURL   string
-	transport transport.ByteStreamTransport
+	apiKey                     string
+	baseURL                    string
+	warningSource              string
+	supportsPreviousResponseID bool
+	bodyMutator                func(unified.Request, []byte) ([]byte, []unified.WarningEvent, error)
+	transport                  transport.ByteStreamTransport
 }
 
 type optionFunc func(*config)
@@ -39,14 +42,20 @@ func WithTransport(t transport.ByteStreamTransport) Option {
 	})
 }
 
-func openRouterOptions(cfg config) []openrouterresponses.Option {
-	opts := []openrouterresponses.Option{
-		openrouterresponses.WithAPIKey(cfg.apiKey),
-		openrouterresponses.WithBaseURL(cfg.baseURL),
-		openrouterresponses.WithWarningSource("openai.responses"),
-	}
-	if cfg.transport != nil {
-		opts = append(opts, openrouterresponses.WithTransport(cfg.transport))
-	}
-	return opts
+func WithWarningSource(source string) Option {
+	return optionFunc(func(c *config) {
+		c.warningSource = source
+	})
+}
+
+func WithPreviousResponseIDSupport(supported bool) Option {
+	return optionFunc(func(c *config) {
+		c.supportsPreviousResponseID = supported
+	})
+}
+
+func WithBodyMutator(mutator func(unified.Request, []byte) ([]byte, []unified.WarningEvent, error)) Option {
+	return optionFunc(func(c *config) {
+		c.bodyMutator = mutator
+	})
 }

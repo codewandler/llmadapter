@@ -335,6 +335,34 @@ func TestCompatibilityCommandJSON(t *testing.T) {
 	}
 }
 
+func TestConformanceCommandJSON(t *testing.T) {
+	dir := t.TempDir()
+	artifactPath := filepath.Join(dir, "agentic_coding.json")
+	artifact := `{
+		"use_case":"agentic_coding",
+		"result_date":"2026-04-26",
+		"rows":[
+			{"candidate":"openai_gpt","public_model":"gpt","native_model":"gpt","provider":"openai_responses","provider_api":"openai.responses","family":"openai.responses","status":"approved"}
+		]
+	}`
+	if err := os.WriteFile(artifactPath, []byte(artifact), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"conformance", "--compatibility-artifact", artifactPath, "--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{`"type": "openai_responses"`, `"agentic_coding"`, `"approved_count": 1`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestResolveInferModelUsesBestCandidateWhenSourceAPIOmitted(t *testing.T) {
 	cfg := readTestConfig(t, writeTestResolveCandidateConfig(t))
 	resolution, err := resolveInferModel(cfg, "haiku", "")
@@ -470,7 +498,7 @@ func TestServeInspectConfigCommand(t *testing.T) {
 
 func TestRunInferRequestStreamsReasoningTextAndUsage(t *testing.T) {
 	client := fakeInferClient{events: []unified.Event{
-		unified.RouteEvent{ProviderName: "openai", NativeModel: "gpt-test"},
+		unified.RouteEvent{ProviderName: "openai", NativeModel: "gpt-test", ConsumerContinuation: unified.ContinuationPreviousResponseID, InternalContinuation: unified.ContinuationPreviousResponseID, Transport: unified.TransportHTTPSSE},
 		unified.ReasoningDeltaEvent{Text: "thinking"},
 		unified.TextDeltaEvent{Text: "answer"},
 		unified.NewUsageEvent(unified.TokenItems{
@@ -485,7 +513,7 @@ func TestRunInferRequestStreamsReasoningTextAndUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, want := range []string{ansiDim + "thinking" + ansiReset + "answer", "── usage ──", "input.new: 4", "output.reasoning: 2", "output: 3", "cost: $0.001200"} {
+	for _, want := range []string{"── request ──", "interaction: one_shot", ansiDim + "thinking" + ansiReset + "answer", "── route ──", "consumer_continuation: previous_response_id", "transport: http_sse", "── usage ──", "input.new: 4", "output.reasoning: 2", "output: 3", "cost: $0.001200"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
@@ -508,6 +536,35 @@ func TestInferRequestNoCacheDisablesCachePolicy(t *testing.T) {
 	}
 	if req.CachePolicy != unified.CachePolicyOff {
 		t.Fatalf("expected cache policy off, got %q", req.CachePolicy)
+	}
+}
+
+func TestInferRequestSessionSetsCodexHintsAndCacheKey(t *testing.T) {
+	req, err := inferRequest("gpt-test", "hello", inferParams{
+		maxTokens:   16,
+		interaction: string(unified.InteractionSession),
+		session:     "sess-1",
+		branch:      "branch-a",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.CacheKey != "sess-1" {
+		t.Fatalf("cache key = %q, want sess-1", req.CacheKey)
+	}
+	got, warnings := unified.CodexExtensionsFrom(req.Extensions)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if got.InteractionMode != unified.InteractionSession || got.SessionID != "sess-1" || got.BranchID != "branch-a" {
+		t.Fatalf("codex extensions = %+v", got)
+	}
+}
+
+func TestInferRequestRejectsInvalidInteractionMode(t *testing.T) {
+	_, err := inferRequest("gpt-test", "hello", inferParams{maxTokens: 16, interaction: "bad"})
+	if err == nil {
+		t.Fatalf("expected invalid interaction mode error")
 	}
 }
 

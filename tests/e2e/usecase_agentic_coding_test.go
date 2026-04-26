@@ -109,24 +109,37 @@ func agenticCodingArtifactRow(candidate agenticCodingCandidate, result agenticCo
 		status = compatibility.StatusFailed
 		requiredStatus = "failed"
 	}
+	consumerContinuation, internalContinuation, transport := agenticCodingRouteMetadata(candidate)
 	return compatibility.Row{
-		Candidate:        candidate.name,
-		PublicModel:      candidate.publicModel,
-		NativeModel:      candidateNativeModel(candidate),
-		Provider:         candidate.providerType,
-		ProviderAPI:      candidate.providerAPI,
-		Family:           candidateFamily(candidate),
-		RequiredStatus:   requiredStatus,
-		Status:           status,
-		DurationSeconds:  result.DurationSeconds,
-		Text:             result.Text,
-		Tools:            result.Tools,
-		ToolContinuation: result.Tools,
-		StructuredOutput: result.StructuredOutput,
-		Reasoning:        result.Reasoning,
-		PromptCaching:    result.PromptCaching,
-		Usage:            "live",
-		CacheAccounting:  result.CacheAccounting,
+		Candidate:            candidate.name,
+		PublicModel:          candidate.publicModel,
+		NativeModel:          candidateNativeModel(candidate),
+		Provider:             candidate.providerType,
+		ProviderAPI:          candidate.providerAPI,
+		Family:               candidateFamily(candidate),
+		RequiredStatus:       requiredStatus,
+		Status:               status,
+		DurationSeconds:      result.DurationSeconds,
+		Text:                 result.Text,
+		Tools:                result.Tools,
+		ToolContinuation:     result.Tools,
+		StructuredOutput:     result.StructuredOutput,
+		Reasoning:            result.Reasoning,
+		PromptCaching:        result.PromptCaching,
+		Usage:                "live",
+		CacheAccounting:      result.CacheAccounting,
+		ConsumerContinuation: consumerContinuation,
+		InternalContinuation: internalContinuation,
+		Transport:            transport,
+	}
+}
+
+func agenticCodingRouteMetadata(candidate agenticCodingCandidate) (unified.ContinuationMode, unified.ContinuationMode, unified.TransportKind) {
+	switch candidate.providerType {
+	case "openai_responses":
+		return unified.ContinuationPreviousResponseID, unified.ContinuationPreviousResponseID, unified.TransportHTTPSSE
+	default:
+		return unified.ContinuationReplay, unified.ContinuationReplay, unified.TransportHTTPSSE
 	}
 }
 

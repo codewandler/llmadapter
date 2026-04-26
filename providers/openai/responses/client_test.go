@@ -52,6 +52,57 @@ func TestClientUsesOpenAIResponsesEndpoint(t *testing.T) {
 	}
 }
 
+func TestClientDecodesProviderExecutionMetadata(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"llmadapter.provider_execution","transport":"http_sse","internal_continuation":"previous_response_id"}`),
+		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","status":"in_progress"}}`),
+		[]byte(`data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-test","status":"completed"}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), unified.Request{Model: "gpt-test", Stream: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-events
+	metadata, ok := first.(unified.ProviderExecutionEvent)
+	if !ok {
+		t.Fatalf("first event = %T, want ProviderExecutionEvent", first)
+	}
+	if metadata.Transport != unified.TransportHTTPSSE || metadata.InternalContinuation != unified.ContinuationPreviousResponseID {
+		t.Fatalf("metadata = %+v", metadata)
+	}
+}
+
+func TestClientAssemblesFragmentedStreamJSONEvents(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {`),
+		[]byte(`data: "type":"response.created","response":{"id":"resp_1","model":"gpt-test","status":"in_progress"}}`),
+		[]byte(`data: {"type":"response.output_text.delta","response_id":"resp_1","output_index":0,"content_index":0,"delta":"hel`),
+		[]byte(`data: lo"}`),
+		[]byte(`data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-test","status":"completed"}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), unified.Request{Model: "gpt-test", Stream: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.ID != "resp_1" || len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
 func TestClientUsesOpenAIWarningSource(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","status":"in_progress"}}`),

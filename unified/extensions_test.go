@@ -189,7 +189,12 @@ func TestAnthropicExtensionsValidationWarnings(t *testing.T) {
 func TestCodexExtensionsRoundtrip(t *testing.T) {
 	var e Extensions
 	err := SetCodexExtensions(&e, CodexExtensions{
+		InteractionMode:      InteractionSession,
 		SessionID:            "sess",
+		BranchID:             "branch",
+		BranchHeadID:         "head",
+		InputBaseHash:        "hash",
+		ParentResponseID:     "resp_1",
 		WindowID:             "sess:2",
 		TurnState:            "sticky",
 		TurnMetadata:         `{"turn":1}`,
@@ -205,13 +210,16 @@ func TestCodexExtensionsRoundtrip(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %+v", warnings)
 	}
-	if got.SessionID != "sess" || got.WindowID != "sess:2" || got.TurnState != "sticky" || got.TurnMetadata != `{"turn":1}` || got.ParentThreadID != "thread" || !got.Subagent || !got.MemgenRequest || !got.IncludeTimingMetrics {
+	if got.InteractionMode != InteractionSession || got.SessionID != "sess" || got.BranchID != "branch" || got.BranchHeadID != "head" || got.InputBaseHash != "hash" || got.ParentResponseID != "resp_1" || got.WindowID != "sess:2" || got.TurnState != "sticky" || got.TurnMetadata != `{"turn":1}` || got.ParentThreadID != "thread" || !got.Subagent || !got.MemgenRequest || !got.IncludeTimingMetrics {
 		t.Fatalf("codex extensions = %+v", got)
 	}
 }
 
 func TestCodexExtensionsWarnings(t *testing.T) {
 	var e Extensions
+	if err := e.Set(ExtCodexInteractionMode, "bad"); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.Set(ExtCodexSubagent, "not-bool"); err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +233,14 @@ func TestCodexExtensionsWarnings(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, warnings := CodexExtensionsFrom(e)
-	if len(warnings) != 4 || warnings[0].Code != "invalid_extension_dropped" {
+	if len(warnings) != 5 || warnings[0].Code != "invalid_extension_dropped" {
 		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
+func TestSetCodexExtensionsRejectsInvalidInteractionMode(t *testing.T) {
+	var e Extensions
+	if err := SetCodexExtensions(&e, CodexExtensions{InteractionMode: InteractionMode("bad")}); err == nil {
+		t.Fatalf("expected invalid interaction mode error")
 	}
 }

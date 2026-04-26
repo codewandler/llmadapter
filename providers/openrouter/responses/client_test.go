@@ -139,111 +139,15 @@ func TestClientStreamMapsOpenRouterPromptCacheWriteUsage(t *testing.T) {
 	}
 }
 
-func TestEncodeRequest(t *testing.T) {
-	maxTokens := 8
-	wire, _ := encodeRequest(unified.Request{
-		Model:           "openai/test",
-		MaxOutputTokens: &maxTokens,
-		Instructions: []unified.Instruction{{
-			Content: []unified.ContentPart{unified.TextPart{Text: "be brief"}},
-		}},
-		Messages: []unified.Message{{
-			Role:    unified.RoleUser,
-			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
-		}},
-	})
-	if wire.Model != "openai/test" || wire.Instructions != "be brief" || wire.MaxOutputTokens == nil || *wire.MaxOutputTokens != 8 {
-		t.Fatalf("unexpected request: %+v", wire)
+func TestClientEncodesOpenRouterExtensions(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"openai/test","status":"completed"}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(wire.Input) != 1 || wire.Input[0].Role != "user" || wire.Input[0].Content[0].Type != "input_text" {
-		t.Fatalf("unexpected input: %+v", wire.Input)
-	}
-}
-
-func TestEncodeRequestTools(t *testing.T) {
-	wire, _ := encodeRequest(unified.Request{
-		Model: "openai/test",
-		Messages: []unified.Message{
-			{
-				Role: unified.RoleAssistant,
-				ToolCalls: []unified.ToolCall{{
-					ID:        "call_1",
-					Name:      "lookup",
-					Arguments: json.RawMessage(`{"q":"x"}`),
-				}},
-			},
-			{
-				Role: unified.RoleTool,
-				ToolResults: []unified.ToolResult{{
-					ToolCallID: "call_1",
-					Content:    []unified.ContentPart{unified.TextPart{Text: "result"}},
-				}},
-			},
-		},
-		Tools: []unified.Tool{{
-			Kind:        unified.ToolKindFunction,
-			Name:        "lookup",
-			Description: "lookup values",
-			InputSchema: json.RawMessage(`{"type":"object"}`),
-		}},
-		ToolChoice: &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: "lookup"},
-	})
-	if len(wire.Input) != 2 {
-		t.Fatalf("input = %+v", wire.Input)
-	}
-	if wire.Input[0].Type != "function_call" || wire.Input[0].ID != "" || wire.Input[0].CallID != "call_1" || wire.Input[0].Arguments != `{"q":"x"}` {
-		t.Fatalf("unexpected function call input: %+v", wire.Input[0])
-	}
-	if wire.Input[1].Type != "function_call_output" || wire.Input[1].ID != "" || wire.Input[1].CallID != "call_1" || wire.Input[1].Output != "result" {
-		t.Fatalf("unexpected function output input: %+v", wire.Input[1])
-	}
-	if len(wire.Tools) != 1 || wire.Tools[0].Name != "lookup" {
-		t.Fatalf("tools = %+v", wire.Tools)
-	}
-	choice, ok := wire.ToolChoice.(map[string]string)
-	if !ok || choice["type"] != "function" || choice["name"] != "lookup" {
-		t.Fatalf("tool choice = %#v", wire.ToolChoice)
-	}
-}
-
-func TestEncodeRequestPreservesOpenAIResponsesFunctionCallItemID(t *testing.T) {
-	wire, _ := encodeRequest(unified.Request{
-		Model: "openai/test",
-		Messages: []unified.Message{{
-			Role: unified.RoleAssistant,
-			ToolCalls: []unified.ToolCall{{
-				ID:        "fc_1",
-				Name:      "lookup",
-				Arguments: json.RawMessage(`{"q":"x"}`),
-			}},
-		}},
-	})
-	if len(wire.Input) != 1 || wire.Input[0].ID != "fc_1" || wire.Input[0].CallID != "fc_1" {
-		t.Fatalf("unexpected function call input: %+v", wire.Input)
-	}
-}
-
-func TestEncodeRequestWarnings(t *testing.T) {
-	wire, warnings := encodeRequest(unified.Request{
-		Model: "openai/test",
-		Messages: []unified.Message{{
-			Role: unified.RoleUser,
-			Content: []unified.ContentPart{
-				unified.TextPart{Text: "hello"},
-				unified.ReasoningPart{Text: "think"},
-			},
-		}},
-		Tools: []unified.Tool{{Kind: "custom", Name: "ignored"}},
-	})
-	if len(wire.Input) != 1 || len(wire.Input[0].Content) != 1 || len(wire.Tools) != 0 {
-		t.Fatalf("unexpected wire request: %+v", wire)
-	}
-	if len(warnings) != 2 {
-		t.Fatalf("warnings = %+v", warnings)
-	}
-}
-
-func TestEncodeOpenRouterExtensions(t *testing.T) {
 	req := unified.Request{Model: "openai/test"}
 	if err := req.Extensions.Set(unified.ExtOpenRouterProvider, map[string]any{"allow_fallbacks": true}); err != nil {
 		t.Fatal(err)
@@ -254,19 +158,38 @@ func TestEncodeOpenRouterExtensions(t *testing.T) {
 	if err := req.Extensions.Set(unified.ExtOpenRouterSessionID, "sess_1"); err != nil {
 		t.Fatal(err)
 	}
-	wire, _ := encodeRequest(req)
-	if string(wire.OpenRouterProvider) != `{"allow_fallbacks":true}` {
-		t.Fatalf("provider = %s", wire.OpenRouterProvider)
+	events, err := client.Request(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if string(wire.OpenRouterDebug) != `true` {
-		t.Fatalf("debug = %s", wire.OpenRouterDebug)
+	if _, err := unified.Collect(context.Background(), events); err != nil {
+		t.Fatal(err)
 	}
-	if string(wire.OpenRouterSessionID) != `"sess_1"` {
-		t.Fatalf("session_id = %s", wire.OpenRouterSessionID)
+
+	var body map[string]json.RawMessage
+	if err := json.NewDecoder(fake.Seen[0].Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if string(body["provider"]) != `{"allow_fallbacks":true}` {
+		t.Fatalf("provider = %s", body["provider"])
+	}
+	if string(body["debug"]) != `true` {
+		t.Fatalf("debug = %s", body["debug"])
+	}
+	if string(body["session_id"]) != `"sess_1"` {
+		t.Fatalf("session_id = %s", body["session_id"])
 	}
 }
 
-func TestEncodeOpenRouterExtensionsInvalid(t *testing.T) {
+func TestClientWarnsForInvalidOpenRouterExtensions(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"openai/test","status":"completed"}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
 	req := unified.Request{Model: "openai/test"}
 	if err := req.Extensions.Set(unified.ExtOpenRouterProvider, map[string]any{"order": []string{"anthropic", ""}}); err != nil {
 		t.Fatal(err)
@@ -277,60 +200,16 @@ func TestEncodeOpenRouterExtensionsInvalid(t *testing.T) {
 	if err := req.Extensions.Set(unified.ExtOpenRouterSessionID, " "); err != nil {
 		t.Fatal(err)
 	}
-	wire, warnings := encodeRequest(req)
-	if len(wire.OpenRouterProvider) != 0 || len(wire.OpenRouterPlugins) != 0 || len(wire.OpenRouterSessionID) != 0 {
-		t.Fatalf("invalid extensions should be dropped: %+v", wire)
-	}
-	if len(warnings) != 3 || warnings[0].code != "invalid_extension_dropped" {
-		t.Fatalf("warnings = %+v", warnings)
-	}
-}
-
-func TestEncodeOpenAIResponsesExtensions(t *testing.T) {
-	req := unified.Request{Model: "openai/test"}
-	if err := req.Extensions.Set(unified.ExtOpenAIPreviousResponseID, "resp_prev"); err != nil {
+	events, err := client.Request(context.Background(), req)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := req.Extensions.Set(unified.ExtOpenAIStore, false); err != nil {
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := req.Extensions.Set(unified.ExtOpenAIPromptCacheKey, "cache_key_1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := req.Extensions.Set(unified.ExtOpenAIPromptCacheRetention, "24h"); err != nil {
-		t.Fatal(err)
-	}
-	wire, warnings := encodeRequest(req)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %+v", warnings)
-	}
-	if wire.PreviousResponseID != "resp_prev" {
-		t.Fatalf("previous_response_id = %q", wire.PreviousResponseID)
-	}
-	if wire.Store == nil || *wire.Store {
-		t.Fatalf("store = %+v, want false pointer", wire.Store)
-	}
-	if wire.PromptCacheKey != "cache_key_1" {
-		t.Fatalf("prompt_cache_key = %q", wire.PromptCacheKey)
-	}
-	if wire.PromptCacheRetention != "24h" {
-		t.Fatalf("prompt_cache_retention = %q", wire.PromptCacheRetention)
-	}
-}
-
-func TestEncodeReasoningRequest(t *testing.T) {
-	wire, warnings := encodeRequest(unified.Request{
-		Model: "openai/test",
-		Reasoning: &unified.ReasoningConfig{
-			Effort: unified.ReasoningEffortHigh,
-			Expose: true,
-		},
-	})
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %+v", warnings)
-	}
-	if wire.Reasoning == nil || wire.Reasoning.Effort != "high" || wire.Reasoning.Summary != "auto" {
-		t.Fatalf("unexpected reasoning wire: %+v", wire.Reasoning)
+	if len(resp.Warnings) != 3 || resp.Warnings[0].Code != "invalid_extension_dropped" {
+		t.Fatalf("warnings = %+v", resp.Warnings)
 	}
 }
 
@@ -362,85 +241,6 @@ func TestDecodeReasoningSummaryDelta(t *testing.T) {
 	}
 	if !foundReasoning {
 		t.Fatalf("reasoning content = %+v", resp.Content)
-	}
-}
-
-func TestEncodeUnifiedCachePolicy(t *testing.T) {
-	wire, warnings := encodeRequest(unified.Request{
-		Model:       "openai/test",
-		CachePolicy: unified.CachePolicyOn,
-		CacheKey:    "session-1",
-	})
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %+v", warnings)
-	}
-	if wire.PromptCacheKey != "session-1" {
-		t.Fatalf("prompt_cache_key = %q", wire.PromptCacheKey)
-	}
-	if wire.PromptCacheRetention != "24h" {
-		t.Fatalf("prompt_cache_retention = %q", wire.PromptCacheRetention)
-	}
-}
-
-func TestEncodeOpenAIResponsesExtensionsInvalid(t *testing.T) {
-	req := unified.Request{Model: "openai/test"}
-	if err := req.Extensions.SetRaw(unified.ExtOpenAIPreviousResponseID, json.RawMessage(`123`)); err != nil {
-		t.Fatal(err)
-	}
-	if err := req.Extensions.SetRaw(unified.ExtOpenAIStore, json.RawMessage(`"true"`)); err != nil {
-		t.Fatal(err)
-	}
-	wire, warnings := encodeRequest(req)
-	if wire.PreviousResponseID != "" || wire.Store != nil {
-		t.Fatalf("invalid extensions should be dropped: %+v", wire)
-	}
-	if len(warnings) != 2 {
-		t.Fatalf("warnings = %+v", warnings)
-	}
-}
-
-func TestEncodeRequestWithoutExtensionsLeavesContinuationFieldsEmpty(t *testing.T) {
-	wire, warnings := encodeRequest(unified.Request{Model: "openai/test"})
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %+v", warnings)
-	}
-	if wire.PreviousResponseID != "" || wire.Store != nil || wire.PromptCacheKey != "" || wire.PromptCacheRetention != "" {
-		t.Fatalf("unexpected continuation fields: %+v", wire)
-	}
-}
-
-func TestEncodeResponseFormat(t *testing.T) {
-	wire, _ := encodeRequest(unified.Request{
-		Model: "openai/test",
-		ResponseFormat: &unified.ResponseFormat{
-			Kind:   unified.ResponseFormatJSONSchema,
-			Name:   "answer",
-			Schema: json.RawMessage(`{"type":"object"}`),
-			Strict: true,
-		},
-	})
-	format, ok := wire.Text.Format.(map[string]any)
-	if !ok || format["type"] != "json_schema" || format["name"] != "answer" || format["strict"] != true || string(format["schema"].(json.RawMessage)) != `{"type":"object"}` {
-		t.Fatalf("text format = %#v", wire.Text.Format)
-	}
-}
-
-func TestEncodeImageContent(t *testing.T) {
-	wire, warnings := encodeRequest(unified.Request{
-		Model: "openai/test",
-		Messages: []unified.Message{{
-			Role: unified.RoleUser,
-			Content: []unified.ContentPart{
-				unified.TextPart{Text: "describe"},
-				unified.ImagePart{Source: unified.BlobSource{Kind: unified.BlobSourceURL, URL: "https://example.com/image.png"}},
-			},
-		}},
-	})
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %+v", warnings)
-	}
-	if len(wire.Input) != 1 || len(wire.Input[0].Content) != 2 || wire.Input[0].Content[1].Type != "input_image" || wire.Input[0].Content[1].ImageURL != "https://example.com/image.png" {
-		t.Fatalf("input = %+v", wire.Input)
 	}
 }
 

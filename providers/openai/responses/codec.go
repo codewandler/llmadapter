@@ -1,7 +1,9 @@
 package responses
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -90,7 +92,6 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 	applyReasoning(&out, req)
 	applyUnifiedCachePolicy(&out, req)
 	applyOpenAIResponsesExtensions(&out, req.Extensions, &warnings)
-	applyOpenRouterExtensions(&out, req.Extensions, &warnings)
 	return out, warnings
 }
 
@@ -163,22 +164,6 @@ func functionCallItemID(id string) string {
 		return id
 	}
 	return ""
-}
-
-func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions, warnings *[]mappingWarning) {
-	raw, extensionWarnings := unified.OpenRouterExtensionsFrom(extensions)
-	for _, warning := range extensionWarnings {
-		key, _ := warning.Meta["key"].(string)
-		addExtensionWarning(warnings, key, warning.Message)
-	}
-	out.OpenRouterModels = raw.Models
-	out.OpenRouterRoute = raw.Route
-	out.OpenRouterProvider = raw.Provider
-	out.OpenRouterPrefs = raw.ProviderPrefs
-	out.OpenRouterPlugins = raw.Plugins
-	out.OpenRouterDebug = raw.Debug
-	out.OpenRouterTrace = raw.Trace
-	out.OpenRouterSessionID = raw.SessionID
 }
 
 func applyOpenAIResponsesExtensions(out *requestWire, extensions unified.Extensions, warnings *[]mappingWarning) {
@@ -285,6 +270,7 @@ type streamDecoder struct {
 	startedTools   map[int]bool
 	completedTools map[int]bool
 	doneTools      bool
+	pendingJSON    []byte
 }
 
 func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
@@ -292,14 +278,24 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(strings.TrimSpace(string(frame.Data))) == 0 || string(frame.Data) == "[DONE]" {
+	data := bytes.TrimSpace(frame.Data)
+	if len(data) == 0 || string(data) == "[DONE]" {
 		return nil, nil
 	}
-	var ev eventWire
-	if err := json.Unmarshal(frame.Data, &ev); err != nil {
-		return nil, err
+	if len(d.pendingJSON) > 0 && !isProviderExecutionData(data) {
+		data = append(append([]byte(nil), d.pendingJSON...), data...)
 	}
-	ev.Raw = append(json.RawMessage(nil), frame.Data...)
+	var ev eventWire
+	if err := json.Unmarshal(data, &ev); err != nil {
+		if incompleteJSONError(err) {
+			d.pendingJSON = append(d.pendingJSON[:0], data...)
+			return nil, nil
+		}
+		d.pendingJSON = nil
+		return nil, fmt.Errorf("decode responses stream event %q: %w", truncateForError(data, 256), err)
+	}
+	d.pendingJSON = nil
+	ev.Raw = append(json.RawMessage(nil), data...)
 	if ev.Error != nil {
 		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: ev.Error.Type, Code: ev.Error.Code, Message: ev.Error.Message, ProviderRaw: ev.Raw}}}, nil
 	}
@@ -320,6 +316,18 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 
 	var out []unified.Event
 	switch ev.Type {
+	case "llmadapter.provider_execution":
+		var meta struct {
+			InternalContinuation unified.ContinuationMode `json:"internal_continuation,omitempty"`
+			Transport            unified.TransportKind    `json:"transport,omitempty"`
+		}
+		if err := json.Unmarshal(ev.Raw, &meta); err != nil {
+			return nil, err
+		}
+		out = append(out, unified.ProviderExecutionEvent{
+			InternalContinuation: meta.InternalContinuation,
+			Transport:            meta.Transport,
+		})
 	case "response.created":
 		out = append(out, d.start()...)
 	case "response.output_item.added":
@@ -369,11 +377,29 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	return out, nil
 }
 
+func isProviderExecutionData(data []byte) bool {
+	return bytes.Contains(data, []byte(`"type":"llmadapter.provider_execution"`)) ||
+		bytes.Contains(data, []byte(`"type": "llmadapter.provider_execution"`))
+}
+
+func truncateForError(raw []byte, max int) string {
+	value := string(raw)
+	if len(value) <= max {
+		return value
+	}
+	return value[:max] + "..."
+}
+
+func incompleteJSONError(err error) bool {
+	message := err.Error()
+	return strings.Contains(message, "unexpected end") || strings.Contains(message, "unexpected EOF")
+}
+
 func (d *streamDecoder) rawAPIKind() string {
 	if d.apiKind != "" {
 		return d.apiKind
 	}
-	return "openrouter.responses"
+	return "openai.responses"
 }
 
 func (d *streamDecoder) start() []unified.Event {

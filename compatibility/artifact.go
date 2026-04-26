@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/unified"
 )
 
 type Artifact struct {
@@ -22,23 +23,26 @@ type Artifact struct {
 }
 
 type Row struct {
-	Candidate        string          `json:"candidate,omitempty"`
-	PublicModel      string          `json:"public_model,omitempty"`
-	NativeModel      string          `json:"native_model,omitempty"`
-	Provider         string          `json:"provider"`
-	ProviderAPI      adapt.ApiKind   `json:"provider_api"`
-	Family           adapt.ApiFamily `json:"family,omitempty"`
-	RequiredStatus   string          `json:"required_status,omitempty"`
-	Status           Status          `json:"status"`
-	DurationSeconds  float64         `json:"duration_seconds,omitempty"`
-	Text             string          `json:"text,omitempty"`
-	Tools            string          `json:"tools,omitempty"`
-	ToolContinuation string          `json:"tool_continuation,omitempty"`
-	StructuredOutput string          `json:"structured_output,omitempty"`
-	Reasoning        string          `json:"reasoning,omitempty"`
-	PromptCaching    string          `json:"prompt_caching,omitempty"`
-	Usage            string          `json:"usage,omitempty"`
-	CacheAccounting  string          `json:"cache_accounting,omitempty"`
+	Candidate            string                   `json:"candidate,omitempty"`
+	PublicModel          string                   `json:"public_model,omitempty"`
+	NativeModel          string                   `json:"native_model,omitempty"`
+	Provider             string                   `json:"provider"`
+	ProviderAPI          adapt.ApiKind            `json:"provider_api"`
+	Family               adapt.ApiFamily          `json:"family,omitempty"`
+	RequiredStatus       string                   `json:"required_status,omitempty"`
+	Status               Status                   `json:"status"`
+	DurationSeconds      float64                  `json:"duration_seconds,omitempty"`
+	Text                 string                   `json:"text,omitempty"`
+	Tools                string                   `json:"tools,omitempty"`
+	ToolContinuation     string                   `json:"tool_continuation,omitempty"`
+	StructuredOutput     string                   `json:"structured_output,omitempty"`
+	Reasoning            string                   `json:"reasoning,omitempty"`
+	PromptCaching        string                   `json:"prompt_caching,omitempty"`
+	Usage                string                   `json:"usage,omitempty"`
+	CacheAccounting      string                   `json:"cache_accounting,omitempty"`
+	ConsumerContinuation unified.ContinuationMode `json:"consumer_continuation,omitempty"`
+	InternalContinuation unified.ContinuationMode `json:"internal_continuation,omitempty"`
+	Transport            unified.TransportKind    `json:"transport,omitempty"`
 }
 
 func NewArtifact(useCase UseCase, command string, rows []Row, totalDurationSeconds float64, notes []string) (Artifact, error) {

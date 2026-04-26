@@ -34,6 +34,7 @@ func (c *fakeClient) Request(_ context.Context, req unified.Request) (<-chan uni
 
 func TestClientRoutesAndRewritesNativeModel(t *testing.T) {
 	provider := &fakeClient{events: []unified.Event{
+		unified.ProviderExecutionEvent{InternalContinuation: unified.ContinuationPreviousResponseID, Transport: unified.TransportHTTPSSE},
 		unified.TextDeltaEvent{Text: "ok"},
 		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
 	}}
@@ -61,6 +62,9 @@ func TestClientRoutesAndRewritesNativeModel(t *testing.T) {
 	}
 	if routeEvent.ProviderName != "openai" || routeEvent.PublicModel != "public" || routeEvent.NativeModel != "native" {
 		t.Fatalf("unexpected route event: %+v", routeEvent)
+	}
+	if routeEvent.InternalContinuation != unified.ContinuationPreviousResponseID || routeEvent.Transport != unified.TransportHTTPSSE {
+		t.Fatalf("runtime metadata not applied to route event: %+v", routeEvent)
 	}
 	resp, err := unified.Collect(context.Background(), events)
 	if err != nil {

@@ -10,6 +10,20 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.7] - 2026-04-27
+
+### Added
+
+- Added `llmadapter conformance` and a `conformance` package to report provider descriptors, endpoint evidence, warnings, and live use-case approval rows from the compatibility artifact.
+- Added explicit continuation and transport metadata across provider descriptors, route events, config inspection, model resolution, compatibility artifacts, conformance output, and CLI diagnostics.
+
+### Fixed
+
+- Stopped forwarding unsupported `previous_response_id` continuation hints to the Codex HTTP/SSE backend and emit a canonical warning instead.
+- Moved the canonical Responses provider wire implementation to `providers/openai/responses`; OpenRouter Responses now layers OpenRouter-only body extensions on the OpenAI Responses base, and Codex Responses depends on OpenAI Responses rather than OpenRouter Responses.
+
+## [1.0.0-rc.6] - 2026-04-26
+
 ### Added
 
 - Added compatibility artifact helpers and `llmadapter compatibility-record` to regenerate the use-case matrix from the JSON evidence artifact.

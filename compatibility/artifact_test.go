@@ -3,6 +3,8 @@ package compatibility
 import (
 	"strings"
 	"testing"
+
+	"github.com/codewandler/llmadapter/unified"
 )
 
 func TestNewArtifactIncludesProfileRequirements(t *testing.T) {
@@ -23,17 +25,20 @@ func TestRenderAndReplaceGeneratedSection(t *testing.T) {
 		Command:              "go test ./tests/e2e",
 		TotalDurationSeconds: 2.5,
 		Rows: []Row{{
-			Candidate:       "openai_gpt",
-			Provider:        "openai_responses",
-			NativeModel:     "gpt",
-			RequiredStatus:  "passed",
-			CacheAccounting: "live",
-			Status:          StatusApproved,
-			DurationSeconds: 1.2,
+			Candidate:            "openai_gpt",
+			Provider:             "openai_responses",
+			NativeModel:          "gpt",
+			ConsumerContinuation: unified.ContinuationPreviousResponseID,
+			InternalContinuation: unified.ContinuationPreviousResponseID,
+			Transport:            unified.TransportHTTPSSE,
+			RequiredStatus:       "passed",
+			CacheAccounting:      "live",
+			Status:               StatusApproved,
+			DurationSeconds:      1.2,
 		}},
 	}
 	generated := RenderArtifactMarkdown(artifact)
-	if !strings.Contains(generated, "| `openai_gpt` | `openai_responses` | `gpt` | pass | live | approved | 1.20s |") {
+	if !strings.Contains(generated, "| `openai_gpt` | `openai_responses` | `gpt` | previous_response_id | http_sse | pass | live | approved | 1.20s |") {
 		t.Fatalf("unexpected generated markdown:\n%s", generated)
 	}
 	doc := "before\n" + MatrixGeneratedStart + "\nold\n" + MatrixGeneratedEnd + "\nafter\n"

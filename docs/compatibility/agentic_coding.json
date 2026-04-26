@@ -34,7 +34,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "previous_response_id",
+      "internal_continuation": "previous_response_id",
+      "transport": "http_sse"
     },
     {
       "candidate": "codex_gpt_5_5",
@@ -53,7 +56,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "openrouter_gpt_5_5",
@@ -72,7 +78,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "openai_gpt_5_4",
@@ -91,7 +100,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "previous_response_id",
+      "internal_continuation": "previous_response_id",
+      "transport": "http_sse"
     },
     {
       "candidate": "codex_gpt_5_4",
@@ -110,7 +122,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "openrouter_gpt_5_4",
@@ -129,7 +144,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "openrouter_kimi_k2_6",
@@ -148,7 +166,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "claude_haiku",
@@ -167,7 +188,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "anthropic_haiku",
@@ -186,7 +210,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "openrouter_haiku",
@@ -205,7 +232,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "claude_sonnet",
@@ -224,7 +254,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "anthropic_sonnet",
@@ -243,7 +276,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "openrouter_sonnet",
@@ -262,7 +298,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "claude_opus",
@@ -281,7 +320,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "anthropic_opus",
@@ -300,7 +342,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "openrouter_opus",
@@ -319,7 +364,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     },
     {
       "candidate": "minimax_latest",
@@ -338,7 +386,10 @@
       "reasoning": "live",
       "prompt_caching": "live",
       "usage": "live",
-      "cache_accounting": "live"
+      "cache_accounting": "live",
+      "consumer_continuation": "replay",
+      "internal_continuation": "replay",
+      "transport": "http_sse"
     }
   ],
   "notes": [

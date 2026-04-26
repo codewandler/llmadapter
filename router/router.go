@@ -11,14 +11,17 @@ import (
 )
 
 type Route struct {
-	SourceAPI    adapt.ApiKind
-	TargetAPI    adapt.ApiKind
-	TargetFamily adapt.ApiFamily
-	ProviderName string
-	PublicModel  string
-	NativeModel  string
-	Client       unified.Client
-	Capabilities CapabilitySet
+	SourceAPI            adapt.ApiKind
+	TargetAPI            adapt.ApiKind
+	TargetFamily         adapt.ApiFamily
+	ProviderName         string
+	PublicModel          string
+	NativeModel          string
+	Client               unified.Client
+	Capabilities         CapabilitySet
+	ConsumerContinuation unified.ContinuationMode
+	InternalContinuation unified.ContinuationMode
+	Transport            unified.TransportKind
 }
 
 type Router interface {
@@ -31,13 +34,16 @@ type CandidateRouter interface {
 }
 
 type ProviderEndpoint struct {
-	ProviderName string
-	APIKind      adapt.ApiKind
-	Family       adapt.ApiFamily
-	Client       unified.Client
-	Capabilities CapabilitySet
-	Priority     int
-	Tags         map[string]string
+	ProviderName         string
+	APIKind              adapt.ApiKind
+	Family               adapt.ApiFamily
+	Client               unified.Client
+	Capabilities         CapabilitySet
+	ConsumerContinuation unified.ContinuationMode
+	InternalContinuation unified.ContinuationMode
+	Transport            unified.TransportKind
+	Priority             int
+	Tags                 map[string]string
 }
 
 type CapabilitySet struct {
@@ -195,14 +201,17 @@ func routeFromStatic(_ context.Context, resolved resolvedStaticRoute, req adapt.
 		sourceAPI = route.SourceAPI
 	}
 	return Route{
-		SourceAPI:    sourceAPI,
-		TargetAPI:    route.Endpoint.APIKind,
-		TargetFamily: route.Endpoint.Family,
-		ProviderName: route.Endpoint.ProviderName,
-		PublicModel:  req.Unified.Model,
-		NativeModel:  resolved.nativeModel,
-		Client:       route.Endpoint.Client,
-		Capabilities: resolved.capabilities,
+		SourceAPI:            sourceAPI,
+		TargetAPI:            route.Endpoint.APIKind,
+		TargetFamily:         route.Endpoint.Family,
+		ProviderName:         route.Endpoint.ProviderName,
+		PublicModel:          req.Unified.Model,
+		NativeModel:          resolved.nativeModel,
+		Client:               route.Endpoint.Client,
+		Capabilities:         resolved.capabilities,
+		ConsumerContinuation: route.Endpoint.ConsumerContinuation,
+		InternalContinuation: route.Endpoint.InternalContinuation,
+		Transport:            route.Endpoint.Transport,
 	}
 }
 

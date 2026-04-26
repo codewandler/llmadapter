@@ -149,15 +149,25 @@ type RawEvent struct {
 func (RawEvent) isEvent() {}
 
 type RouteEvent struct {
-	SourceAPI    string `json:"source_api,omitempty"`
-	TargetAPI    string `json:"target_api,omitempty"`
-	TargetFamily string `json:"target_family,omitempty"`
-	ProviderName string `json:"provider_name,omitempty"`
-	PublicModel  string `json:"public_model,omitempty"`
-	NativeModel  string `json:"native_model,omitempty"`
+	SourceAPI            string           `json:"source_api,omitempty"`
+	TargetAPI            string           `json:"target_api,omitempty"`
+	TargetFamily         string           `json:"target_family,omitempty"`
+	ProviderName         string           `json:"provider_name,omitempty"`
+	PublicModel          string           `json:"public_model,omitempty"`
+	NativeModel          string           `json:"native_model,omitempty"`
+	ConsumerContinuation ContinuationMode `json:"consumer_continuation,omitempty"`
+	InternalContinuation ContinuationMode `json:"internal_continuation,omitempty"`
+	Transport            TransportKind    `json:"transport,omitempty"`
 }
 
 func (RouteEvent) isEvent() {}
+
+type ProviderExecutionEvent struct {
+	InternalContinuation ContinuationMode `json:"internal_continuation,omitempty"`
+	Transport            TransportKind    `json:"transport,omitempty"`
+}
+
+func (ProviderExecutionEvent) isEvent() {}
 
 type ErrorEvent struct {
 	Err         error `json:"-"`

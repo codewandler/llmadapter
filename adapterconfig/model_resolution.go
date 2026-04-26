@@ -7,24 +7,28 @@ import (
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/modelmeta"
 	"github.com/codewandler/llmadapter/router"
+	"github.com/codewandler/llmadapter/unified"
 	"github.com/codewandler/modeldb"
 )
 
 type ModelResolutionCandidate struct {
-	Input            string
-	MatchedAs        string
-	SourceAPI        adapt.ApiKind
-	PublicModel      string
-	NativeModel      string
-	Provider         string
-	ProviderType     string
-	ProviderAPI      adapt.ApiKind
-	Family           adapt.ApiFamily
-	Weight           int
-	Priority         int
-	ModelDBService   string
-	Capabilities     router.CapabilitySet
-	CapabilitySource string
+	Input                string
+	MatchedAs            string
+	SourceAPI            adapt.ApiKind
+	PublicModel          string
+	NativeModel          string
+	Provider             string
+	ProviderType         string
+	ProviderAPI          adapt.ApiKind
+	Family               adapt.ApiFamily
+	Weight               int
+	Priority             int
+	ModelDBService       string
+	Capabilities         router.CapabilitySet
+	CapabilitySource     string
+	ConsumerContinuation unified.ContinuationMode
+	InternalContinuation unified.ContinuationMode
+	Transport            unified.TransportKind
 }
 
 func ResolveModelCandidates(cfg Config, model string, sourceAPI adapt.ApiKind) ([]ModelResolutionCandidate, error) {
@@ -57,20 +61,23 @@ func ResolveModelCandidates(cfg Config, model string, sourceAPI adapt.ApiKind) (
 			route.ProviderAPI = endpoint.APIKind
 		}
 		out = append(out, ModelResolutionCandidate{
-			Input:            model,
-			MatchedAs:        matchedAs,
-			SourceAPI:        route.SourceAPI,
-			PublicModel:      route.Model,
-			NativeModel:      nativeModel,
-			Provider:         route.Provider,
-			ProviderType:     provider.Type,
-			ProviderAPI:      route.ProviderAPI,
-			Family:           endpoint.Family,
-			Weight:           route.Weight,
-			Priority:         provider.Priority,
-			ModelDBService:   endpoint.Tags[TagModelDBServiceID],
-			Capabilities:     endpoint.Capabilities,
-			CapabilitySource: routeCapabilitySource(provider, endpoint, route, catalog, modelDBEnabled),
+			Input:                model,
+			MatchedAs:            matchedAs,
+			SourceAPI:            route.SourceAPI,
+			PublicModel:          route.Model,
+			NativeModel:          nativeModel,
+			Provider:             route.Provider,
+			ProviderType:         provider.Type,
+			ProviderAPI:          route.ProviderAPI,
+			Family:               endpoint.Family,
+			Weight:               route.Weight,
+			Priority:             provider.Priority,
+			ModelDBService:       endpoint.Tags[TagModelDBServiceID],
+			Capabilities:         endpoint.Capabilities,
+			CapabilitySource:     routeCapabilitySource(provider, endpoint, route, catalog, modelDBEnabled),
+			ConsumerContinuation: endpoint.ConsumerContinuation,
+			InternalContinuation: endpoint.InternalContinuation,
+			Transport:            endpoint.Transport,
 		})
 	}
 	if len(out) == 0 {

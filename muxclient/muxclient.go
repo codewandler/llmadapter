@@ -92,17 +92,28 @@ func prependRouteEvent(ctx context.Context, route router.Route, events <-chan un
 	go func() {
 		defer close(out)
 		routeEvent := unified.RouteEvent{
-			SourceAPI:    string(route.SourceAPI),
-			TargetAPI:    string(route.TargetAPI),
-			TargetFamily: string(route.TargetFamily),
-			ProviderName: route.ProviderName,
-			PublicModel:  route.PublicModel,
-			NativeModel:  route.NativeModel,
+			SourceAPI:            string(route.SourceAPI),
+			TargetAPI:            string(route.TargetAPI),
+			TargetFamily:         string(route.TargetFamily),
+			ProviderName:         route.ProviderName,
+			PublicModel:          route.PublicModel,
+			NativeModel:          route.NativeModel,
+			ConsumerContinuation: route.ConsumerContinuation,
+			InternalContinuation: route.InternalContinuation,
+			Transport:            route.Transport,
 		}
-		select {
-		case <-ctx.Done():
-			return
-		case out <- routeEvent:
+		routeEventSent := false
+		sendRouteEvent := func() bool {
+			if routeEventSent {
+				return true
+			}
+			routeEventSent = true
+			select {
+			case <-ctx.Done():
+				return false
+			case out <- routeEvent:
+				return true
+			}
 		}
 		for {
 			select {
@@ -110,6 +121,24 @@ func prependRouteEvent(ctx context.Context, route router.Route, events <-chan un
 				return
 			case ev, ok := <-events:
 				if !ok {
+					if !sendRouteEvent() {
+						return
+					}
+					return
+				}
+				if metadata, ok := ev.(unified.ProviderExecutionEvent); ok {
+					if metadata.InternalContinuation != "" {
+						routeEvent.InternalContinuation = metadata.InternalContinuation
+					}
+					if metadata.Transport != "" {
+						routeEvent.Transport = metadata.Transport
+					}
+					if !sendRouteEvent() {
+						return
+					}
+					continue
+				}
+				if !sendRouteEvent() {
 					return
 				}
 				select {

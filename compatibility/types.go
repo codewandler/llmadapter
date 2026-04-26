@@ -5,6 +5,7 @@ import (
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/router"
+	"github.com/codewandler/llmadapter/unified"
 )
 
 type UseCase string
@@ -76,21 +77,24 @@ type FeatureEvidence struct {
 }
 
 type Candidate struct {
-	Input            string               `json:"input"`
-	MatchedAs        string               `json:"matched_as,omitempty"`
-	SourceAPI        adapt.ApiKind        `json:"source_api,omitempty"`
-	PublicModel      string               `json:"public_model,omitempty"`
-	NativeModel      string               `json:"native_model,omitempty"`
-	Provider         string               `json:"provider"`
-	ProviderType     string               `json:"provider_type"`
-	ProviderAPI      adapt.ApiKind        `json:"provider_api"`
-	Family           adapt.ApiFamily      `json:"family"`
-	Weight           int                  `json:"weight,omitempty"`
-	Priority         int                  `json:"priority,omitempty"`
-	ModelDBService   string               `json:"modeldb_service_id,omitempty"`
-	Capabilities     router.CapabilitySet `json:"capabilities"`
-	CapabilitySource string               `json:"capability_source,omitempty"`
-	Features         []FeatureEvidence    `json:"features,omitempty"`
+	Input                string                   `json:"input"`
+	MatchedAs            string                   `json:"matched_as,omitempty"`
+	SourceAPI            adapt.ApiKind            `json:"source_api,omitempty"`
+	PublicModel          string                   `json:"public_model,omitempty"`
+	NativeModel          string                   `json:"native_model,omitempty"`
+	Provider             string                   `json:"provider"`
+	ProviderType         string                   `json:"provider_type"`
+	ProviderAPI          adapt.ApiKind            `json:"provider_api"`
+	Family               adapt.ApiFamily          `json:"family"`
+	Weight               int                      `json:"weight,omitempty"`
+	Priority             int                      `json:"priority,omitempty"`
+	ModelDBService       string                   `json:"modeldb_service_id,omitempty"`
+	Capabilities         router.CapabilitySet     `json:"capabilities"`
+	CapabilitySource     string                   `json:"capability_source,omitempty"`
+	ConsumerContinuation unified.ContinuationMode `json:"consumer_continuation,omitempty"`
+	InternalContinuation unified.ContinuationMode `json:"internal_continuation,omitempty"`
+	Transport            unified.TransportKind    `json:"transport,omitempty"`
+	Features             []FeatureEvidence        `json:"features,omitempty"`
 }
 
 type Evaluation struct {

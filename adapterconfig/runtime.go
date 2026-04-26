@@ -125,12 +125,15 @@ func ProviderEndpointConfig(provider ProviderConfig) (router.ProviderEndpoint, e
 	}
 	capabilities := ApplyCapabilityOverrides(descriptor.Capabilities, provider.Capabilities)
 	return router.ProviderEndpoint{
-		ProviderName: provider.Name,
-		APIKind:      descriptor.APIKind,
-		Family:       descriptor.Family,
-		Capabilities: capabilities,
-		Priority:     provider.Priority,
-		Tags:         providerEndpointTags(provider),
+		ProviderName:         provider.Name,
+		APIKind:              descriptor.APIKind,
+		Family:               descriptor.Family,
+		Capabilities:         capabilities,
+		ConsumerContinuation: descriptor.ConsumerContinuation,
+		InternalContinuation: descriptor.InternalContinuation,
+		Transport:            descriptor.Transport,
+		Priority:             provider.Priority,
+		Tags:                 providerEndpointTags(provider),
 	}, nil
 }
 

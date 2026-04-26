@@ -94,25 +94,25 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestUseCas
 
 Total duration: 232.313 seconds.
 
-| Candidate | Provider endpoint | Native model | Required checks | Cache accounting | Status | Duration |
-| --- | --- | --- | --- | --- | --- | --- |
-| `openai_gpt_5_5` | `openai_responses` | `gpt-5.5` | pass | live | approved | 10.42s |
-| `codex_gpt_5_5` | `codex_responses` | `gpt-5.5` | pass | live | approved | 9.49s |
-| `openrouter_gpt_5_5` | `openrouter_responses` | `openai/gpt-5.5` | pass | live | approved | 10.85s |
-| `openai_gpt_5_4` | `openai_responses` | `gpt-5.4` | pass | live | approved | 8.13s |
-| `codex_gpt_5_4` | `codex_responses` | `gpt-5.4` | pass | live | approved | 7.96s |
-| `openrouter_gpt_5_4` | `openrouter_responses` | `openai/gpt-5.4` | pass | live | approved | 7.22s |
-| `openrouter_kimi_k2_6` | `openrouter_responses` | `moonshotai/kimi-k2.6` | pass | live | approved | 58.22s |
-| `claude_haiku` | `claude` | `claude-haiku-4-5-20251001` | pass | live | approved | 8.35s |
-| `anthropic_haiku` | `anthropic` | `claude-haiku-4-5-20251001` | pass | live | approved | 4.42s |
-| `openrouter_haiku` | `openrouter_messages` | `anthropic/claude-haiku-4.5` | pass | live | approved | 7.74s |
-| `claude_sonnet` | `claude` | `claude-sonnet-4-6` | pass | live | approved | 8.29s |
-| `anthropic_sonnet` | `anthropic` | `claude-sonnet-4-6` | pass | live | approved | 7.16s |
-| `openrouter_sonnet` | `openrouter_messages` | `anthropic/claude-sonnet-4.6` | pass | live | approved | 10.31s |
-| `claude_opus` | `claude` | `claude-opus-4-6` | pass | live | approved | 12.47s |
-| `anthropic_opus` | `anthropic` | `claude-opus-4-6` | pass | live | approved | 16.55s |
-| `openrouter_opus` | `openrouter_messages` | `anthropic/claude-opus-4.6` | pass | live | approved | 13.53s |
-| `minimax_latest` | `minimax_messages` | `MiniMax-M2.7` | pass | live | approved | 31.17s |
+| Candidate | Provider endpoint | Native model | Continuation | Transport | Required checks | Cache accounting | Status | Duration |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `openai_gpt_5_5` | `openai_responses` | `gpt-5.5` | previous_response_id | http_sse | pass | live | approved | 10.42s |
+| `codex_gpt_5_5` | `codex_responses` | `gpt-5.5` | replay | http_sse | pass | live | approved | 9.49s |
+| `openrouter_gpt_5_5` | `openrouter_responses` | `openai/gpt-5.5` | replay | http_sse | pass | live | approved | 10.85s |
+| `openai_gpt_5_4` | `openai_responses` | `gpt-5.4` | previous_response_id | http_sse | pass | live | approved | 8.13s |
+| `codex_gpt_5_4` | `codex_responses` | `gpt-5.4` | replay | http_sse | pass | live | approved | 7.96s |
+| `openrouter_gpt_5_4` | `openrouter_responses` | `openai/gpt-5.4` | replay | http_sse | pass | live | approved | 7.22s |
+| `openrouter_kimi_k2_6` | `openrouter_responses` | `moonshotai/kimi-k2.6` | replay | http_sse | pass | live | approved | 58.22s |
+| `claude_haiku` | `claude` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 8.35s |
+| `anthropic_haiku` | `anthropic` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 4.42s |
+| `openrouter_haiku` | `openrouter_messages` | `anthropic/claude-haiku-4.5` | replay | http_sse | pass | live | approved | 7.74s |
+| `claude_sonnet` | `claude` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 8.29s |
+| `anthropic_sonnet` | `anthropic` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 7.16s |
+| `openrouter_sonnet` | `openrouter_messages` | `anthropic/claude-sonnet-4.6` | replay | http_sse | pass | live | approved | 10.31s |
+| `claude_opus` | `claude` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 12.47s |
+| `anthropic_opus` | `anthropic` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 16.55s |
+| `openrouter_opus` | `openrouter_messages` | `anthropic/claude-opus-4.6` | replay | http_sse | pass | live | approved | 13.53s |
+| `minimax_latest` | `minimax_messages` | `MiniMax-M2.7` | replay | http_sse | pass | live | approved | 31.17s |
 
 <!-- agentic-coding-result:end -->
 

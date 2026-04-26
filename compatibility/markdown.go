@@ -14,13 +14,15 @@ func RenderArtifactMarkdown(artifact Artifact) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Latest command:\n\n```sh\n%s\n```\n\n", artifact.Command)
 	fmt.Fprintf(&b, "Total duration: %.3f seconds.\n\n", artifact.TotalDurationSeconds)
-	b.WriteString("| Candidate | Provider endpoint | Native model | Required checks | Cache accounting | Status | Duration |\n")
-	b.WriteString("| --- | --- | --- | --- | --- | --- | --- |\n")
+	b.WriteString("| Candidate | Provider endpoint | Native model | Continuation | Transport | Required checks | Cache accounting | Status | Duration |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, row := range artifact.Rows {
-		fmt.Fprintf(&b, "| `%s` | `%s` | `%s` | %s | %s | %s | %.2fs |\n",
+		fmt.Fprintf(&b, "| `%s` | `%s` | `%s` | %s | %s | %s | %s | %s | %.2fs |\n",
 			row.Candidate,
 			row.Provider,
 			row.NativeModel,
+			continuationDisplay(string(row.ConsumerContinuation), string(row.InternalContinuation)),
+			statusDisplay(string(row.Transport)),
 			requiredDisplay(row.RequiredStatus),
 			statusDisplay(row.CacheAccounting),
 			row.Status,
@@ -60,4 +62,17 @@ func statusDisplay(value string) string {
 		return "unknown"
 	}
 	return value
+}
+
+func continuationDisplay(consumer, internal string) string {
+	if consumer == "" && internal == "" {
+		return "unknown"
+	}
+	if consumer == internal || internal == "" {
+		return consumer
+	}
+	if consumer == "" {
+		return internal
+	}
+	return consumer + "/" + internal
 }

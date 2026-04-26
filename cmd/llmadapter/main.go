@@ -14,6 +14,7 @@ import (
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/adapterconfig"
 	"github.com/codewandler/llmadapter/compatibility"
+	"github.com/codewandler/llmadapter/conformance"
 	"github.com/codewandler/llmadapter/gatewayserver"
 	"github.com/codewandler/llmadapter/muxclient"
 	"github.com/codewandler/llmadapter/providerregistry"
@@ -53,6 +54,7 @@ func newRootCommand(out, errOut io.Writer) *cobra.Command {
 	cmd.AddCommand(newResolveCommand())
 	cmd.AddCommand(newCompatibilityCommand())
 	cmd.AddCommand(newCompatibilityRecordCommand())
+	cmd.AddCommand(newConformanceCommand())
 	cmd.AddCommand(newServeCommand())
 	cmd.AddCommand(newSmokeCommand())
 	cmd.AddCommand(newInferCommand())
@@ -116,9 +118,9 @@ func newRoutesCommand() *cobra.Command {
 				return writeJSON(cmd.OutOrStdout(), map[string]any{"routes": routes})
 			}
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "SOURCE_API\tMODEL\tPROVIDER\tPROVIDER_API\tDYNAMIC\tNATIVE_MODEL\tWEIGHT")
+			fmt.Fprintln(w, "SOURCE_API\tMODEL\tPROVIDER\tPROVIDER_API\tDYNAMIC\tNATIVE_MODEL\tWEIGHT\tCONSUMER_CONTINUATION\tINTERNAL_CONTINUATION\tTRANSPORT")
 			for _, route := range routes {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\t%s\t%d\n", route.SourceAPI, route.Model, route.Provider, route.ProviderAPI, route.Dynamic, route.NativeModel, route.Weight)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\t%s\t%d\t%s\t%s\t%s\n", route.SourceAPI, route.Model, route.Provider, route.ProviderAPI, route.Dynamic, route.NativeModel, route.Weight, route.ConsumerContinuation, route.InternalContinuation, route.Transport)
 			}
 			return w.Flush()
 		},
@@ -343,11 +345,12 @@ func newCompatibilityRecordCommand() *cobra.Command {
 			if artifact.UseCase != parsedUseCase {
 				return fmt.Errorf("artifact use case %q does not match requested use case %q", artifact.UseCase, parsedUseCase)
 			}
+			enrichCompatibilityArtifactMetadata(&artifact)
 			if command != "" {
 				artifact.Command = command
-				if err := compatibility.SaveArtifact(artifactPath, artifact); err != nil {
-					return err
-				}
+			}
+			if err := compatibility.SaveArtifact(artifactPath, artifact); err != nil {
+				return err
 			}
 			if matrixPath != "" {
 				if err := updateCompatibilityMatrix(matrixPath, artifact); err != nil {
@@ -365,6 +368,32 @@ func newCompatibilityRecordCommand() *cobra.Command {
 	cmd.Flags().StringVar(&artifactPath, "artifact", "", "compatibility artifact path; defaults by use case")
 	cmd.Flags().StringVar(&matrixPath, "matrix", "docs/USE_CASE_MATRIX.md", "markdown matrix path to refresh; empty disables markdown update")
 	cmd.Flags().StringVar(&command, "command", "", "override recorded command in the artifact")
+	return cmd
+}
+
+func newConformanceCommand() *cobra.Command {
+	var artifactPath string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "conformance",
+		Short: "Report provider endpoint descriptors and compatibility evidence",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if artifactPath == "" {
+				artifactPath = adapterconfig.DefaultCompatibilityEvidencePath(compatibility.UseCaseAgenticCoding)
+			}
+			report, err := conformance.Build(conformance.Options{CompatibilityArtifactPath: artifactPath})
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return writeJSON(cmd.OutOrStdout(), report)
+			}
+			printConformanceReport(cmd.OutOrStdout(), report)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&artifactPath, "compatibility-artifact", "", "compatibility artifact path; defaults to docs/compatibility/agentic_coding.json")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "print report as JSON")
 	return cmd
 }
 
@@ -525,19 +554,26 @@ type inferParams struct {
 	effort      string
 	timeout     time.Duration
 	noCache     bool
+	interaction string
+	session     string
+	branch      string
 }
 
 func newInferCommand() *cobra.Command {
 	params := inferParams{
-		model:     "haiku",
-		maxTokens: 8000,
-		timeout:   2 * time.Minute,
+		model:       "haiku",
+		maxTokens:   8000,
+		timeout:     2 * time.Minute,
+		interaction: string(unified.InteractionOneShot),
 	}
 	cmd := &cobra.Command{
 		Use:   "infer <message>",
 		Short: "Send a prompt through the configured or auto-detected mux client",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if params.session != "" && !cmd.Flags().Changed("interaction") {
+				params.interaction = string(unified.InteractionSession)
+			}
 			return runInferCommand(cmd.Context(), cmd.OutOrStdout(), params, args[0])
 		},
 	}
@@ -551,17 +587,23 @@ func newInferCommand() *cobra.Command {
 	cmd.Flags().StringVar(&params.effort, "effort", "", "reasoning effort: low, medium, high, max")
 	cmd.Flags().DurationVar(&params.timeout, "timeout", params.timeout, "request timeout")
 	cmd.Flags().BoolVar(&params.noCache, "no-cache", false, "disable prompt cache policy for this request")
+	cmd.Flags().StringVar(&params.interaction, "interaction", string(unified.InteractionOneShot), "interaction mode: one_shot, session, or auto")
+	cmd.Flags().StringVar(&params.session, "session", "", "stable session/cache key for continuation diagnostics")
+	cmd.Flags().StringVar(&params.branch, "branch", "", "stable branch key for continuation diagnostics")
 	return cmd
 }
 
 type routeInfo struct {
-	SourceAPI   adapt.ApiKind `json:"source_api"`
-	Model       string        `json:"model,omitempty"`
-	Provider    string        `json:"provider"`
-	ProviderAPI adapt.ApiKind `json:"provider_api,omitempty"`
-	Dynamic     bool          `json:"dynamic_models,omitempty"`
-	NativeModel string        `json:"native_model,omitempty"`
-	Weight      int           `json:"weight,omitempty"`
+	SourceAPI            adapt.ApiKind            `json:"source_api"`
+	Model                string                   `json:"model,omitempty"`
+	Provider             string                   `json:"provider"`
+	ProviderAPI          adapt.ApiKind            `json:"provider_api,omitempty"`
+	Dynamic              bool                     `json:"dynamic_models,omitempty"`
+	NativeModel          string                   `json:"native_model,omitempty"`
+	Weight               int                      `json:"weight,omitempty"`
+	ConsumerContinuation unified.ContinuationMode `json:"consumer_continuation,omitempty"`
+	InternalContinuation unified.ContinuationMode `json:"internal_continuation,omitempty"`
+	Transport            unified.TransportKind    `json:"transport,omitempty"`
 }
 
 type modelInfo struct {
@@ -584,20 +626,23 @@ type providerStatusInfo struct {
 }
 
 type resolutionInfo struct {
-	Input            string               `json:"input"`
-	MatchedAs        string               `json:"matched_as"`
-	SourceAPI        adapt.ApiKind        `json:"source_api"`
-	PublicModel      string               `json:"public_model,omitempty"`
-	NativeModel      string               `json:"native_model,omitempty"`
-	Provider         string               `json:"provider"`
-	ProviderType     string               `json:"provider_type"`
-	ProviderAPI      adapt.ApiKind        `json:"provider_api"`
-	Family           adapt.ApiFamily      `json:"family"`
-	Weight           int                  `json:"weight,omitempty"`
-	Priority         int                  `json:"priority,omitempty"`
-	ModelDBService   string               `json:"modeldb_service_id,omitempty"`
-	Capabilities     router.CapabilitySet `json:"capabilities"`
-	CapabilitySource string               `json:"capability_source,omitempty"`
+	Input                string                   `json:"input"`
+	MatchedAs            string                   `json:"matched_as"`
+	SourceAPI            adapt.ApiKind            `json:"source_api"`
+	PublicModel          string                   `json:"public_model,omitempty"`
+	NativeModel          string                   `json:"native_model,omitempty"`
+	Provider             string                   `json:"provider"`
+	ProviderType         string                   `json:"provider_type"`
+	ProviderAPI          adapt.ApiKind            `json:"provider_api"`
+	Family               adapt.ApiFamily          `json:"family"`
+	Weight               int                      `json:"weight,omitempty"`
+	Priority             int                      `json:"priority,omitempty"`
+	ModelDBService       string                   `json:"modeldb_service_id,omitempty"`
+	Capabilities         router.CapabilitySet     `json:"capabilities"`
+	CapabilitySource     string                   `json:"capability_source,omitempty"`
+	ConsumerContinuation unified.ContinuationMode `json:"consumer_continuation,omitempty"`
+	InternalContinuation unified.ContinuationMode `json:"internal_continuation,omitempty"`
+	Transport            unified.TransportKind    `json:"transport,omitempty"`
 }
 
 type catalogModelFlags struct {
@@ -812,22 +857,47 @@ func loadServeConfig(path string, addr string) (adapterconfig.Config, error) {
 }
 
 func routeInfos(cfg adapterconfig.Config, sourceAPI adapt.ApiKind) []routeInfo {
+	endpoints := make([]router.ProviderEndpoint, 0, len(cfg.Providers))
+	for _, provider := range cfg.Providers {
+		endpoint, err := adapterconfig.ProviderEndpointConfig(provider)
+		if err == nil {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
 	out := make([]routeInfo, 0, len(cfg.Routes))
 	for _, route := range cfg.Routes {
 		if sourceAPI != "" && route.SourceAPI != sourceAPI {
 			continue
 		}
+		endpoint, ok, _ := adapterconfig.FindProviderEndpoint(endpoints, route.Provider, route.ProviderAPI)
 		out = append(out, routeInfo{
-			SourceAPI:   route.SourceAPI,
-			Model:       route.Model,
-			Provider:    route.Provider,
-			ProviderAPI: route.ProviderAPI,
-			Dynamic:     route.DynamicModels,
-			NativeModel: route.NativeModel,
-			Weight:      route.Weight,
+			SourceAPI:            route.SourceAPI,
+			Model:                route.Model,
+			Provider:             route.Provider,
+			ProviderAPI:          route.ProviderAPI,
+			Dynamic:              route.DynamicModels,
+			NativeModel:          route.NativeModel,
+			Weight:               route.Weight,
+			ConsumerContinuation: routeContinuation(ok, endpoint.ConsumerContinuation),
+			InternalContinuation: routeContinuation(ok, endpoint.InternalContinuation),
+			Transport:            routeTransport(ok, endpoint.Transport),
 		})
 	}
 	return out
+}
+
+func routeContinuation(ok bool, value unified.ContinuationMode) unified.ContinuationMode {
+	if !ok {
+		return ""
+	}
+	return value
+}
+
+func routeTransport(ok bool, value unified.TransportKind) unified.TransportKind {
+	if !ok {
+		return ""
+	}
+	return value
 }
 
 func modelInfos(cfg adapterconfig.Config, sourceAPI adapt.ApiKind, query string) []modelInfo {
@@ -935,6 +1005,28 @@ func printCompatibilityEvaluations(w io.Writer, evaluations []compatibility.Eval
 	}
 }
 
+func printConformanceReport(w io.Writer, report conformance.Report) {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "TYPE\tAPI_KIND\tFAMILY\tTEXT\tTOOLS\tREASONING\tCACHE_ACCOUNTING\tAGENTIC_APPROVED\tWARNINGS")
+	for _, provider := range report.Providers {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n",
+			provider.Type,
+			provider.APIKind,
+			provider.Family,
+			provider.Coverage.Text,
+			provider.Coverage.Tools,
+			provider.Coverage.Reasoning,
+			provider.Coverage.PromptCacheAccounting,
+			provider.AgenticCoding.ApprovedCount,
+			len(provider.Warnings),
+		)
+	}
+	_ = tw.Flush()
+	if report.CompatibilityArtifact != "" {
+		fmt.Fprintf(w, "\nCompatibility artifact: %s\n", report.CompatibilityArtifact)
+	}
+}
+
 func printUseCaseSelections(w io.Writer, selections []adapterconfig.UseCaseModelSelection) {
 	if len(selections) == 0 {
 		fmt.Fprintln(w, "No approved use-case selections")
@@ -1007,6 +1099,34 @@ func joinFeatures(features []compatibility.Feature) string {
 	}
 	sort.Strings(out)
 	return strings.Join(out, ",")
+}
+
+func enrichCompatibilityArtifactMetadata(artifact *compatibility.Artifact) {
+	if artifact == nil {
+		return
+	}
+	for i := range artifact.Rows {
+		row := &artifact.Rows[i]
+		descriptor, ok := providerregistry.Lookup(row.Provider)
+		if !ok {
+			continue
+		}
+		if row.ProviderAPI == "" {
+			row.ProviderAPI = descriptor.APIKind
+		}
+		if row.Family == "" {
+			row.Family = descriptor.Family
+		}
+		if row.ConsumerContinuation == "" {
+			row.ConsumerContinuation = descriptor.ConsumerContinuation
+		}
+		if row.InternalContinuation == "" {
+			row.InternalContinuation = descriptor.InternalContinuation
+		}
+		if row.Transport == "" {
+			row.Transport = descriptor.Transport
+		}
+	}
 }
 
 func updateCompatibilityMatrix(path string, artifact compatibility.Artifact) error {
@@ -1223,6 +1343,13 @@ func printResolution(w io.Writer, resolution resolutionInfo) {
 	if resolution.CapabilitySource != "" {
 		fmt.Fprintf(w, "Capability source: %s\n", resolution.CapabilitySource)
 	}
+	if resolution.ConsumerContinuation != "" || resolution.InternalContinuation != "" || resolution.Transport != "" {
+		fmt.Fprintf(w, "Continuation: consumer=%s internal=%s transport=%s\n",
+			resolution.ConsumerContinuation,
+			resolution.InternalContinuation,
+			resolution.Transport,
+		)
+	}
 	fmt.Fprintf(w, "Capabilities: streaming=%t tools=%t vision=%t audio_input=%t json_mode=%t json_schema=%t reasoning=%t\n",
 		resolution.Capabilities.Streaming,
 		resolution.Capabilities.Tools,
@@ -1268,20 +1395,23 @@ func resolveModelCandidates(cfg adapterconfig.Config, model string) ([]resolutio
 
 func resolutionInfoFromAdapter(resolution adapterconfig.ModelResolutionCandidate) resolutionInfo {
 	return resolutionInfo{
-		Input:            resolution.Input,
-		MatchedAs:        resolution.MatchedAs,
-		SourceAPI:        resolution.SourceAPI,
-		PublicModel:      resolution.PublicModel,
-		NativeModel:      resolution.NativeModel,
-		Provider:         resolution.Provider,
-		ProviderType:     resolution.ProviderType,
-		ProviderAPI:      resolution.ProviderAPI,
-		Family:           resolution.Family,
-		Weight:           resolution.Weight,
-		Priority:         resolution.Priority,
-		ModelDBService:   resolution.ModelDBService,
-		Capabilities:     resolution.Capabilities,
-		CapabilitySource: resolution.CapabilitySource,
+		Input:                resolution.Input,
+		MatchedAs:            resolution.MatchedAs,
+		SourceAPI:            resolution.SourceAPI,
+		PublicModel:          resolution.PublicModel,
+		NativeModel:          resolution.NativeModel,
+		Provider:             resolution.Provider,
+		ProviderType:         resolution.ProviderType,
+		ProviderAPI:          resolution.ProviderAPI,
+		Family:               resolution.Family,
+		Weight:               resolution.Weight,
+		Priority:             resolution.Priority,
+		ModelDBService:       resolution.ModelDBService,
+		Capabilities:         resolution.Capabilities,
+		CapabilitySource:     resolution.CapabilitySource,
+		ConsumerContinuation: resolution.ConsumerContinuation,
+		InternalContinuation: resolution.InternalContinuation,
+		Transport:            resolution.Transport,
 	}
 }
 
@@ -1389,6 +1519,7 @@ func runInferRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 	if err != nil {
 		return err
 	}
+	printInferRequestMetadata(w, req)
 	events, err := client.Request(ctx, req)
 	if err != nil {
 		return err
@@ -1397,11 +1528,23 @@ func runInferRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 		inReasoning bool
 		hadOutput   bool
 		lastUsage   *unified.UsageEvent
+		routeEvent  *unified.RouteEvent
 	)
 	for ev := range events {
 		switch e := ev.(type) {
 		case unified.RouteEvent:
-			// Resolution is printed before the stream; the route event is metadata for programmatic callers.
+			copy := e
+			routeEvent = &copy
+		case unified.ProviderExecutionEvent:
+			if routeEvent == nil {
+				routeEvent = &unified.RouteEvent{}
+			}
+			if e.InternalContinuation != "" {
+				routeEvent.InternalContinuation = e.InternalContinuation
+			}
+			if e.Transport != "" {
+				routeEvent.Transport = e.Transport
+			}
 		case unified.ReasoningDeltaEvent:
 			if !inReasoning {
 				fmt.Fprint(w, ansiDim)
@@ -1432,6 +1575,7 @@ func runInferRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 	if hadOutput {
 		fmt.Fprintln(w)
 	}
+	printInferRouteMetadata(w, routeEvent)
 	printInferUsage(w, lastUsage)
 	return nil
 }
@@ -1450,6 +1594,21 @@ func inferRequest(model, prompt string, params inferParams) (unified.Request, er
 	if params.noCache {
 		req.CachePolicy = unified.CachePolicyOff
 	}
+	mode, err := inferInteractionMode(params)
+	if err != nil {
+		return unified.Request{}, err
+	}
+	codexExt := unified.CodexExtensions{
+		InteractionMode: mode,
+		SessionID:       params.session,
+		BranchID:        params.branch,
+	}
+	if params.session != "" && !params.noCache {
+		req.CacheKey = params.session
+	}
+	if err := unified.SetCodexExtensions(&req.Extensions, codexExt); err != nil {
+		return unified.Request{}, err
+	}
 	if params.system != "" {
 		req.Instructions = append(req.Instructions, unified.Instruction{
 			Kind:    unified.InstructionSystem,
@@ -1465,6 +1624,17 @@ func inferRequest(model, prompt string, params inferParams) (unified.Request, er
 	}
 	req.Reasoning = reasoning
 	return req, nil
+}
+
+func inferInteractionMode(params inferParams) (unified.InteractionMode, error) {
+	mode := unified.InteractionMode(strings.ToLower(strings.TrimSpace(params.interaction)))
+	if mode == "" {
+		mode = unified.InteractionOneShot
+	}
+	if !unified.ValidInteractionMode(mode) {
+		return "", fmt.Errorf("invalid interaction mode %q", params.interaction)
+	}
+	return mode, nil
 }
 
 func inferReasoning(thinking, effort string) (*unified.ReasoningConfig, error) {
@@ -1515,6 +1685,38 @@ func printInferUsage(w io.Writer, usage *unified.UsageEvent) {
 	if total := usage.Costs.Total(); total > 0 {
 		fmt.Fprintf(w, "  cost: %s\n", formatCost(total))
 	}
+}
+
+func printInferRequestMetadata(w io.Writer, req unified.Request) {
+	codexExt, _ := unified.CodexExtensionsFrom(req.Extensions)
+	if codexExt.InteractionMode == "" && codexExt.SessionID == "" && codexExt.BranchID == "" && req.CacheKey == "" {
+		return
+	}
+	fmt.Fprintf(w, "%s── request ──%s\n", ansiDim, ansiReset)
+	fmt.Fprintf(w, "  interaction: %s\n", codexExt.InteractionMode)
+	if codexExt.SessionID != "" {
+		fmt.Fprintf(w, "  session: %s\n", codexExt.SessionID)
+	}
+	if codexExt.BranchID != "" {
+		fmt.Fprintf(w, "  branch: %s\n", codexExt.BranchID)
+	}
+	if req.CacheKey != "" {
+		fmt.Fprintf(w, "  cache_key: %s\n", req.CacheKey)
+	}
+	fmt.Fprintln(w)
+}
+
+func printInferRouteMetadata(w io.Writer, route *unified.RouteEvent) {
+	if route == nil {
+		return
+	}
+	if route.ConsumerContinuation == "" && route.InternalContinuation == "" && route.Transport == "" {
+		return
+	}
+	fmt.Fprintf(w, "%s── route ──%s\n", ansiDim, ansiReset)
+	fmt.Fprintf(w, "  consumer_continuation: %s\n", route.ConsumerContinuation)
+	fmt.Fprintf(w, "  internal_continuation: %s\n", route.InternalContinuation)
+	fmt.Fprintf(w, "  transport: %s\n", route.Transport)
 }
 
 func formatCost(cost float64) string {

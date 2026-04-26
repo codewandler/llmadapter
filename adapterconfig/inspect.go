@@ -6,6 +6,7 @@ import (
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/modelmeta"
 	"github.com/codewandler/llmadapter/router"
+	"github.com/codewandler/llmadapter/unified"
 	"github.com/codewandler/modeldb"
 )
 
@@ -18,38 +19,44 @@ type ConfigInspection struct {
 }
 
 type ProviderInspection struct {
-	Name             string               `json:"name"`
-	Type             string               `json:"type"`
-	APIKind          adapt.ApiKind        `json:"api_kind,omitempty"`
-	Family           adapt.ApiFamily      `json:"family,omitempty"`
-	Model            string               `json:"model,omitempty"`
-	ModelDBServiceID string               `json:"modeldb_service_id,omitempty"`
-	APIKeyEnv        string               `json:"api_key_env,omitempty"`
-	InlineAPIKey     bool                 `json:"inline_api_key,omitempty"`
-	BaseURL          string               `json:"base_url,omitempty"`
-	Priority         int                  `json:"priority,omitempty"`
-	Capabilities     CapabilityInspection `json:"capabilities,omitempty"`
-	CapabilitySource string               `json:"capability_source,omitempty"`
-	Tags             map[string]string    `json:"tags,omitempty"`
-	Error            string               `json:"error,omitempty"`
+	Name                 string                   `json:"name"`
+	Type                 string                   `json:"type"`
+	APIKind              adapt.ApiKind            `json:"api_kind,omitempty"`
+	Family               adapt.ApiFamily          `json:"family,omitempty"`
+	Model                string                   `json:"model,omitempty"`
+	ModelDBServiceID     string                   `json:"modeldb_service_id,omitempty"`
+	APIKeyEnv            string                   `json:"api_key_env,omitempty"`
+	InlineAPIKey         bool                     `json:"inline_api_key,omitempty"`
+	BaseURL              string                   `json:"base_url,omitempty"`
+	Priority             int                      `json:"priority,omitempty"`
+	ConsumerContinuation unified.ContinuationMode `json:"consumer_continuation,omitempty"`
+	InternalContinuation unified.ContinuationMode `json:"internal_continuation,omitempty"`
+	Transport            unified.TransportKind    `json:"transport,omitempty"`
+	Capabilities         CapabilityInspection     `json:"capabilities,omitempty"`
+	CapabilitySource     string                   `json:"capability_source,omitempty"`
+	Tags                 map[string]string        `json:"tags,omitempty"`
+	Error                string                   `json:"error,omitempty"`
 }
 
 type RouteInspection struct {
-	SourceAPI          adapt.ApiKind        `json:"source_api"`
-	Model              string               `json:"model,omitempty"`
-	Provider           string               `json:"provider"`
-	ProviderAPI        adapt.ApiKind        `json:"provider_api,omitempty"`
-	DynamicModels      bool                 `json:"dynamic_models,omitempty"`
-	ModelDBModel       string               `json:"modeldb_model,omitempty"`
-	NativeModel        string               `json:"native_model,omitempty"`
-	ModelDBWireModelID string               `json:"modeldb_wire_model_id,omitempty"`
-	Weight             int                  `json:"weight,omitempty"`
-	TargetAPI          adapt.ApiKind        `json:"target_api,omitempty"`
-	TargetFamily       adapt.ApiFamily      `json:"target_family,omitempty"`
-	Priority           int                  `json:"priority,omitempty"`
-	Capabilities       CapabilityInspection `json:"capabilities,omitempty"`
-	CapabilitySource   string               `json:"capability_source,omitempty"`
-	ModelDB            ModelDBInspection    `json:"modeldb,omitempty"`
+	SourceAPI            adapt.ApiKind            `json:"source_api"`
+	Model                string                   `json:"model,omitempty"`
+	Provider             string                   `json:"provider"`
+	ProviderAPI          adapt.ApiKind            `json:"provider_api,omitempty"`
+	DynamicModels        bool                     `json:"dynamic_models,omitempty"`
+	ModelDBModel         string                   `json:"modeldb_model,omitempty"`
+	NativeModel          string                   `json:"native_model,omitempty"`
+	ModelDBWireModelID   string                   `json:"modeldb_wire_model_id,omitempty"`
+	Weight               int                      `json:"weight,omitempty"`
+	TargetAPI            adapt.ApiKind            `json:"target_api,omitempty"`
+	TargetFamily         adapt.ApiFamily          `json:"target_family,omitempty"`
+	Priority             int                      `json:"priority,omitempty"`
+	ConsumerContinuation unified.ContinuationMode `json:"consumer_continuation,omitempty"`
+	InternalContinuation unified.ContinuationMode `json:"internal_continuation,omitempty"`
+	Transport            unified.TransportKind    `json:"transport,omitempty"`
+	Capabilities         CapabilityInspection     `json:"capabilities,omitempty"`
+	CapabilitySource     string                   `json:"capability_source,omitempty"`
+	ModelDB              ModelDBInspection        `json:"modeldb,omitempty"`
 }
 
 type CapabilityInspection struct {
@@ -122,6 +129,9 @@ func InspectConfigWithCatalog(cfg Config, catalog modeldb.Catalog, modelDBEnable
 		info.APIKind = endpoint.APIKind
 		info.Family = endpoint.Family
 		info.ModelDBServiceID = providerModelDBServiceID(provider)
+		info.ConsumerContinuation = endpoint.ConsumerContinuation
+		info.InternalContinuation = endpoint.InternalContinuation
+		info.Transport = endpoint.Transport
 		info.Capabilities = inspectCapabilities(endpoint.Capabilities)
 		info.CapabilitySource = providerCapabilitySource(provider)
 		info.Tags = endpoint.Tags
@@ -145,21 +155,24 @@ func InspectConfigWithCatalog(cfg Config, catalog modeldb.Catalog, modelDBEnable
 			endpoint = EndpointWithModelDBMetadata(endpoint, route, catalog)
 		}
 		out.Routes = append(out.Routes, RouteInspection{
-			SourceAPI:          route.SourceAPI,
-			Model:              route.Model,
-			Provider:           route.Provider,
-			ProviderAPI:        route.ProviderAPI,
-			DynamicModels:      route.DynamicModels,
-			ModelDBModel:       route.ModelDBModel,
-			NativeModel:        route.NativeModel,
-			ModelDBWireModelID: route.ModelDBWireModelID,
-			Weight:             route.Weight,
-			TargetAPI:          endpoint.APIKind,
-			TargetFamily:       endpoint.Family,
-			Priority:           endpoint.Priority,
-			Capabilities:       inspectCapabilities(endpoint.Capabilities),
-			CapabilitySource:   routeCapabilitySource(providerForInspection(cfg, route.Provider), endpoint, route, catalog, modelDBEnabled),
-			ModelDB:            inspectModelDB(catalog, modelDBEnabled, endpoint, route),
+			SourceAPI:            route.SourceAPI,
+			Model:                route.Model,
+			Provider:             route.Provider,
+			ProviderAPI:          route.ProviderAPI,
+			DynamicModels:        route.DynamicModels,
+			ModelDBModel:         route.ModelDBModel,
+			NativeModel:          route.NativeModel,
+			ModelDBWireModelID:   route.ModelDBWireModelID,
+			Weight:               route.Weight,
+			TargetAPI:            endpoint.APIKind,
+			TargetFamily:         endpoint.Family,
+			Priority:             endpoint.Priority,
+			ConsumerContinuation: endpoint.ConsumerContinuation,
+			InternalContinuation: endpoint.InternalContinuation,
+			Transport:            endpoint.Transport,
+			Capabilities:         inspectCapabilities(endpoint.Capabilities),
+			CapabilitySource:     routeCapabilitySource(providerForInspection(cfg, route.Provider), endpoint, route, catalog, modelDBEnabled),
+			ModelDB:              inspectModelDB(catalog, modelDBEnabled, endpoint, route),
 		})
 	}
 

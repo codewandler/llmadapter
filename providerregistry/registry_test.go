@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/unified"
 )
 
 func TestLookup(t *testing.T) {
@@ -67,6 +68,28 @@ func TestResponsesCacheKeyDescriptorsAdvertisePromptCaching(t *testing.T) {
 		if !descriptor.Capabilities.PromptCaching {
 			t.Fatalf("%s should advertise prompt caching: %+v", providerType, descriptor.Capabilities)
 		}
+	}
+}
+
+func TestDescriptorsAdvertiseContinuationAndTransport(t *testing.T) {
+	for _, descriptor := range List() {
+		if descriptor.ConsumerContinuation == "" {
+			t.Fatalf("%s missing consumer continuation", descriptor.Type)
+		}
+		if descriptor.InternalContinuation == "" {
+			t.Fatalf("%s missing internal continuation", descriptor.Type)
+		}
+		if descriptor.Transport == "" {
+			t.Fatalf("%s missing transport", descriptor.Type)
+		}
+	}
+	openAI, _ := Lookup("openai_responses")
+	if openAI.ConsumerContinuation != unified.ContinuationPreviousResponseID || openAI.InternalContinuation != unified.ContinuationPreviousResponseID {
+		t.Fatalf("openai_responses continuation = consumer=%s internal=%s", openAI.ConsumerContinuation, openAI.InternalContinuation)
+	}
+	codex, _ := Lookup("codex_responses")
+	if codex.ConsumerContinuation != unified.ContinuationReplay {
+		t.Fatalf("codex consumer continuation = %s, want replay", codex.ConsumerContinuation)
 	}
 }
 

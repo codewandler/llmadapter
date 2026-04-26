@@ -23,7 +23,12 @@ const (
 	ExtOpenRouterDebug            = "openrouter.debug"
 	ExtOpenRouterTrace            = "openrouter.trace"
 	ExtOpenRouterSessionID        = "openrouter.session_id"
+	ExtCodexInteractionMode       = "codex.interaction_mode"
 	ExtCodexSessionID             = "codex.session_id"
+	ExtCodexBranchID              = "codex.branch_id"
+	ExtCodexBranchHeadID          = "codex.branch_head_id"
+	ExtCodexInputBaseHash         = "codex.input_base_hash"
+	ExtCodexParentResponseID      = "codex.parent_response_id"
 	ExtCodexWindowID              = "codex.window_id"
 	ExtCodexTurnState             = "codex.turn_state"
 	ExtCodexTurnMetadata          = "codex.turn_metadata"
@@ -72,7 +77,12 @@ type AnthropicExtensions struct {
 }
 
 type CodexExtensions struct {
+	InteractionMode      InteractionMode
 	SessionID            string
+	BranchID             string
+	BranchHeadID         string
+	InputBaseHash        string
+	ParentResponseID     string
 	WindowID             string
 	TurnState            string
 	TurnMetadata         string
@@ -400,7 +410,18 @@ func CodexExtensionsFrom(e Extensions) (CodexExtensions, []WarningEvent) {
 			*dest = value
 		}
 	}
+	var interactionMode string
+	setString(ExtCodexInteractionMode, &interactionMode)
+	out.InteractionMode = InteractionMode(interactionMode)
+	if out.InteractionMode != "" && !ValidInteractionMode(out.InteractionMode) {
+		warnings = append(warnings, extensionWarning(ExtCodexInteractionMode, errors.New(`must be "auto", "one_shot", or "session"`)))
+		out.InteractionMode = ""
+	}
 	setString(ExtCodexSessionID, &out.SessionID)
+	setString(ExtCodexBranchID, &out.BranchID)
+	setString(ExtCodexBranchHeadID, &out.BranchHeadID)
+	setString(ExtCodexInputBaseHash, &out.InputBaseHash)
+	setString(ExtCodexParentResponseID, &out.ParentResponseID)
 	setString(ExtCodexWindowID, &out.WindowID)
 	setString(ExtCodexTurnState, &out.TurnState)
 	setString(ExtCodexTurnMetadata, &out.TurnMetadata)
@@ -445,8 +466,36 @@ func validJSONObject(value string) bool {
 }
 
 func SetCodexExtensions(e *Extensions, value CodexExtensions) error {
+	if value.InteractionMode != "" {
+		if !ValidInteractionMode(value.InteractionMode) {
+			return errors.New(`invalid codex interaction mode: must be "auto", "one_shot", or "session"`)
+		}
+		if err := e.Set(ExtCodexInteractionMode, string(value.InteractionMode)); err != nil {
+			return err
+		}
+	}
 	if value.SessionID != "" {
 		if err := e.Set(ExtCodexSessionID, value.SessionID); err != nil {
+			return err
+		}
+	}
+	if value.BranchID != "" {
+		if err := e.Set(ExtCodexBranchID, value.BranchID); err != nil {
+			return err
+		}
+	}
+	if value.BranchHeadID != "" {
+		if err := e.Set(ExtCodexBranchHeadID, value.BranchHeadID); err != nil {
+			return err
+		}
+	}
+	if value.InputBaseHash != "" {
+		if err := e.Set(ExtCodexInputBaseHash, value.InputBaseHash); err != nil {
+			return err
+		}
+	}
+	if value.ParentResponseID != "" {
+		if err := e.Set(ExtCodexParentResponseID, value.ParentResponseID); err != nil {
 			return err
 		}
 	}
