@@ -55,6 +55,49 @@ func TestBuildWarnsWhenAgenticArtifactHasNoApprovedRows(t *testing.T) {
 	}
 }
 
+func TestBuildFlagsApprovedAgenticContractViolations(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agentic_coding.json")
+	data := `{
+		"use_case": "agentic_coding",
+		"result_date": "2026-04-26",
+		"rows": [
+			{
+				"candidate": "openai_gpt",
+				"public_model": "gpt",
+				"native_model": "gpt",
+				"provider": "openai_responses",
+				"provider_api": "openai.responses",
+				"family": "openai.responses",
+				"status": "approved",
+				"text": "live"
+			}
+		]
+	}`
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	report, err := Build(Options{CompatibilityArtifactPath: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.HasFailures() {
+		t.Fatalf("expected strict conformance failure: %+v", report)
+	}
+	var openai ProviderReport
+	for _, provider := range report.Providers {
+		if provider.Type == "openai_responses" {
+			openai = provider
+			break
+		}
+	}
+	if openai.AgenticCoding.ValidApprovedCount != 0 {
+		t.Fatalf("valid approved count = %d, want 0", openai.AgenticCoding.ValidApprovedCount)
+	}
+	if openai.AgenticCoding.ContractStatus != "failed" || len(openai.AgenticCoding.ContractViolations) != 1 {
+		t.Fatalf("unexpected contract result: %+v", openai.AgenticCoding)
+	}
+}
+
 func writeTestArtifact(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "agentic_coding.json")
@@ -70,6 +113,18 @@ func writeTestArtifact(t *testing.T) string {
 				"provider_api": "anthropic.messages",
 				"family": "anthropic.messages",
 				"status": "approved",
+				"required_status": "passed",
+				"text": "live",
+				"tools": "live",
+				"tool_continuation": "live",
+				"structured_output": "live",
+				"reasoning": "live",
+				"prompt_caching": "live",
+				"usage": "live",
+				"cache_accounting": "live",
+				"consumer_continuation": "replay",
+				"internal_continuation": "replay",
+				"transport": "http_sse",
 				"duration_seconds": 1.25
 			}
 		]

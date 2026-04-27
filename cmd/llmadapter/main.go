@@ -386,10 +386,13 @@ func newConformanceCommand() *cobra.Command {
 				return err
 			}
 			if jsonOut {
-				return writeJSON(cmd.OutOrStdout(), report)
+				if err := writeJSON(cmd.OutOrStdout(), report); err != nil {
+					return err
+				}
+				return conformanceFailure(report)
 			}
 			printConformanceReport(cmd.OutOrStdout(), report)
-			return nil
+			return conformanceFailure(report)
 		},
 	}
 	cmd.Flags().StringVar(&artifactPath, "compatibility-artifact", "", "compatibility artifact path; defaults to docs/compatibility/agentic_coding.json")
@@ -1007,9 +1010,9 @@ func printCompatibilityEvaluations(w io.Writer, evaluations []compatibility.Eval
 
 func printConformanceReport(w io.Writer, report conformance.Report) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "TYPE\tAPI_KIND\tFAMILY\tTEXT\tTOOLS\tREASONING\tCACHE_ACCOUNTING\tAGENTIC_APPROVED\tWARNINGS")
+	fmt.Fprintln(tw, "TYPE\tAPI_KIND\tFAMILY\tTEXT\tTOOLS\tREASONING\tCACHE_ACCOUNTING\tAGENTIC_APPROVED\tAGENTIC_VALID\tAGENTIC_CONTRACT\tWARNINGS")
 	for _, provider := range report.Providers {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n",
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%s\t%d\n",
 			provider.Type,
 			provider.APIKind,
 			provider.Family,
@@ -1018,6 +1021,8 @@ func printConformanceReport(w io.Writer, report conformance.Report) {
 			provider.Coverage.Reasoning,
 			provider.Coverage.PromptCacheAccounting,
 			provider.AgenticCoding.ApprovedCount,
+			provider.AgenticCoding.ValidApprovedCount,
+			provider.AgenticCoding.ContractStatus,
 			len(provider.Warnings),
 		)
 	}
@@ -1025,6 +1030,17 @@ func printConformanceReport(w io.Writer, report conformance.Report) {
 	if report.CompatibilityArtifact != "" {
 		fmt.Fprintf(w, "\nCompatibility artifact: %s\n", report.CompatibilityArtifact)
 	}
+}
+
+func conformanceFailure(report conformance.Report) error {
+	var violations int
+	for _, provider := range report.Providers {
+		violations += len(provider.AgenticCoding.ContractViolations)
+	}
+	if violations == 0 {
+		return nil
+	}
+	return fmt.Errorf("conformance contract failed: %d approved agentic_coding row(s) violate required evidence", violations)
 }
 
 func printUseCaseSelections(w io.Writer, selections []adapterconfig.UseCaseModelSelection) {

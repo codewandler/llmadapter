@@ -342,7 +342,7 @@ func TestConformanceCommandJSON(t *testing.T) {
 		"use_case":"agentic_coding",
 		"result_date":"2026-04-26",
 		"rows":[
-			{"candidate":"openai_gpt","public_model":"gpt","native_model":"gpt","provider":"openai_responses","provider_api":"openai.responses","family":"openai.responses","status":"approved"}
+			{"candidate":"openai_gpt","public_model":"gpt","native_model":"gpt","provider":"openai_responses","provider_api":"openai.responses","family":"openai.responses","status":"approved","required_status":"passed","text":"live","tools":"live","tool_continuation":"live","structured_output":"live","reasoning":"live","prompt_caching":"live","usage":"live","cache_accounting":"live","consumer_continuation":"previous_response_id","internal_continuation":"previous_response_id","transport":"http_sse"}
 		]
 	}`
 	if err := os.WriteFile(artifactPath, []byte(artifact), 0o600); err != nil {
@@ -356,10 +356,39 @@ func TestConformanceCommandJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, want := range []string{`"type": "openai_responses"`, `"agentic_coding"`, `"approved_count": 1`} {
+	for _, want := range []string{`"type": "openai_responses"`, `"agentic_coding"`, `"approved_count": 1`, `"valid_approved_count": 1`, `"contract_status": "passed"`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestConformanceCommandFailsOnInvalidApprovedEvidence(t *testing.T) {
+	dir := t.TempDir()
+	artifactPath := filepath.Join(dir, "agentic_coding.json")
+	artifact := `{
+		"use_case":"agentic_coding",
+		"result_date":"2026-04-26",
+		"rows":[
+			{"candidate":"openai_gpt","public_model":"gpt","native_model":"gpt","provider":"openai_responses","provider_api":"openai.responses","family":"openai.responses","status":"approved"}
+		]
+	}`
+	if err := os.WriteFile(artifactPath, []byte(artifact), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut bytes.Buffer
+	cmd := newRootCommand(&out, &errOut)
+	cmd.SetArgs([]string{"conformance", "--compatibility-artifact", artifactPath})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected conformance failure")
+	}
+	if !strings.Contains(err.Error(), "conformance contract failed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out.String(), "failed") {
+		t.Fatalf("expected text output to show failed contract:\n%s", out.String())
 	}
 }
 

@@ -3,6 +3,7 @@ package conformance
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/compatibility"
@@ -20,6 +21,17 @@ type Options struct {
 type Report struct {
 	Providers             []ProviderReport `json:"providers"`
 	CompatibilityArtifact string           `json:"compatibility_artifact,omitempty"`
+}
+
+// HasFailures reports whether compatibility evidence violates a strict
+// conformance contract. Missing optional evidence is surfaced as warnings only.
+func (r Report) HasFailures() bool {
+	for _, provider := range r.Providers {
+		if len(provider.AgenticCoding.ContractViolations) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // ProviderReport describes one registered provider endpoint type.
@@ -76,24 +88,45 @@ type FeatureCoverage struct {
 
 // UseCaseCoverage records rows from a workload-specific compatibility artifact.
 type UseCaseCoverage struct {
-	ArtifactPath  string                `json:"artifact_path,omitempty"`
-	UseCase       compatibility.UseCase `json:"use_case,omitempty"`
-	ResultDate    string                `json:"result_date,omitempty"`
-	ApprovedCount int                   `json:"approved_count"`
-	Rows          []UseCaseRow          `json:"rows,omitempty"`
+	ArtifactPath       string                     `json:"artifact_path,omitempty"`
+	UseCase            compatibility.UseCase      `json:"use_case,omitempty"`
+	ResultDate         string                     `json:"result_date,omitempty"`
+	ApprovedCount      int                        `json:"approved_count"`
+	ValidApprovedCount int                        `json:"valid_approved_count,omitempty"`
+	ContractStatus     string                     `json:"contract_status,omitempty"`
+	ContractViolations []UseCaseContractViolation `json:"contract_violations,omitempty"`
+	Rows               []UseCaseRow               `json:"rows,omitempty"`
 }
 
 // UseCaseRow is the compatibility artifact row subset shown per provider.
 type UseCaseRow struct {
-	Candidate       string                `json:"candidate,omitempty"`
-	PublicModel     string                `json:"public_model,omitempty"`
-	NativeModel     string                `json:"native_model,omitempty"`
-	ProviderAPI     adapt.ApiKind         `json:"provider_api,omitempty"`
-	Family          adapt.ApiFamily       `json:"family,omitempty"`
-	Status          compatibility.Status  `json:"status"`
-	DurationSeconds float64               `json:"duration_seconds,omitempty"`
-	Continuation    ContinuationReport    `json:"continuation,omitempty"`
-	Transport       unified.TransportKind `json:"transport,omitempty"`
+	Candidate        string                `json:"candidate,omitempty"`
+	PublicModel      string                `json:"public_model,omitempty"`
+	NativeModel      string                `json:"native_model,omitempty"`
+	ProviderAPI      adapt.ApiKind         `json:"provider_api,omitempty"`
+	Family           adapt.ApiFamily       `json:"family,omitempty"`
+	Status           compatibility.Status  `json:"status"`
+	DurationSeconds  float64               `json:"duration_seconds,omitempty"`
+	Text             string                `json:"text,omitempty"`
+	Tools            string                `json:"tools,omitempty"`
+	ToolContinuation string                `json:"tool_continuation,omitempty"`
+	StructuredOutput string                `json:"structured_output,omitempty"`
+	Reasoning        string                `json:"reasoning,omitempty"`
+	PromptCaching    string                `json:"prompt_caching,omitempty"`
+	Usage            string                `json:"usage,omitempty"`
+	CacheAccounting  string                `json:"cache_accounting,omitempty"`
+	Continuation     ContinuationReport    `json:"continuation,omitempty"`
+	Transport        unified.TransportKind `json:"transport,omitempty"`
+}
+
+// UseCaseContractViolation explains why an approved workload row is not
+// acceptable as strict conformance evidence.
+type UseCaseContractViolation struct {
+	Candidate   string   `json:"candidate,omitempty"`
+	PublicModel string   `json:"public_model,omitempty"`
+	NativeModel string   `json:"native_model,omitempty"`
+	Provider    string   `json:"provider,omitempty"`
+	Reasons     []string `json:"reasons"`
 }
 
 // Build creates a provider conformance report from registry descriptors and optional compatibility evidence.
@@ -177,15 +210,39 @@ func useCaseCoverage(path string, artifact compatibility.Artifact, descriptor pr
 		}
 		if row.Status == compatibility.StatusApproved {
 			out.ApprovedCount++
+			if artifact.UseCase != compatibility.UseCaseAgenticCoding {
+				out.ValidApprovedCount++
+			} else {
+				reasons := agenticCodingContractViolations(row)
+				if len(reasons) == 0 {
+					out.ValidApprovedCount++
+				} else {
+					out.ContractViolations = append(out.ContractViolations, UseCaseContractViolation{
+						Candidate:   row.Candidate,
+						PublicModel: row.PublicModel,
+						NativeModel: row.NativeModel,
+						Provider:    row.Provider,
+						Reasons:     reasons,
+					})
+				}
+			}
 		}
 		out.Rows = append(out.Rows, UseCaseRow{
-			Candidate:       row.Candidate,
-			PublicModel:     row.PublicModel,
-			NativeModel:     row.NativeModel,
-			ProviderAPI:     row.ProviderAPI,
-			Family:          row.Family,
-			Status:          row.Status,
-			DurationSeconds: row.DurationSeconds,
+			Candidate:        row.Candidate,
+			PublicModel:      row.PublicModel,
+			NativeModel:      row.NativeModel,
+			ProviderAPI:      row.ProviderAPI,
+			Family:           row.Family,
+			Status:           row.Status,
+			DurationSeconds:  row.DurationSeconds,
+			Text:             row.Text,
+			Tools:            row.Tools,
+			ToolContinuation: row.ToolContinuation,
+			StructuredOutput: row.StructuredOutput,
+			Reasoning:        row.Reasoning,
+			PromptCaching:    row.PromptCaching,
+			Usage:            row.Usage,
+			CacheAccounting:  row.CacheAccounting,
 			Continuation: ContinuationReport{
 				Consumer: consumerContinuation,
 				Internal: internalContinuation,
@@ -199,6 +256,16 @@ func useCaseCoverage(path string, artifact compatibility.Artifact, descriptor pr
 		}
 		return out.Rows[i].PublicModel < out.Rows[j].PublicModel
 	})
+	if artifact.UseCase == compatibility.UseCaseAgenticCoding && path != "" {
+		switch {
+		case len(out.ContractViolations) > 0:
+			out.ContractStatus = "failed"
+		case out.ApprovedCount == 0:
+			out.ContractStatus = "no_approved"
+		default:
+			out.ContractStatus = "passed"
+		}
+	}
 	return out
 }
 
@@ -213,7 +280,42 @@ func warningsForProvider(descriptor providerregistry.Descriptor, coverage Featur
 	if supportsAgenticPrimitives(descriptor.Capabilities) && useCase.ArtifactPath != "" && useCase.ApprovedCount == 0 {
 		warnings = append(warnings, "no approved agentic-coding rows in compatibility artifact")
 	}
+	for _, violation := range useCase.ContractViolations {
+		warnings = append(warnings, fmt.Sprintf("approved agentic-coding row %q violates conformance contract: %s", violation.Candidate, strings.Join(violation.Reasons, "; ")))
+	}
 	return warnings
+}
+
+func agenticCodingContractViolations(row compatibility.Row) []string {
+	var reasons []string
+	if row.RequiredStatus != "passed" {
+		reasons = append(reasons, fmt.Sprintf("required_status=%q, want passed", row.RequiredStatus))
+	}
+	requiredLive := map[string]string{
+		"text":              row.Text,
+		"tools":             row.Tools,
+		"tool_continuation": row.ToolContinuation,
+		"structured_output": row.StructuredOutput,
+		"reasoning":         row.Reasoning,
+		"prompt_caching":    row.PromptCaching,
+		"usage":             row.Usage,
+		"cache_accounting":  row.CacheAccounting,
+	}
+	for _, name := range []string{"text", "tools", "tool_continuation", "structured_output", "reasoning", "prompt_caching", "usage", "cache_accounting"} {
+		if requiredLive[name] != string(compatibility.EvidenceLive) {
+			reasons = append(reasons, fmt.Sprintf("%s=%q, want live", name, requiredLive[name]))
+		}
+	}
+	if row.ConsumerContinuation == "" {
+		reasons = append(reasons, "consumer_continuation is empty")
+	}
+	if row.InternalContinuation == "" {
+		reasons = append(reasons, "internal_continuation is empty")
+	}
+	if row.Transport == "" {
+		reasons = append(reasons, "transport is empty")
+	}
+	return reasons
 }
 
 func supportsAgenticPrimitives(capabilities router.CapabilitySet) bool {

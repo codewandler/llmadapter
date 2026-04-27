@@ -68,6 +68,8 @@ Library consumers can use `adapterconfig.SelectModelForUseCase` or `AutoResult.S
 
 The generated `Transport` column records the transport observed by the workload compatibility run. It is not a routing requirement unless the use case says so. Codex WebSocket continuation/cache behavior is tracked separately in `docs/PROVIDER_MATRIX.md` because it is a provider-internal optimization while the public Codex continuation contract remains replay.
 
+`llmadapter conformance` now validates the approved `agentic_coding` rows as a strict contract. An approved row is only valid when all required workload checks are recorded as live evidence, cache accounting is live, and the artifact explicitly records consumer continuation, internal continuation, and transport. This is the contract consumers such as agentsdk should trust when selecting models for coding-agent use.
+
 ## Initial Candidate Set
 
 These rows are covered by the live agentic-coding compatibility smoke test:
@@ -137,6 +139,8 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestUseCas
 ```
 
 Cache accounting is mandatory for agentic coding. Every approved row reported provider cache write or cache read counters in this run.
+
+The same artifact passes `llmadapter conformance`: every approved row is also a valid approved row, and no approved row is missing required feature, continuation, or transport evidence.
 
 OpenRouter documentation says prompt caching can report `cached_tokens` and `cache_write_tokens` in detailed usage. The adapter now decodes both Responses-style `input_tokens_details` and Chat/Completions-style `prompt_tokens_details`, which is required because OpenRouter can expose the latter shape on Responses-compatible streams.
 

@@ -10,6 +10,16 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.9] - 2026-04-27
+
+### Added
+
+- Added strict `agentic_coding` conformance validation so approved compatibility rows must include live required-feature evidence plus explicit continuation and transport evidence.
+
+### Changed
+
+- `llmadapter conformance` now reports approved versus valid approved rows and exits non-zero when an approved `agentic_coding` row violates the required evidence contract.
+
 ## [1.0.0-rc.8] - 2026-04-27
 
 ### Added

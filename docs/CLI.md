@@ -209,6 +209,8 @@ go run ./cmd/llmadapter conformance --json
 
 The default report joins the provider registry with `docs/compatibility/agentic_coding.json`. Use `--compatibility-artifact` to point at another recorded artifact.
 
+For `agentic_coding`, every approved row is validated as a strict workload contract. The row must have `required_status=passed`, live evidence for text, tools, tool continuation, structured output, reasoning, prompt caching, usage, and cache accounting, plus explicit consumer continuation, internal continuation, and transport evidence. The text report shows `AGENTIC_APPROVED`, `AGENTIC_VALID`, and `AGENTIC_CONTRACT`; the command exits non-zero if an approved row violates that contract.
+
 ## infer
 
 Run one prompt:
