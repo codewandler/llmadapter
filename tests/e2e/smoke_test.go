@@ -47,6 +47,7 @@ func TestSmokeTextStream(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			client, model := newSmokeClient(t, provider)
 			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()
@@ -98,6 +99,7 @@ func TestSmokeReasoningStream(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			if !provider.reasoning {
 				t.Skipf("%s does not advertise reasoning smoke support in this slice", provider.name)
 			}
@@ -147,6 +149,7 @@ func TestSmokeToolUse(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			if !provider.tools {
 				t.Skipf("%s does not advertise tool smoke support in this slice", provider.name)
 			}
@@ -208,6 +211,7 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			if !provider.tools {
 				t.Skipf("%s does not advertise tool smoke support in this slice", provider.name)
 			}
@@ -298,6 +302,7 @@ func TestSmokeParallelToolUse(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			if !provider.parallelTools {
 				t.Skipf("%s does not advertise parallel tool smoke support in this slice", provider.name)
 			}
@@ -360,6 +365,7 @@ func TestSmokePromptCache(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			if !provider.promptCache {
 				t.Skipf("%s does not advertise prompt cache smoke support in this slice", provider.name)
 			}
@@ -426,6 +432,7 @@ func TestSmokeResponsesContinuation(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			if !provider.responsesContinuation {
 				t.Skipf("%s does not advertise Responses previous_response_id smoke support in this slice", provider.name)
 			}
@@ -723,6 +730,7 @@ func TestSmokeInvalidCredential(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			if len(provider.apiKeyEnv) == 0 || provider.localCodexOAuth {
 				t.Skipf("%s does not use direct API-key invalid credential coverage", provider.name)
 			}
@@ -742,6 +750,7 @@ func TestSmokeInvalidModel(t *testing.T) {
 
 	for _, provider := range smokeProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			if provider.skipInvalidModel {
 				t.Skipf("%s does not reject the shared invalid model sentinel", provider.name)
 			}

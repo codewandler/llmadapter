@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,8 +45,10 @@ func TestUseCaseAgenticCoding(t *testing.T) {
 
 	startedAll := time.Now()
 	var rows []compatibility.Row
+	var rowsMu sync.Mutex
 	for _, candidate := range agenticCodingCandidates() {
 		t.Run(candidate.name, func(t *testing.T) {
+			t.Parallel()
 			started := time.Now()
 			client, model := newAgenticCodingClient(t, candidate)
 			result := agenticCodingResult{Candidate: candidate.name, Model: model}
@@ -67,9 +71,12 @@ func TestUseCaseAgenticCoding(t *testing.T) {
 				result.PromptCaching,
 				result.CacheAccounting,
 			)
+			rowsMu.Lock()
 			rows = append(rows, agenticCodingArtifactRow(candidate, result))
+			rowsMu.Unlock()
 		})
 	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Candidate < rows[j].Candidate })
 	if path := os.Getenv("LLMADAPTER_COMPAT_ARTIFACT"); path != "" && !t.Failed() {
 		artifact, err := compatibility.NewArtifact(
 			compatibility.UseCaseAgenticCoding,

@@ -45,6 +45,7 @@ type gatewayProvider struct {
 func TestGatewaySmokeNonStreaming(t *testing.T) {
 	for _, provider := range gatewayProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			handler, model := newGateway(t, provider)
 			body := `{
 				"model":` + jsonQuote(model) + `,
@@ -82,6 +83,7 @@ func TestGatewaySmokeNonStreaming(t *testing.T) {
 func TestGatewaySmokeStreaming(t *testing.T) {
 	for _, provider := range gatewayProviders() {
 		t.Run(provider.name, func(t *testing.T) {
+			t.Parallel()
 			handler, model := newGateway(t, provider)
 			body := `{
 				"model":` + jsonQuote(model) + `,
