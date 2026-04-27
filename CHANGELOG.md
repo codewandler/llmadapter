@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.10] - 2026-04-27
+
 ### Added
 
 - Added endpoint request-body size limits with 413 responses for oversized gateway requests.
