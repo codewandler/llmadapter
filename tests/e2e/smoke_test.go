@@ -1040,7 +1040,7 @@ func newClaudeSmokeClient(token string) (unified.Client, error) {
 		anthropic.WithBearerTokenProvider(anthropic.NewStaticTokenProvider(anthropic.NewStaticBearerToken(token))),
 		anthropic.WithClaudeHeaders(),
 		anthropic.WithClaudeCodePreflight(),
-		anthropic.WithSystemCacheControl(""),
+		anthropic.WithSystemCacheControl("1h"),
 	)
 }
 

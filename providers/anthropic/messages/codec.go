@@ -106,12 +106,30 @@ func applyCachePolicy(out *MessageRequest, req unified.Request) {
 	if out.System != nil {
 		out.System.ApplyCacheToLastText(cache)
 	}
+	applyCacheToLastMessageBlock(out.Messages, cache)
 	for i := len(out.Tools) - 1; i >= 0; i-- {
 		if out.Tools[i].Cache == nil {
 			out.Tools[i].Cache = cache
 		}
 		break
 	}
+}
+
+func applyCacheToLastMessageBlock(messages []InputMessage, cache *CacheControl) bool {
+	if cache == nil {
+		return false
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		if len(messages[i].Content) == 0 {
+			continue
+		}
+		last := len(messages[i].Content) - 1
+		if messages[i].Content[last].Cache == nil {
+			messages[i].Content[last].Cache = cache
+		}
+		return true
+	}
+	return false
 }
 
 func cacheControlForPolicy(req unified.Request) *CacheControl {

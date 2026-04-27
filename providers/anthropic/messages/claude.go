@@ -22,6 +22,7 @@ const (
 	claudeSystemCore      = "You are a Claude agent, built on Anthropic's Claude Agent SDK."
 	claudeStainlessPkgVer = "0.74.0"
 	claudeStainlessNode   = "v24.3.0"
+	claudeSystemCacheTTL  = "1h"
 )
 
 func WithBearerTokenProvider(provider TokenProvider) Option {
@@ -59,7 +60,7 @@ func WithClaudeCode() Option {
 			WithLocalClaudeOAuth(),
 			WithClaudeHeaders(),
 			WithClaudeCodePreflight(),
-			WithSystemCacheControl(""),
+			WithSystemCacheControl(claudeSystemCacheTTL),
 		} {
 			if err := opt.applyAnthropic(c); err != nil {
 				return err

@@ -90,44 +90,98 @@ func TestCodecEncodeSystemCacheControl(t *testing.T) {
 }
 
 func TestCodecEncodeCachePolicy(t *testing.T) {
-	maxTokens := 128
-	req := adapt.Request{Unified: unified.Request{
-		Model:           "claude-test",
-		MaxOutputTokens: &maxTokens,
-		CachePolicy:     unified.CachePolicyOn,
-		CacheTTL:        "1h",
-		Instructions: []unified.Instruction{{
-			Kind: unified.InstructionSystem,
-			Content: []unified.ContentPart{
-				unified.TextPart{Text: "first"},
-				unified.TextPart{Text: "last"},
+	tests := []struct {
+		name         string
+		messages     []unified.Message
+		wantType     string
+		wantMessage  int
+		wantBlockIdx int
+	}{
+		{
+			name: "last user block",
+			messages: []unified.Message{{
+				Role: unified.RoleUser,
+				Content: []unified.ContentPart{
+					unified.TextPart{Text: "first"},
+					unified.TextPart{Text: "last"},
+				},
+			}},
+			wantType:     "text",
+			wantMessage:  0,
+			wantBlockIdx: 1,
+		},
+		{
+			name: "last tool result block",
+			messages: []unified.Message{
+				{
+					Role:    unified.RoleUser,
+					Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+				},
+				{
+					Role: unified.RoleTool,
+					ToolResults: []unified.ToolResult{{
+						ToolCallID: "call_1",
+						Content:    []unified.ContentPart{unified.TextPart{Text: "tool output"}},
+					}},
+				},
 			},
-		}},
-		Messages: []unified.Message{{
-			Role:    unified.RoleUser,
-			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
-		}},
-		Tools: []unified.Tool{{
-			Kind:        unified.ToolKindFunction,
-			Name:        "lookup",
-			Description: "look up a value",
-			InputSchema: json.RawMessage(`{"type":"object"}`),
-		}},
-		Stream: true,
-	}}
+			wantType:     "tool_result",
+			wantMessage:  1,
+			wantBlockIdx: 0,
+		},
+	}
 
-	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if wire.System.Blocks[0].Cache != nil {
-		t.Fatalf("expected first system block to remain uncached: %+v", wire.System.Blocks)
-	}
-	if got := wire.System.Blocks[1].Cache; got == nil || got.Type != "ephemeral" || got.TTL != "1h" {
-		t.Fatalf("unexpected system cache control: %+v", wire.System.Blocks)
-	}
-	if len(wire.Tools) != 1 || wire.Tools[0].Cache == nil || wire.Tools[0].Cache.TTL != "1h" {
-		t.Fatalf("unexpected tool cache control: %+v", wire.Tools)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			maxTokens := 128
+			req := adapt.Request{Unified: unified.Request{
+				Model:           "claude-test",
+				MaxOutputTokens: &maxTokens,
+				CachePolicy:     unified.CachePolicyOn,
+				CacheTTL:        "1h",
+				Instructions: []unified.Instruction{{
+					Kind: unified.InstructionSystem,
+					Content: []unified.ContentPart{
+						unified.TextPart{Text: "first"},
+						unified.TextPart{Text: "last"},
+					},
+				}},
+				Messages: tt.messages,
+				Tools: []unified.Tool{{
+					Kind:        unified.ToolKindFunction,
+					Name:        "lookup",
+					Description: "look up a value",
+					InputSchema: json.RawMessage(`{"type":"object"}`),
+				}},
+				Stream: true,
+			}}
+
+			wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if wire.System.Blocks[0].Cache != nil {
+				t.Fatalf("expected first system block to remain uncached: %+v", wire.System.Blocks)
+			}
+			if got := wire.System.Blocks[1].Cache; got == nil || got.Type != "ephemeral" || got.TTL != "1h" {
+				t.Fatalf("unexpected system cache control: %+v", wire.System.Blocks)
+			}
+			if len(wire.Messages) != len(tt.messages) {
+				t.Fatalf("messages = %+v", wire.Messages)
+			}
+			if got := wire.Messages[tt.wantMessage].Content[tt.wantBlockIdx].Cache; got == nil || got.Type != "ephemeral" || got.TTL != "1h" {
+				t.Fatalf("unexpected message cache control: %+v", wire.Messages)
+			}
+			if len(wire.Tools) != 1 || wire.Tools[0].Cache == nil || wire.Tools[0].Cache.TTL != "1h" {
+				t.Fatalf("unexpected tool cache control: %+v", wire.Tools)
+			}
+			if wire.Messages[tt.wantMessage].Content[tt.wantBlockIdx].Type != tt.wantType {
+				t.Fatalf("unexpected cached block type: %+v", wire.Messages[tt.wantMessage].Content)
+			}
+			if wire.Messages[0].Content[0].Cache != nil {
+				t.Fatalf("expected first content block to remain uncached: %+v", wire.Messages[0].Content)
+			}
+		})
 	}
 }
 

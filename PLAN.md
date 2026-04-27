@@ -8,9 +8,9 @@ Primary goal: keep the adapter buildable and incrementally useful while hardenin
 
 ## Current Status
 
-Status date: 2026-04-27.
+Status date: 2026-04-28.
 
-`v1.0.0-rc.10` has been cut. The current remaining v1 work is release-candidate validation and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
+`v1.0.0-rc.12` has been cut. The current remaining v1 work is release-candidate validation and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
 
 Highest-priority post-rc work:
 
@@ -736,7 +736,7 @@ Implementation pieces:
 4. Add Claude request transforms:
    - prepend Claude billing/system preflight system blocks (implemented)
    - set metadata user_id derived from ~/.claude.json device/account/session data when available (implemented)
-   - optionally add cache_control to the last system block with default TTL (implemented)
+   - optionally add cache_control to the last system block and last conversation content block with default TTL (implemented)
    - coerce thinking temperature to an Anthropic-valid value when extended thinking is enabled (implemented)
 5. Add gateway config provider type "claude". (implemented)
 6. Add e2e tests gated by TEST_INTEGRATION and local Claude credentials:

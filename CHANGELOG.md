@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.12] - 2026-04-28
+
+### Changed
+
+- Anthropic-family cache policy now marks the last content block of the final conversation message in addition to the system prefix, which improves append-only prompt caching for Anthropic, Claude, MiniMax Messages, and OpenRouter Messages.
+- Claude compatibility now uses a matching system cache TTL so prompt-cache requests remain valid after the final-message cache hint change.
+
 ## [1.0.0-rc.11] - 2026-04-27
 
 ### Changed

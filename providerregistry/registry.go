@@ -216,7 +216,7 @@ func newAnthropicClient(cfg ClientConfig, claudeCompatible bool) (unified.Client
 		opts = append(opts,
 			anthropic.WithClaudeHeaders(),
 			anthropic.WithClaudeCodePreflight(),
-			anthropic.WithSystemCacheControl(""),
+			anthropic.WithSystemCacheControl("1h"),
 		)
 	}
 
