@@ -13,6 +13,7 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - Added endpoint request-body size limits with 413 responses for oversized gateway requests.
+- Added gateway happy-path tests for Anthropic Messages and OpenAI Responses endpoints.
 
 ### Fixed
 

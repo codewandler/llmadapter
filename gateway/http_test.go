@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
+	anthropicendpoint "github.com/codewandler/llmadapter/endpoints/anthropicmessages"
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
+	responsesendpoint "github.com/codewandler/llmadapter/endpoints/openairesponses"
 	"github.com/codewandler/llmadapter/router"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -413,6 +415,82 @@ func TestHandlerChatCompletions(t *testing.T) {
 		t.Fatalf("unexpected client request: %+v", client.req)
 	}
 	if !strings.Contains(w.Body.String(), `"content":"pong"`) {
+		t.Fatalf("unexpected response body: %s", w.Body.String())
+	}
+}
+
+func TestHandlerAnthropicMessages(t *testing.T) {
+	client := &staticClient{events: []unified.Event{
+		unified.MessageStartEvent{ID: "msg", Model: "model"},
+		unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindText},
+		unified.TextDeltaEvent{Index: 0, Text: "pong"},
+		unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	handler := Handler{Endpoint: anthropicendpoint.Codec{}, Router: router.NewStaticRouter(router.StaticRoute{
+		SourceAPI:   adapt.ApiAnthropicMessages,
+		NativeModel: "native-claude",
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: "test",
+			APIKind:      adapt.ApiAnthropicMessages,
+			Family:       adapt.FamilyAnthropicMessages,
+			Client:       client,
+		},
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{
+		"model":"claude",
+		"max_tokens":16,
+		"messages":[{"role":"user","content":[{"type":"text","text":"ping"}]}]
+	}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	if client.req.Model != "native-claude" || len(client.req.Messages) != 1 || client.req.MaxOutputTokens == nil || *client.req.MaxOutputTokens != 16 {
+		t.Fatalf("unexpected client request: %+v", client.req)
+	}
+	if !strings.Contains(w.Body.String(), `"text":"pong"`) || !strings.Contains(w.Body.String(), `"role":"assistant"`) {
+		t.Fatalf("unexpected response body: %s", w.Body.String())
+	}
+}
+
+func TestHandlerOpenAIResponses(t *testing.T) {
+	client := &staticClient{events: []unified.Event{
+		unified.MessageStartEvent{ID: "resp", Model: "model"},
+		unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindText},
+		unified.TextDeltaEvent{Index: 0, Text: "pong"},
+		unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText},
+		unified.CompletedEvent{FinishReason: unified.FinishReasonStop},
+	}}
+	handler := Handler{Endpoint: responsesendpoint.Codec{}, Router: router.NewStaticRouter(router.StaticRoute{
+		SourceAPI:   adapt.ApiOpenAIResponses,
+		NativeModel: "native-gpt",
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: "test",
+			APIKind:      adapt.ApiOpenAIResponses,
+			Family:       adapt.FamilyOpenAIResponses,
+			Client:       client,
+		},
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{
+		"model":"gpt",
+		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"ping"}]}],
+		"max_output_tokens":16
+	}`))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	if client.req.Model != "native-gpt" || len(client.req.Messages) != 1 || client.req.MaxOutputTokens == nil || *client.req.MaxOutputTokens != 16 {
+		t.Fatalf("unexpected client request: %+v", client.req)
+	}
+	if !strings.Contains(w.Body.String(), `"text":"pong"`) || !strings.Contains(w.Body.String(), `"object":"response"`) {
 		t.Fatalf("unexpected response body: %s", w.Body.String())
 	}
 }
