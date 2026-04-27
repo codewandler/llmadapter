@@ -46,7 +46,9 @@ func (r *SSEReader) Next() ([]byte, error) {
 		}
 		if b == '\r' {
 			if next, err := r.r.Peek(1); err == nil && next[0] == '\n' {
-				_, _ = r.r.ReadByte()
+				if _, err := r.r.ReadByte(); err != nil {
+					return nil, err
+				}
 			}
 		}
 

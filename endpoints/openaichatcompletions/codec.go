@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/internal/requestbody"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -22,8 +23,11 @@ func (Codec) DecodeHTTP(ctx context.Context, r *http.Request) (adapt.Request, er
 		return adapt.Request{}, statusError(http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
 	}
 	defer r.Body.Close()
-	body, err := io.ReadAll(r.Body)
+	body, err := requestbody.Read(r.Body)
 	if err != nil {
+		if errors.Is(err, requestbody.ErrTooLarge) {
+			return adapt.Request{}, statusError(http.StatusRequestEntityTooLarge, "request_body_too_large", err.Error())
+		}
 		return adapt.Request{}, err
 	}
 	var wire Request

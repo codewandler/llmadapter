@@ -10,6 +10,14 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added endpoint request-body size limits with 413 responses for oversized gateway requests.
+
+### Fixed
+
+- Added HTTP gateway server timeouts, context-aware provider stream error sends, OpenAI Responses WebSocket session locking, default TLS 1.2 enforcement, and stricter transport error handling.
+
 ## [1.0.0-rc.9] - 2026-04-27
 
 ### Added

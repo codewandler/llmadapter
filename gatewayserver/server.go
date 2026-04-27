@@ -14,6 +14,13 @@ import (
 	"github.com/codewandler/llmadapter/gateway"
 )
 
+const (
+	defaultReadHeaderTimeout = 10 * time.Second
+	defaultReadTimeout       = 30 * time.Second
+	defaultWriteTimeout      = 30 * time.Minute
+	defaultIdleTimeout       = 2 * time.Minute
+)
+
 func Handler(cfg adapterconfig.Config) (http.Handler, error) {
 	if err := adapterconfig.Validate(cfg); err != nil {
 		return nil, err
@@ -55,7 +62,15 @@ func ListenAndServe(cfg adapterconfig.Config) error {
 		return err
 	}
 	log.Printf("llmadapter gateway listening on %s", cfg.Addr)
-	err = http.ListenAndServe(cfg.Addr, handler)
+	server := &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           handler,
+		ReadHeaderTimeout: defaultReadHeaderTimeout,
+		ReadTimeout:       defaultReadTimeout,
+		WriteTimeout:      defaultWriteTimeout,
+		IdleTimeout:       defaultIdleTimeout,
+	}
+	err = server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

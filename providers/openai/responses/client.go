@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/codewandler/llmadapter/providers/openai/internal/responsesws"
 	"github.com/codewandler/llmadapter/transport"
@@ -27,6 +28,7 @@ type Client struct {
 	transport                  transport.ByteStreamTransport
 	webSocketTransport         transport.ByteStreamTransport
 	webSocketMode              WebSocketMode
+	webSocketMu                sync.Mutex
 	webSocketSession           *responsesws.Session
 }
 
@@ -116,10 +118,8 @@ func (c *Client) readStream(ctx context.Context, warnings []unified.WarningEvent
 	defer close(out)
 	defer stream.Close()
 	for _, warning := range warnings {
-		select {
-		case <-ctx.Done():
+		if !sendEvent(ctx, out, warning) {
 			return
-		case out <- warning:
 		}
 	}
 	decoder := streamDecoder{apiKind: c.rawAPIKind}
@@ -129,19 +129,17 @@ func (c *Client) readStream(ctx context.Context, warnings []unified.WarningEvent
 			return
 		}
 		if err != nil {
-			out <- unified.ErrorEvent{Err: err}
+			sendEvent(ctx, out, unified.ErrorEvent{Err: err})
 			return
 		}
 		events, err := decoder.push(raw)
 		if err != nil {
-			out <- unified.ErrorEvent{Err: err}
+			sendEvent(ctx, out, unified.ErrorEvent{Err: err})
 			return
 		}
 		for _, ev := range events {
-			select {
-			case <-ctx.Done():
+			if !sendEvent(ctx, out, ev) {
 				return
-			case out <- ev:
 			}
 			if _, ok := ev.(unified.CompletedEvent); ok {
 				return
@@ -159,4 +157,13 @@ func warningEvents(source string, warnings []mappingWarning) []unified.WarningEv
 		out = append(out, warning.event(source))
 	}
 	return out
+}
+
+func sendEvent(ctx context.Context, out chan<- unified.Event, ev unified.Event) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case out <- ev:
+		return true
+	}
 }

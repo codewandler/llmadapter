@@ -72,31 +72,40 @@ func (c *NativeClient) Request(ctx context.Context, req MessageRequest) (<-chan 
 			if errors.Is(err, io.EOF) {
 				flushed, closeErr := decoder.Close(ctx)
 				if closeErr != nil {
-					out <- ErrorEventWire{Type: "error", Error: APIErrorBody{Type: "stream_error", Message: closeErr.Error()}}
+					sendNativeEvent(ctx, out, ErrorEventWire{Type: "error", Error: APIErrorBody{Type: "stream_error", Message: closeErr.Error()}})
 					return
 				}
 				for _, ev := range flushed {
-					out <- ev
+					if !sendNativeEvent(ctx, out, ev) {
+						return
+					}
 				}
 				return
 			}
 			if err != nil {
-				out <- ErrorEventWire{Type: "error", Error: APIErrorBody{Type: "stream_error", Message: err.Error()}}
+				sendNativeEvent(ctx, out, ErrorEventWire{Type: "error", Error: APIErrorBody{Type: "stream_error", Message: err.Error()}})
 				return
 			}
 			events, err := decoder.PushFrame(ctx, raw)
 			if err != nil {
-				out <- ErrorEventWire{Type: "error", Error: APIErrorBody{Type: "decode_error", Message: err.Error()}}
+				sendNativeEvent(ctx, out, ErrorEventWire{Type: "error", Error: APIErrorBody{Type: "decode_error", Message: err.Error()}})
 				return
 			}
 			for _, ev := range events {
-				select {
-				case <-ctx.Done():
+				if !sendNativeEvent(ctx, out, ev) {
 					return
-				case out <- ev:
 				}
 			}
 		}
 	}()
 	return out, nil
+}
+
+func sendNativeEvent(ctx context.Context, out chan<- Event, ev Event) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case out <- ev:
+		return true
+	}
 }

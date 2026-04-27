@@ -10,6 +10,7 @@ import (
 
 	"github.com/codewandler/llmadapter/adapt"
 	anthropic "github.com/codewandler/llmadapter/anthropicwire"
+	"github.com/codewandler/llmadapter/internal/requestbody"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -83,6 +84,18 @@ func TestDecodeHTTPEdgeCaseErrors(t *testing.T) {
 				t.Fatalf("error = %#v, want code %s", err, tt.code)
 			}
 		})
+	}
+}
+
+func TestDecodeHTTPRejectsOversizedBody(t *testing.T) {
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(strings.Repeat("x", int(requestbody.MaxBytes)+1)))
+	_, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+	got, ok := err.(httpError)
+	if !ok || got.status != http.StatusRequestEntityTooLarge || got.code != "request_body_too_large" {
+		t.Fatalf("error = %#v, want request_body_too_large 413", err)
 	}
 }
 

@@ -3,6 +3,7 @@ package transport
 import (
 	"compress/flate"
 	"compress/gzip"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,7 @@ var defaultHTTPTransport http.RoundTripper = &decompressingTransport{wrapped: &h
 	MaxIdleConns:          100,
 	MaxIdleConnsPerHost:   10,
 	IdleConnTimeout:       90 * time.Second,
+	TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12},
 	TLSHandshakeTimeout:   30 * time.Second,
 	ExpectContinueTimeout: time.Second,
 	DisableCompression:    true,

@@ -74,10 +74,8 @@ func (c *Client) readStream(ctx context.Context, warnings []mappingWarning, stre
 	defer close(out)
 	defer stream.Close()
 	for _, warning := range warnings {
-		select {
-		case <-ctx.Done():
+		if !sendEvent(ctx, out, warning.event(string(c.apiKind))) {
 			return
-		case out <- warning.event(string(c.apiKind)):
 		}
 	}
 	decoder := streamDecoder{}
@@ -87,20 +85,27 @@ func (c *Client) readStream(ctx context.Context, warnings []mappingWarning, stre
 			return
 		}
 		if err != nil {
-			out <- unified.ErrorEvent{Err: err}
+			sendEvent(ctx, out, unified.ErrorEvent{Err: err})
 			return
 		}
 		events, err := decoder.push(raw)
 		if err != nil {
-			out <- unified.ErrorEvent{Err: err}
+			sendEvent(ctx, out, unified.ErrorEvent{Err: err})
 			return
 		}
 		for _, ev := range events {
-			select {
-			case <-ctx.Done():
+			if !sendEvent(ctx, out, ev) {
 				return
-			case out <- ev:
 			}
 		}
+	}
+}
+
+func sendEvent(ctx context.Context, out chan<- unified.Event, ev unified.Event) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case out <- ev:
+		return true
 	}
 }

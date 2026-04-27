@@ -54,6 +54,8 @@ go run ./cmd/llmadapter serve --config llmadapter.json --inspect-config
 | `providers` | Provider instances. |
 | `routes` | Source API/model to provider endpoint routing. |
 
+Gateway request hardening is currently fixed by implementation defaults: endpoint request bodies are limited to 10 MiB, the HTTP server uses read-header/read/write/idle timeouts, and provider HTTP clients require TLS 1.2 or newer. These are not yet config fields.
+
 ## Providers
 
 Provider fields:

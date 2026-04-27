@@ -47,11 +47,9 @@ func (c *Client) openWebSocket(ctx context.Context, req unified.Request, body []
 	if requestPreviousResponseID(wsBody) != "" {
 		metadata.InternalContinuation = unified.ContinuationPreviousResponseID
 	}
-	if c.webSocketSession == nil {
-		c.webSocketSession = responsesws.NewSession()
-	}
-	unlock := c.webSocketSession.Acquire()
-	stream, err := c.webSocketSession.OpenOrWrite(ctx, sessionID, wsBody, func(ctx context.Context) (transport.ByteStream, error) {
+	session := c.sharedWebSocketSession()
+	unlock := session.Acquire()
+	stream, err := session.OpenOrWrite(ctx, sessionID, wsBody, func(ctx context.Context) (transport.ByteStream, error) {
 		return c.webSocketTransport.Open(ctx, &transport.Request{
 			Method:     http.MethodPost,
 			URL:        webSocketURL(c.baseURL),
@@ -68,11 +66,20 @@ func (c *Client) openWebSocket(ctx context.Context, req unified.Request, body []
 		inner:    stream,
 		metadata: metadata,
 		fail: func() {
-			c.webSocketSession.CloseLocked()
+			session.CloseLocked()
 		},
 		closeUnlock: unlock,
 		keepOpen:    sessionID != "",
 	}, nil
+}
+
+func (c *Client) sharedWebSocketSession() *responsesws.Session {
+	c.webSocketMu.Lock()
+	defer c.webSocketMu.Unlock()
+	if c.webSocketSession == nil {
+		c.webSocketSession = responsesws.NewSession()
+	}
+	return c.webSocketSession
 }
 
 func webSocketBody(body []byte) []byte {

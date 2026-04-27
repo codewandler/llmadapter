@@ -23,6 +23,8 @@ type HTTPByteStreamTransport struct {
 	frameFormat FrameFormat
 }
 
+const maxErrorBodyBytes = 4096
+
 func NewHTTPByteStreamTransport(cfg HTTPTransportConfig) *HTTPByteStreamTransport {
 	client := cfg.Client
 	if client == nil {
@@ -48,7 +50,7 @@ func (t *HTTPByteStreamTransport) Open(ctx context.Context, req *Request) (ByteS
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return nil, apiErrorFromHTTP(resp.StatusCode, resp.Header, body)
 	}
 

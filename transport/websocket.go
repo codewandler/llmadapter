@@ -61,7 +61,7 @@ func (t *WebSocketByteStreamTransport) Open(ctx context.Context, req *Request) (
 	if err != nil {
 		if resp != nil && resp.Body != nil {
 			defer resp.Body.Close()
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 			return nil, apiErrorFromHTTP(resp.StatusCode, resp.Header, body)
 		}
 		return nil, err
@@ -85,9 +85,14 @@ func requestBodyBytes(body io.Reader) ([]byte, error) {
 		return nil, nil
 	}
 	if reader, ok := body.(*bytes.Reader); ok {
-		pos, _ := reader.Seek(0, io.SeekCurrent)
+		pos, err := reader.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return nil, err
+		}
 		data, err := io.ReadAll(reader)
-		_, _ = reader.Seek(pos, io.SeekStart)
+		if _, seekErr := reader.Seek(pos, io.SeekStart); seekErr != nil && err == nil {
+			err = seekErr
+		}
 		return data, err
 	}
 	return io.ReadAll(body)
