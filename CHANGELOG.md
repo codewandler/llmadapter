@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.11] - 2026-04-27
+
+### Changed
+
+- Updated `github.com/codewandler/modeldb` to `v0.13.2`, enabling
+  modeldb-backed auto routing for the Codex `gpt-5.5` offering.
+
 ## [1.0.0-rc.10] - 2026-04-27
 
 ### Added

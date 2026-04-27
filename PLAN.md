@@ -10,7 +10,7 @@ Primary goal: keep the adapter buildable and incrementally useful while hardenin
 
 Status date: 2026-04-27.
 
-`v1.0.0-rc.7` has been cut. The current remaining v1 work is release-candidate validation, approved use-case selection hardening, and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
+`v1.0.0-rc.10` has been cut. The current remaining v1 work is release-candidate validation and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
 
 Highest-priority post-rc work:
 
@@ -118,6 +118,7 @@ Use-case compatibility live slice: `tests/e2e/TestUseCaseAgenticCoding` verifies
 Agentic cache-accounting slice: `agentic_coding` now requires provider-reported cache read/write token accounting, OpenRouter Responses decodes both Responses-style and Chat/Completions-style cache usage details, and the latest live matrix approves every promoted row with cache-accounting evidence
 Runtime-view selection slice: configured provider instances are projected into modeldb runtime views, compatibility evidence artifacts can be loaded by consumers, `adapterconfig.SelectModelForUseCase` and `AutoResult.SelectModelForUseCase` fail closed unless a provider/API/native model row is approved, and `llmadapter resolve --use-case ... --approved-only` exposes the same strict selection path
 Compatibility artifact automation slice: `compatibility` can load/save/render evidence artifacts, live agentic-coding e2e can write the JSON artifact when `LLMADAPTER_COMPAT_ARTIFACT` is set, and `llmadapter compatibility-record` regenerates the use-case matrix generated section from the artifact
+Modeldb Codex gpt-5.5 slice: bumped modeldb to v0.13.2 so auto mux modeldb routing can resolve the Codex service-qualified `codex/gpt-5.5` offering through `codex_responses`
 Provider conformance report slice: `conformance` joins provider registry descriptors, endpoint feature evidence, warnings, and live use-case compatibility artifact rows; `llmadapter conformance --json` exposes the report for automation and operator review
 Responses ownership cleanup slice: `providers/openai/responses` owns the canonical Responses provider wire implementation; `openrouter_responses` wraps it with OpenRouter-only body extensions and `codex_responses` wraps it with Codex auth/header/body behavior instead of depending on OpenRouter internals
 Codex continuation guard slice: `codex_responses` no longer forwards unsupported `previous_response_id` fields to the Codex HTTP/SSE backend; callers receive a warning and should use replay rather than native Responses continuation for this provider endpoint
