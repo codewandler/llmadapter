@@ -66,6 +66,8 @@ go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only
 
 Library consumers can use `adapterconfig.SelectModelForUseCase` or `AutoResult.SelectModelForUseCase` with `LoadCompatibilityEvidence`. This fails closed unless a configured provider instance, API kind, and native model match an approved row.
 
+The generated `Transport` column records the transport observed by the workload compatibility run. It is not a routing requirement unless the use case says so. Codex WebSocket continuation/cache behavior is tracked separately in `docs/PROVIDER_MATRIX.md` because it is a provider-internal optimization while the public Codex continuation contract remains replay.
+
 ## Initial Candidate Set
 
 These rows are covered by the live agentic-coding compatibility smoke test:

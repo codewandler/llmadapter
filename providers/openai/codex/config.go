@@ -34,11 +34,18 @@ const (
 	HeaderCodexBetaFeatures      = "x-codex-beta-features"
 	HeaderCodexTurnMetadata      = "x-codex-turn-metadata"
 	HeaderCodexParentThreadID    = "x-codex-parent-thread-id"
+	HeaderOpenAIBeta             = "OpenAI-Beta"
 	HeaderOpenAISubagent         = "x-openai-subagent"
 	HeaderOpenAIMemgenRequest    = "x-openai-memgen-request"
 	HeaderTimingMetrics          = "x-responsesapi-include-timing-metrics"
+	HeaderOriginator             = "originator"
+	HeaderVersion                = "version"
 	HeaderPromptCacheKey         = "prompt_cache_key"
+	CodexCLIOriginator           = "codex_cli_rs"
+	CodexCLIVersion              = "0.124.0"
+	WebSocketBetaValue           = "responses_websockets=2026-02-06"
 	defaultInstructions          = "You are a helpful assistant."
 	defaultWindowGeneration      = "0"
+	defaultBranchID              = "default"
 	defaultInstallationIDEntropy = 16
 )

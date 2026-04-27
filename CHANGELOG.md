@@ -10,6 +10,34 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.8] - 2026-04-27
+
+### Added
+
+- Added `llmadapter infer --interaction`, `--session`, and `--branch` for continuation/session diagnostics without making llmadapter own conversation state.
+- Added typed Codex interaction/session/branch extension helpers for future WebSocket continuation work.
+- Added a reusable WebSocket byte-stream transport and Codex session-mode WebSocket request path with pre-stream HTTP/SSE fallback.
+- Added branch-safe Codex internal continuation state so WebSocket `previous_response_id` is only attached for same-session, same-branch, append-only continuations.
+- Added `unified.ProviderExecutionEvent` so providers can report actual transport/internal continuation; mux route events and `infer` diagnostics now reflect Codex runtime WebSocket versus HTTP/SSE decisions.
+- Added live `TEST_INTEGRATION` smoke coverage for Codex session-mode WebSocket continuation and WebSocket prompt-cache accounting, including runtime metadata assertions for WebSocket transport and internal `previous_response_id` reuse.
+- Added deterministic Codex provider coverage for WebSocket enabled, disabled, missing stable session ID, fallback, retry-after-fallback, and mid-stream invalidation behavior.
+- Added `responses.WithWebSocketMode(...)` with default, auto, enabled, and disabled modes for direct OpenAI Responses clients, plus deterministic coverage for default HTTP/SSE, WebSocket enabled, auto-with-cache-key, and auto fallback.
+- Added a shared OpenAI Responses default WebSocket transport with compression enabled and IPv4 forced; Codex now uses the same default constructor.
+- Extracted shared OpenAI Responses WebSocket session reuse/open-or-write mechanics for native OpenAI Responses and Codex.
+- Added live OpenAI Responses WebSocket smoke coverage gated by `TEST_INTEGRATION=1` and OpenAI credentials.
+
+### Fixed
+
+- Hardened Codex WebSocket session invalidation after stale writes or incomplete streams so the next turn replays instead of using a response ID tied to a lost connection.
+- Replaced length-only Codex WebSocket lineage checks with canonical per-input prefix hashes so rewritten branches cannot reuse the wrong internal response ID.
+- Kept Codex WebSocket fallback scoped to the failed turn/session instead of permanently disabling WebSocket after a transient pre-stream failure.
+- Applied context deadlines to WebSocket writes when the request context has a deadline.
+
+### Migration Notes
+
+- Agentsdk-style consumers should continue treating `codex_responses` as public replay/stateless. WebSocket transport and internal `previous_response_id` reuse are llmadapter implementation details; consumers may pass stable Codex session/branch/cache hints for optimization, but projection decisions should be based on `consumer_continuation`.
+- OpenAI Responses has an official WebSocket mode. Direct `openai_responses` clients can opt in with `responses.WithWebSocketMode(...)`; provider descriptors, JSON config, auto mux, OpenRouter Responses, and workload compatibility evidence still default to HTTP/SSE.
+
 ## [1.0.0-rc.7] - 2026-04-27
 
 ### Added

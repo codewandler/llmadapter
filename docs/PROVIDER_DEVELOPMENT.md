@@ -93,6 +93,15 @@ Minimum for prompt caching:
 - Usage mapping for cache read/write counters when the provider reports them.
 - Live `TestSmokePromptCache` only when provider-reported accounting is reliable enough to assert.
 
+Minimum for provider-specific transport behavior:
+
+- Keep route/descriptor `consumer_continuation` focused on the public caller contract.
+- Emit `ProviderExecutionEvent` when runtime transport or internal continuation can differ from descriptor defaults.
+- Add deterministic fake-transport tests for enabled, disabled, fallback, and failure-after-start behavior.
+- Use a provider-client option, such as `responses.WithWebSocketMode(...)`, before adding JSON route/config knobs.
+- Add live smoke coverage only when the behavior is externally observable and credential-gated, for example Codex WebSocket continuation/cache accounting.
+- Do not mark a workload compatibility row as WebSocket-only unless the workload truly requires WebSocket; most use-case approval should depend on features such as tools, reasoning, usage, and cache accounting.
+
 ## Validation Commands
 
 Run before commit:
@@ -120,3 +129,4 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestGatewa
 - Do not enable broad capabilities because one model supports them.
 - Do not rely only on live e2e tests; add deterministic fake transport coverage.
 - Do not add hidden conversation/session state to router, gateway, or provider clients.
+- Do not turn a provider-internal transport optimization into a new API kind unless the caller-visible wire protocol or public semantics differ. OpenAI Responses WebSocket mode can stay in the Responses API kind/family when the caller contract is unchanged; a true bidirectional realtime API should be modeled as its own API kind/family instead of being hidden behind Responses or Chat compatibility.

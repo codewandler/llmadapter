@@ -247,6 +247,44 @@ req.Instructions = []unified.Instruction{{
 
 Provider mappings are best-effort. Anthropic/Claude/Codex prompt-cache accounting is live smoke-tested; other compatible mappings may not report provider cache counters.
 
+## Continuation And Transport
+
+Route metadata tells consumers how to project the next turn:
+
+- `ConsumerContinuation`: public contract for the caller. Use this field only when deciding whether to replay history or send a provider-native continuation ID.
+- `InternalContinuation`: diagnostic metadata for provider-internal optimizations.
+- `Transport`: diagnostic metadata for the provider transport used or advertised for the turn.
+
+Codex is intentionally public replay even when it uses WebSocket internally. A branchable runtime such as `agentsdk` should still send full replay projections, but may pass stable Codex hints so llmadapter can keep the provider-internal WebSocket chain branch-safe:
+
+```go
+err := unified.SetCodexExtensions(&req.Extensions, unified.CodexExtensions{
+	InteractionMode: unified.InteractionSession,
+	SessionID:       conversationID,
+	BranchID:        branchID,
+})
+```
+
+Without a stable session/cache key, Codex session requests stay on HTTP/SSE. Direct OpenAI Responses clients can opt into official Responses WebSocket mode with:
+
+```go
+client, err := responses.NewClient(
+	responses.WithAPIKey(os.Getenv("OPENAI_API_KEY")),
+	responses.WithWebSocketMode(responses.WebSocketModeAuto),
+)
+```
+
+The mode is three-state plus default:
+
+- `WebSocketModeDefault`: provider default. For `openai_responses`, this currently means HTTP/SSE.
+- `WebSocketModeAuto`: use WebSocket only when stable session/cache or continuation hints make it useful, with pre-stream HTTP/SSE fallback.
+- `WebSocketModeEnabled`: force WebSocket when possible.
+- `WebSocketModeDisabled`: force HTTP/SSE.
+
+Direct Codex clients can use the same mode type through `codex.WithWebSocketMode(...)` or keep the compatibility shortcut `codex.WithWebSocketEnabled(false)`. JSON config and auto mux currently use provider defaults because WebSocket is an internal provider optimization, not a route-selection feature. `openrouter_responses` does not opt into OpenAI Responses WebSocket mode.
+
+The default OpenAI Responses WebSocket transport enables compression and forces IPv4. Use `responses.WithWebSocketTransport(...)` or `codex.WithWebSocketTransport(...)` to override that in tests or specialized environments.
+
 ## Extensions
 
 Provider-specific controls belong in `unified.Request.Extensions` until they are stable enough to become canonical fields.

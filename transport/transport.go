@@ -23,6 +23,14 @@ type ByteStream interface {
 	Close() error
 }
 
+type ByteStreamWriter interface {
+	Write(ctx context.Context, frame []byte) error
+}
+
+type HeaderCarrier interface {
+	Header() http.Header
+}
+
 type FrameFormat string
 
 const (

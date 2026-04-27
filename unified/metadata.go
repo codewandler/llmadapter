@@ -11,8 +11,9 @@ const (
 type TransportKind string
 
 const (
-	TransportHTTP    TransportKind = "http"
-	TransportHTTPSSE TransportKind = "http_sse"
+	TransportHTTP      TransportKind = "http"
+	TransportHTTPSSE   TransportKind = "http_sse"
+	TransportWebSocket TransportKind = "websocket"
 )
 
 type InteractionMode string

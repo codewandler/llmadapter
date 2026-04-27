@@ -25,6 +25,7 @@ go build -o llmadapter ./cmd/llmadapter
 | `resolve` | Explain how a model routes to a provider endpoint. |
 | `compatibility` | Evaluate route candidates for a workload use case. |
 | `compatibility-record` | Refresh generated compatibility docs from an artifact. |
+| `conformance` | Report provider descriptors plus compatibility evidence. |
 | `infer` | Send a prompt through the mux client and stream output. |
 | `serve` | Run the HTTP compatibility gateway. |
 | `smoke` | Run minimal direct, mux, config, or auto provider smoke calls. |
@@ -77,6 +78,8 @@ Filter by source API:
 go run ./cmd/llmadapter routes --source-api openai.responses
 ```
 
+Route output includes the configured provider endpoint plus `CONSUMER_CONTINUATION`, `INTERNAL_CONTINUATION`, and `TRANSPORT`. Consumers should use only `CONSUMER_CONTINUATION` to decide whether they must replay history or may send native continuation IDs. `INTERNAL_CONTINUATION` and `TRANSPORT` are diagnostics.
+
 ## models
 
 List configured route models:
@@ -127,6 +130,7 @@ Important output fields:
 - `Family`: compatibility family.
 - `ModelDB svc`: modeldb service identity for metadata/pricing.
 - `Capability source`: `provider_descriptor`, `config_override`, or `modeldb_exposure`.
+- `Continuation`: public consumer strategy plus diagnostic provider-internal strategy and current transport class.
 
 Use JSON for automation:
 
@@ -189,6 +193,22 @@ go run ./cmd/llmadapter compatibility-record --use-case agentic_coding
 
 The command reads `docs/compatibility/agentic_coding.json` by default and rewrites the generated section in `docs/USE_CASE_MATRIX.md`. Use `--artifact`, `--matrix`, or `--command` to override those inputs.
 
+## conformance
+
+Inspect provider endpoint descriptors together with endpoint evidence and live use-case approval rows:
+
+```sh
+go run ./cmd/llmadapter conformance
+```
+
+Use JSON for automation:
+
+```sh
+go run ./cmd/llmadapter conformance --json
+```
+
+The default report joins the provider registry with `docs/compatibility/agentic_coding.json`. Use `--compatibility-artifact` to point at another recorded artifact.
+
 ## infer
 
 Run one prompt:
@@ -216,13 +236,20 @@ Disable cache policy for a request:
 go run ./cmd/llmadapter infer -m haiku --no-cache "short answer only"
 ```
 
+Use continuation diagnostics:
+
+```sh
+go run ./cmd/llmadapter infer -m codex/gpt-5.4 --session demo --branch main "continue the session"
+go run ./cmd/llmadapter infer -m codex/gpt-5.4 --interaction one_shot "single request"
+```
+
 Use a config:
 
 ```sh
 go run ./cmd/llmadapter infer --config examples/llmadapter.example.json -m fast "what is 2+2?"
 ```
 
-`infer` prints resolved model/route information before streaming output. This is intentional: consumers should know which provider endpoint was selected.
+`infer` prints resolved model/route information before streaming output, including continuation mode and transport. By default it uses `--interaction one_shot`; setting `--session` without `--interaction` switches to `session` and also sets a stable cache/session key. For `codex_responses`, session mode with a stable session/cache key can prefer the provider-internal WebSocket transport and fall back to HTTP/SSE before streaming starts. Use `--branch` when testing branch-specific continuation behavior. The final route section reports actual provider execution metadata when the provider emits it. `--no-cache` disables cache policy but still preserves explicit session diagnostics.
 
 ## serve
 

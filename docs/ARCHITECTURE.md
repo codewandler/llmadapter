@@ -113,6 +113,37 @@ This matters for providers such as OpenRouter, MiniMax, Azure, Bedrock, Vertex, 
 
 `examples/llmadapter.example.json` is a load-tested operator config that exercises this construction boundary without requiring provider credentials during inspection.
 
+### Provider Wire Ownership
+
+Provider packages own the wire format for the protocol they originate. OpenAI Responses is the canonical implementation for the Responses request/event shape in `providers/openai/responses`. Compatible providers such as OpenRouter Responses and Codex Responses depend on that OpenAI Responses base and apply provider-specific adjustments as overlays:
+
+- OpenRouter Responses adds namespaced OpenRouter request controls such as provider routing, plugins, tracing, and session IDs.
+- Codex Responses changes auth, URL/header behavior, session/window cache headers, default instructions, and drops unsupported HTTP/SSE request fields such as `previous_response_id`.
+
+This prevents proprietary compatibility providers from becoming the accidental source of truth for the base OpenAI Responses schema.
+
+### Continuation And Transport Metadata
+
+`llmadapter` is stateless at the public API boundary, so consumers must know which continuation contract a selected route expects. Provider descriptors, router routes, mux `unified.RouteEvent`s, config inspection, CLI resolution, conformance output, and compatibility artifacts expose:
+
+- `consumer_continuation`: what the caller must provide, for example full `replay` or native `previous_response_id`.
+- `internal_continuation`: diagnostic metadata describing what the provider endpoint actually used internally.
+- `transport`: diagnostic metadata describing the transport class used or advertised by the provider endpoint, for example `http_sse` or `websocket`.
+
+`consumer_continuation` is the only public projection-strategy signal. Consumers must not infer projection behavior from provider name, API family, `transport`, or `internal_continuation`; those latter fields are for observability, compatibility evidence, and debugging provider optimizations.
+
+OpenAI Responses currently advertises public `previous_response_id` continuation. Codex Responses advertises public `replay` because its HTTP/SSE backend rejects `previous_response_id`; session-mode Codex requests may use the provider-internal WebSocket transport when available, but callers still send full replay projections and HTTP/SSE fallback remains safe. Codex only attaches an internal WebSocket `previous_response_id` after same-session/same-branch lineage checks pass for model, instructions, exact canonical input-prefix matching, append-only input growth, and an explicit session ID. The Codex provider keeps that WebSocket open per session so backend affinity is connection-scoped rather than relying on unsupported `store:true` behavior.
+
+OpenAI platform Responses also has an official WebSocket mode for persistent `/v1/responses` connections with incremental inputs and `previous_response_id`. llmadapter exposes this as a direct OpenAI Responses client option, `responses.WithWebSocketMode(...)`, and Codex uses the same mode vocabulary while adding Codex-specific auth/session behavior. Provider descriptors, JSON config, auto mux, and the workload matrix still default `openai_responses` to HTTP/SSE unless a direct client opts into WebSocket mode. The OpenAI Realtime API remains a separate WebSocket/WebRTC surface and should be modeled as its own realtime API kind/family if llmadapter adds it.
+
+The shared OpenAI Responses WebSocket default transport enables compression and forces IPv4 because OpenAI-operated WebSocket connections have shown IPv6 stalls in practice. Shared session reuse/open-or-write mechanics live under the OpenAI provider internals so native OpenAI Responses and Codex use the same connection-affinity primitive while keeping request shaping separate. Providers can still inject a custom WebSocket transport for tests or specialized networks. OpenRouter Responses does not use this path unless it explicitly opts in later.
+
+Codex WebSocket recovery is intentionally conservative. If the WebSocket fails before user-visible response output starts, llmadapter may fall back to HTTP/SSE replay for that same turn. If the WebSocket fails after output has started, llmadapter returns the stream error instead of retrying, because retrying could duplicate partial output. In both cases the provider-internal WebSocket session and continuation state are discarded, so the next request replays history until a fresh WebSocket turn completes and establishes a new internal response ID.
+
+Prompt caching remains a request-level primitive even when Codex uses WebSocket internally. `CachePolicy`, `CacheKey`, and the Codex session/window headers are still derived from the canonical request, and the e2e matrix includes a Codex WebSocket prompt-cache smoke that requires both `transport=websocket` and provider-reported cache-read tokens.
+
+Provider descriptors are defaults. Providers that can choose transport at request time emit `unified.ProviderExecutionEvent`; `muxclient` folds that event into the initial `RouteEvent` so consumers see the actual transport/internal continuation for the completed turn.
+
 ### Metadata And Pricing
 
 `modelmeta` maps modeldb offering exposure metadata into route capabilities and limits.
@@ -219,6 +250,7 @@ unified.Request
 - The core request/event model is provider-neutral and stream-first.
 - Provider routing targets provider endpoints, not just provider names.
 - OpenRouter and MiniMax are represented as providers with multiple API kinds/families instead of being collapsed into one pseudo-kind.
+- OpenAI Responses owns the base Responses provider wire implementation; OpenRouter and Codex Responses layer provider-specific behavior on top of it.
 - The gateway and mux client share the same router/provider endpoint model.
 - Library mux clients can leave source API unset to let routing choose the best provider endpoint for a model alias; compatibility gateways still route from an explicit inbound API kind.
 - Modeldb integration is explicit: fixed routes can resolve aliases, narrow capabilities, attach limits, and enrich costs; known dynamic model requests can narrow capabilities and price per requested native model.
@@ -244,7 +276,7 @@ unified.Request
 
 ### Shared Wire Packages
 
-Shared wire structs that cross endpoint/provider boundaries should live in neutral packages. Anthropic Messages already follows this through `anthropicwire`. New shared wire packages should be added only when there is real cross-boundary reuse, not preemptively.
+Shared wire structs that cross endpoint/provider boundaries should live at the protocol owner or in neutral packages. Anthropic Messages follows this through `anthropicwire` because downstream and upstream packages both need the same Anthropic-shaped structs. OpenAI Responses follows the owner-package rule: `providers/openai/responses` owns the base Responses provider wire shape, and compatible providers wrap it with explicit provider overlays instead of copying it.
 
 ### Gateway/Mux Fallback Boundary
 

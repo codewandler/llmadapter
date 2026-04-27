@@ -489,6 +489,233 @@ func TestSmokeResponsesContinuation(t *testing.T) {
 	}
 }
 
+func TestSmokeCodexWebSocketContinuation(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+
+	var provider smokeProvider
+	for _, candidate := range smokeProviders() {
+		if candidate.name == "codex_responses" {
+			provider = candidate
+			break
+		}
+	}
+	if provider.name == "" {
+		t.Fatal("codex_responses smoke provider is not registered")
+	}
+
+	client, model := newSmokeClient(t, provider)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+
+	sessionID := "codex-ws-" + time.Now().UTC().Format("20060102150405")
+	branchID := "main"
+	maxTokens := provider.maxTokens(64)
+	firstUser := unified.Message{
+		Role: unified.RoleUser,
+		Content: []unified.ContentPart{
+			unified.TextPart{Text: "Reply with exactly: codex websocket first ok"},
+		},
+	}
+	firstReq := unified.Request{
+		Model:           model,
+		MaxOutputTokens: &maxTokens,
+		CachePolicy:     unified.CachePolicyOn,
+		CacheKey:        sessionID,
+		Messages:        []unified.Message{firstUser},
+		Stream:          true,
+	}
+	setCodexSessionExtensions(t, &firstReq, sessionID, branchID)
+
+	first, firstMeta, err := collectSmokeResponseWithExecution(ctx, client, firstReq)
+	if err != nil {
+		t.Fatalf("first websocket request: %v", err)
+	}
+	if !strings.Contains(strings.ToLower(responseText(first)), "codex websocket first ok") {
+		t.Fatalf("first response text = %q; response=%+v metadata=%+v", responseText(first), first, firstMeta)
+	}
+	if firstMeta.transport() != unified.TransportWebSocket && firstMeta.transport() != unified.TransportHTTPSSE {
+		t.Fatalf("first transport = %q, want %q or %q; metadata=%+v", firstMeta.transport(), unified.TransportWebSocket, unified.TransportHTTPSSE, firstMeta)
+	}
+	if firstMeta.transport() == unified.TransportHTTPSSE {
+		t.Log("codex websocket did not complete before a response; provider fell back to HTTP/SSE")
+	}
+	if firstMeta.internalContinuation() != unified.ContinuationReplay {
+		t.Fatalf("first internal continuation = %q, want %q; metadata=%+v", firstMeta.internalContinuation(), unified.ContinuationReplay, firstMeta)
+	}
+	if firstMeta.transport() == unified.TransportHTTPSSE {
+		return
+	}
+
+	secondReq := unified.Request{
+		Model:           model,
+		MaxOutputTokens: &maxTokens,
+		CachePolicy:     unified.CachePolicyOn,
+		CacheKey:        sessionID,
+		Messages: []unified.Message{
+			firstUser,
+			{
+				Role: unified.RoleAssistant,
+				Content: []unified.ContentPart{
+					unified.TextPart{Text: responseText(first)},
+				},
+			},
+			{
+				Role: unified.RoleUser,
+				Content: []unified.ContentPart{
+					unified.TextPart{Text: "Reply with exactly: codex websocket second ok"},
+				},
+			},
+		},
+		Stream: true,
+	}
+	setCodexSessionExtensions(t, &secondReq, sessionID, branchID)
+
+	second, secondMeta, err := collectSmokeResponseWithExecution(ctx, client, secondReq)
+	if err != nil {
+		t.Fatalf("second websocket request: %v", err)
+	}
+	if !strings.Contains(strings.ToLower(responseText(second)), "codex websocket second ok") {
+		t.Fatalf("second response text = %q; response=%+v metadata=%+v", responseText(second), second, secondMeta)
+	}
+	if firstMeta.transport() == unified.TransportWebSocket && secondMeta.transport() != unified.TransportWebSocket {
+		t.Fatalf("second transport = %q, want %q after websocket first turn; metadata=%+v", secondMeta.transport(), unified.TransportWebSocket, secondMeta)
+	}
+	if firstMeta.transport() == unified.TransportHTTPSSE && secondMeta.transport() != unified.TransportHTTPSSE {
+		t.Fatalf("second transport = %q, want %q after HTTP fallback; metadata=%+v", secondMeta.transport(), unified.TransportHTTPSSE, secondMeta)
+	}
+	wantSecondContinuation := unified.ContinuationPreviousResponseID
+	if firstMeta.transport() == unified.TransportHTTPSSE {
+		wantSecondContinuation = unified.ContinuationReplay
+	}
+	if secondMeta.internalContinuation() != wantSecondContinuation {
+		t.Fatalf("second internal continuation = %q, want %q; metadata=%+v", secondMeta.internalContinuation(), wantSecondContinuation, secondMeta)
+	}
+}
+
+func TestSmokeCodexWebSocketPromptCache(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+
+	var provider smokeProvider
+	for _, candidate := range smokeProviders() {
+		if candidate.name == "codex_responses" {
+			provider = candidate
+			break
+		}
+	}
+	if provider.name == "" {
+		t.Fatal("codex_responses smoke provider is not registered")
+	}
+
+	client, model := newSmokeClient(t, provider)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+
+	sessionID := "codex-ws-cache-" + time.Now().UTC().Format("20060102150405")
+	branchID := "cache"
+	maxTokens := provider.maxTokens(16)
+	req := unified.Request{
+		Model:           model,
+		MaxOutputTokens: &maxTokens,
+		CachePolicy:     unified.CachePolicyOn,
+		CacheKey:        sessionID,
+		Instructions: []unified.Instruction{{
+			Kind: unified.InstructionSystem,
+			Content: []unified.ContentPart{unified.TextPart{
+				Text:         cacheSmokePrefix(provider.cachePrefixRepeat),
+				CacheControl: unified.EphemeralCache(""),
+			}},
+		}},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "Reply with exactly: codex websocket cache ok"}},
+		}},
+		Stream: true,
+	}
+	setCodexSessionExtensions(t, &req, sessionID, branchID)
+
+	first, firstMeta, err := collectSmokeResponseWithExecution(ctx, client, req)
+	if err != nil {
+		t.Fatalf("first websocket cache request: %v", err)
+	}
+	if firstMeta.transport() != unified.TransportWebSocket {
+		t.Fatalf("first transport = %q, want %q; metadata=%+v response=%+v", firstMeta.transport(), unified.TransportWebSocket, firstMeta, first)
+	}
+	if first.Usage.CacheReadTokens() > 0 {
+		return
+	}
+	if first.Usage.CacheWriteTokens() == 0 {
+		t.Logf("first websocket cache request did not report cache write usage; checking follow-up cache reads: %+v", first.Usage)
+	}
+
+	var last unified.Response
+	var lastMeta smokeExecutionMetadata
+	for attempt := 0; attempt < 4; attempt++ {
+		time.Sleep(time.Duration(attempt+1) * time.Second)
+		last, lastMeta, err = collectSmokeResponseWithExecution(ctx, client, req)
+		if err != nil {
+			t.Fatalf("websocket cache read attempt %d: %v", attempt+1, err)
+		}
+		if lastMeta.transport() != unified.TransportWebSocket {
+			t.Fatalf("attempt %d transport = %q, want %q; metadata=%+v response=%+v", attempt+1, lastMeta.transport(), unified.TransportWebSocket, lastMeta, last)
+		}
+		if last.Usage.CacheReadTokens() > 0 {
+			return
+		}
+	}
+	t.Fatalf("websocket cache requests did not report cache read usage; first=%+v last=%+v metadata=%+v", first.Usage, last.Usage, lastMeta)
+}
+
+func TestSmokeOpenAIResponsesWebSocket(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+	apiKey := firstSetEnv("OPENAI_API_KEY", "OPENAI_KEY")
+	if apiKey == "" {
+		t.Skip("set OPENAI_API_KEY or OPENAI_KEY to run OpenAI Responses WebSocket smoke")
+	}
+	model := os.Getenv("OPENAI_RESPONSES_MODEL")
+	if model == "" {
+		model = "gpt-4.1-mini"
+	}
+	client, err := openairesponses.NewClient(
+		openairesponses.WithAPIKey(apiKey),
+		openairesponses.WithWebSocketMode(openairesponses.WebSocketModeAuto),
+	)
+	if err != nil {
+		t.Fatalf("new OpenAI Responses client: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	maxTokens := 32
+	sessionID := "openai-ws-" + time.Now().UTC().Format("20060102150405")
+	resp, metadata, err := collectSmokeResponseWithExecution(ctx, client, unified.Request{
+		Model:           model,
+		MaxOutputTokens: &maxTokens,
+		CacheKey:        sessionID,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "Reply with exactly: openai websocket smoke ok"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatalf("openai responses websocket request: %v", err)
+	}
+	if metadata.transport() != unified.TransportWebSocket {
+		t.Fatalf("transport = %q, want %q; metadata=%+v response=%+v", metadata.transport(), unified.TransportWebSocket, metadata, resp)
+	}
+	if !strings.Contains(strings.ToLower(responseText(resp)), "openai websocket smoke ok") {
+		t.Fatalf("response text = %q; response=%+v metadata=%+v", responseText(resp), resp, metadata)
+	}
+	if resp.Usage.TotalTokens() == 0 && resp.Usage.InputTokens() == 0 && resp.Usage.OutputTokens() == 0 {
+		t.Fatalf("missing usage in response: %+v", resp)
+	}
+}
+
 func TestSmokeInvalidCredential(t *testing.T) {
 	if os.Getenv("TEST_INTEGRATION") == "" {
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
@@ -652,6 +879,80 @@ func collectSmokeResponse(ctx context.Context, client unified.Client, req unifie
 		return unified.Response{}, err
 	}
 	return unified.Collect(ctx, events)
+}
+
+type smokeExecutionMetadata struct {
+	route    *unified.RouteEvent
+	provider *unified.ProviderExecutionEvent
+}
+
+func (m smokeExecutionMetadata) transport() unified.TransportKind {
+	if m.route != nil && m.route.Transport != "" {
+		return m.route.Transport
+	}
+	if m.provider != nil {
+		return m.provider.Transport
+	}
+	return ""
+}
+
+func (m smokeExecutionMetadata) internalContinuation() unified.ContinuationMode {
+	if m.route != nil && m.route.InternalContinuation != "" {
+		return m.route.InternalContinuation
+	}
+	if m.provider != nil {
+		return m.provider.InternalContinuation
+	}
+	return ""
+}
+
+func collectSmokeResponseWithExecution(ctx context.Context, client unified.Client, req unified.Request) (unified.Response, smokeExecutionMetadata, error) {
+	events, err := client.Request(ctx, req)
+	if err != nil {
+		return unified.Response{}, smokeExecutionMetadata{}, err
+	}
+
+	filtered := make(chan unified.Event)
+	metadataCh := make(chan smokeExecutionMetadata, 1)
+	go func() {
+		defer close(filtered)
+		var metadata smokeExecutionMetadata
+		defer func() {
+			metadataCh <- metadata
+		}()
+		for ev := range events {
+			switch event := ev.(type) {
+			case unified.RouteEvent:
+				copied := event
+				metadata.route = &copied
+				continue
+			case unified.ProviderExecutionEvent:
+				copied := event
+				metadata.provider = &copied
+				continue
+			}
+			select {
+			case filtered <- ev:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	resp, err := unified.Collect(ctx, filtered)
+	metadata := <-metadataCh
+	return resp, metadata, err
+}
+
+func setCodexSessionExtensions(t *testing.T, req *unified.Request, sessionID, branchID string) {
+	t.Helper()
+	if err := unified.SetCodexExtensions(&req.Extensions, unified.CodexExtensions{
+		InteractionMode: unified.InteractionSession,
+		SessionID:       sessionID,
+		BranchID:        branchID,
+	}); err != nil {
+		t.Fatalf("set codex extensions: %v", err)
+	}
 }
 
 func assertSmokeAPIError(t *testing.T, client unified.Client, model string) {

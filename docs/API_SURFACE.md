@@ -43,6 +43,12 @@ Keep new cross-package helpers internal unless there is a clear external impleme
 - Prefer adding provider endpoints through `providerregistry.Descriptor` instead of adding central switch statements.
 - Treat `cmd/*`, `tests/e2e`, and `.agents/*` as repository tooling, not Go library API.
 
+## Continuation Boundary
+
+`unified.RouteEvent.ConsumerContinuation` is the public projection contract for consumers. `ProviderExecutionEvent.InternalContinuation` and `Transport` are diagnostics for what happened inside a provider endpoint during a turn.
+
+Codex WebSocket continuation does not change the public API surface: consumers still send full replay-style requests to `codex_responses`, while the provider may internally use WebSocket and `previous_response_id` after same-session/same-branch lineage checks pass. Do not add consumer branching logic based on provider name, API family, `Transport`, or `InternalContinuation`.
+
 ## V1 Review Result
 
 No exported renames are required from the current surface before v1.0.0 promotion. The potentially confusing pieces have explicit boundaries:
@@ -52,3 +58,4 @@ No exported renames are required from the current surface before v1.0.0 promotio
 - Workload compatibility consumes adapterconfig candidates and live evidence artifacts; strict selection uses modeldb runtime views and does not add another model resolver.
 - Gateway/mux fallback mechanics share `internal/routeattempt`, while HTTP response-start behavior remains in `gateway`.
 - Prompt-cache primitives are request-level intent plus explicit block controls; conversation-level cache policy belongs above llmadapter.
+- WebSocket transport is part of the public `transport` extension package. OpenAI Responses exposes `WithWebSocketMode(...)` as a direct-client option while keeping the API kind/family as Responses. Provider-specific WebSocket session reuse remains an implementation detail when the public caller contract stays unchanged; a true bidirectional realtime protocol should be modeled as its own API kind/family.

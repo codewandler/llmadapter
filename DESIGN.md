@@ -8,7 +8,7 @@ This document intentionally describes both implemented v1 behavior and future pr
 
 This document describes the core interfaces, canonical request/event model, provider routing model, stream pipeline, transport abstraction, option pattern, unmapped-event handling, and testing strategy.
 
-The design intentionally excludes true realtime bidirectional APIs for now. A WebSocket may still be used as a unidirectional event-stream transport, equivalent in role to SSE, NDJSON, chunked JSON, or a fake test frame stream.
+The design intentionally excludes true realtime bidirectional APIs for now. A WebSocket may still be used as an event-stream transport, equivalent in role to SSE, NDJSON, chunked JSON, or a fake test frame stream. OpenAI Responses WebSocket mode belongs to the Responses API kind/family when the caller contract stays Responses-compatible; a provider's realtime bidirectional surface, such as OpenAI Realtime, should become its own API kind/family rather than being folded into OpenAI Responses or Chat compatibility.
 
 ---
 

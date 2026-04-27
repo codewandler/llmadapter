@@ -46,6 +46,7 @@ Stateful conversation/session logic belongs above `unified.Client`, for example 
 - **Go library mux client:** build a `unified.Client` from env/local credentials or JSON config and let it route requests.
 - **HTTP gateway:** expose OpenAI/Anthropic-shaped endpoints while routing upstream by provider, model, API kind, capabilities, and health.
 - **CLI inference:** run `llmadapter infer` to inspect route resolution, stream reasoning/text, and print usage.
+- **Continuation diagnostics:** route events and CLI output expose the public continuation contract consumers must follow, plus diagnostic provider transport/internal-continuation details for observability.
 - **Provider diagnostics:** run `providers`, `routes`, `models`, `resolve`, and `smoke` to understand exactly what will happen.
 - **Provider extension:** add a provider endpoint with explicit API kind/family and shared smoke coverage.
 
@@ -92,10 +93,24 @@ Run one prompt through the auto-detected mux client:
 go run ./cmd/llmadapter infer -m haiku "reply with one short sentence"
 ```
 
+Test session-style continuation hints without giving llmadapter ownership of the conversation:
+
+```sh
+go run ./cmd/llmadapter infer -m codex/gpt-5.4 --session demo --branch main "continue"
+```
+
+For Codex, session mode can use provider-internal WebSocket transport when available, while callers still send a full replay-style request. If your consumer owns a branchable conversation tree, pass stable Codex session and branch hints so llmadapter can keep internal WebSocket continuation state branch-safe.
+
 Explain how a model will route:
 
 ```sh
 go run ./cmd/llmadapter resolve haiku
+```
+
+Inspect provider endpoint conformance and approved compatibility evidence:
+
+```sh
+go run ./cmd/llmadapter conformance
 ```
 
 Select only provider/model/API paths approved for agentic coding:

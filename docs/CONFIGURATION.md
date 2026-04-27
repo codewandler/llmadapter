@@ -72,6 +72,8 @@ Provider fields:
 
 Supported provider endpoint types are documented in [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md).
 
+Provider JSON config does not currently expose provider-internal transport toggles. For example, `codex_responses` may use WebSocket internally for explicit session requests, but that behavior is controlled by request extensions and provider implementation defaults rather than route config. Direct provider users can control this with `responses.WithWebSocketMode(...)` for `providers/openai/responses` or `codex.WithWebSocketMode(...)` for `providers/openai/codex`.
+
 ## Routes
 
 Route fields:
@@ -89,6 +91,8 @@ Route fields:
 | `weight` | Primary route ranking value. |
 
 Routes select provider endpoints, not just provider names. If a provider exposes multiple API kinds, set `provider_api` to avoid ambiguity.
+
+Routes and config inspection expose continuation/transport metadata. Use `consumer_continuation` to decide caller projection behavior; treat `internal_continuation` and `transport` as diagnostics.
 
 ## Weighted Routing And Fallback
 

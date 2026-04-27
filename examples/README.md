@@ -29,7 +29,9 @@ The example references these credentials when live provider calls are made:
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
 - `OPENROUTER_API_KEY`
+- `MINIMAX_API_KEY`
 - local Claude Code OAuth credentials for the `claude` provider instance
+- local Codex/ChatGPT OAuth credentials for the `codex_responses` provider instance
 
 ## Adapt
 

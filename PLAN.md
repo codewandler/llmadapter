@@ -8,9 +8,9 @@ Primary goal: keep the adapter buildable and incrementally useful while hardenin
 
 ## Current Status
 
-Status date: 2026-04-26.
+Status date: 2026-04-27.
 
-`v1.0.0-rc.4` has been cut. The current remaining v1 work is release-candidate validation, approved use-case selection hardening, and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
+`v1.0.0-rc.7` has been cut. The current remaining v1 work is release-candidate validation, approved use-case selection hardening, and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
 
 Highest-priority post-rc work:
 
@@ -118,6 +118,18 @@ Use-case compatibility live slice: `tests/e2e/TestUseCaseAgenticCoding` verifies
 Agentic cache-accounting slice: `agentic_coding` now requires provider-reported cache read/write token accounting, OpenRouter Responses decodes both Responses-style and Chat/Completions-style cache usage details, and the latest live matrix approves every promoted row with cache-accounting evidence
 Runtime-view selection slice: configured provider instances are projected into modeldb runtime views, compatibility evidence artifacts can be loaded by consumers, `adapterconfig.SelectModelForUseCase` and `AutoResult.SelectModelForUseCase` fail closed unless a provider/API/native model row is approved, and `llmadapter resolve --use-case ... --approved-only` exposes the same strict selection path
 Compatibility artifact automation slice: `compatibility` can load/save/render evidence artifacts, live agentic-coding e2e can write the JSON artifact when `LLMADAPTER_COMPAT_ARTIFACT` is set, and `llmadapter compatibility-record` regenerates the use-case matrix generated section from the artifact
+Provider conformance report slice: `conformance` joins provider registry descriptors, endpoint feature evidence, warnings, and live use-case compatibility artifact rows; `llmadapter conformance --json` exposes the report for automation and operator review
+Responses ownership cleanup slice: `providers/openai/responses` owns the canonical Responses provider wire implementation; `openrouter_responses` wraps it with OpenRouter-only body extensions and `codex_responses` wraps it with Codex auth/header/body behavior instead of depending on OpenRouter internals
+Codex continuation guard slice: `codex_responses` no longer forwards unsupported `previous_response_id` fields to the Codex HTTP/SSE backend; callers receive a warning and should use replay rather than native Responses continuation for this provider endpoint
+Continuation metadata slice: provider descriptors, routes, mux `RouteEvent`s, config inspection, model resolution, compatibility artifacts, conformance output, and CLI diagnostics expose `consumer_continuation`, `internal_continuation`, and `transport`; consumers use only `consumer_continuation` for projection decisions, while `internal_continuation` and `transport` remain diagnostics; OpenAI Responses advertises public `previous_response_id`, while Codex/OpenRouter-compatible endpoints remain public replay until live-verified
+Codex interaction diagnostics slice: `unified.CodexExtensions` includes interaction/session/branch hints and `llmadapter infer` exposes `--interaction`, `--session`, and `--branch`; default infer remains one-shot, while `--session` implies session mode unless explicitly overridden
+Codex WebSocket transport slice: shared transport includes a WebSocket byte-stream implementation; `codex_responses` can send session-mode requests as Codex `response.create` WebSocket messages, wraps received JSON events into the existing Responses decoder path, forces IPv4 for the Codex WebSocket dial to avoid IPv6 stalls seen in practice, and falls back to HTTP/SSE before streaming starts
+Codex branch-safe continuation slice: `codex_responses` tracks in-memory continuation state per session/branch, computes canonical per-input prefix fingerprints from the mutated Codex wire body, reuses the same explicit-session WebSocket connection for affinity, invalidates continuation state after failed/stale WebSocket sessions, and only attaches internal WebSocket `previous_response_id` for same-model, same-instructions, append-only continuations after a prior successful completion
+Provider execution metadata slice: providers can emit `unified.ProviderExecutionEvent` with actual transport/internal-continuation decisions; Codex emits this for WebSocket and HTTP/SSE paths, Responses decoding preserves it, and `muxclient` folds it into the initial `RouteEvent` for consumers
+Codex WebSocket live smoke slice: `tests/e2e` includes `TEST_INTEGRATION`-gated Codex session continuation and prompt-cache smokes that assert WebSocket transport, second-turn internal `previous_response_id` reuse, and provider-reported cache read accounting while WebSocket is active
+Responses WebSocket option slice: `providers/openai/responses` exposes three-state `WithWebSocketMode(...)` support for official OpenAI Responses WebSocket mode, with deterministic enabled/default/auto/fallback tests, a shared compression-on, IPv4-forced default WebSocket transport, and shared session reuse/open-or-write mechanics used by native OpenAI Responses and Codex; `openrouter_responses` stays on HTTP/SSE unless it explicitly opts in later
+OpenAI Responses WebSocket smoke slice: `tests/e2e/TestSmokeOpenAIResponsesWebSocket` verifies direct OpenAI Responses WebSocket mode with live OpenAI credentials, stable cache/session key, streamed text, usage, and runtime `transport=websocket` metadata
+Codex WebSocket conformance slice: deterministic Codex provider tests cover session-mode WebSocket enabled, WebSocket disabled, missing stable session ID, pre-stream HTTP/SSE fallback, retry-after-fallback, mid-stream failure invalidation, and branch-safe internal continuation; Codex uses the same WebSocket mode vocabulary while preserving Codex-specific auth/session behavior
 ```
 
 Verified:
@@ -294,6 +306,7 @@ Known stable limitations and post-v1 follow-up:
 Stable limitation: OpenAI Chat, OpenAI Responses, Anthropic Messages, OpenRouter, MiniMax, Claude-compatible access, and Codex provider paths are stream-first compatibility surfaces, not full clones of every upstream provider field.
 Stable limitation: OpenRouter extension passthrough is centralized through typed raw helpers with shape and focused semantic validation for mature routing/provider/plugin/session controls; broader provider-specific controls should stay namespaced until their semantics are stable.
 Stable limitation: prompt caching request hints are implemented for Anthropic-family block cache_control and OpenAI Responses prompt_cache_key/prompt_cache_retention extensions; higher-level cache policy belongs above llmadapter. Codex uses the session/window cache key path and the live smoke checks follow-up cache-read accounting.
+Known follow-up: decide whether JSON config, auto mux, and workload compatibility evidence should expose OpenAI Responses WebSocket mode beyond direct provider clients; keep OpenAI Realtime as a separate future API kind/family.
 Post-v1: broad audio/video/file/document/built-in-tool provider support, plugin-style external provider loading, probabilistic load balancing, broad provider-specific extension semantics, and additional provider families such as Ollama/Bedrock/Vertex/Azure/Gemini.
 ```
 

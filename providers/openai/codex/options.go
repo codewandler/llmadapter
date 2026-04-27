@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	"github.com/codewandler/llmadapter/transport"
 )
 
@@ -12,14 +13,16 @@ type Option interface {
 }
 
 type config struct {
-	baseURL        string
-	path           string
-	accessToken    string
-	authPath       string
-	installationID string
-	betaFeatures   string
-	transport      transport.ByteStreamTransport
-	httpClient     *http.Client
+	baseURL            string
+	path               string
+	accessToken        string
+	authPath           string
+	installationID     string
+	betaFeatures       string
+	transport          transport.ByteStreamTransport
+	webSocketTransport transport.ByteStreamTransport
+	webSocketMode      openairesponses.WebSocketMode
+	httpClient         *http.Client
 }
 
 type optionFunc func(*config)
@@ -65,6 +68,28 @@ func WithBetaFeatures(features string) Option {
 func WithTransport(t transport.ByteStreamTransport) Option {
 	return optionFunc(func(c *config) {
 		c.transport = t
+	})
+}
+
+func WithWebSocketTransport(t transport.ByteStreamTransport) Option {
+	return optionFunc(func(c *config) {
+		c.webSocketTransport = t
+	})
+}
+
+func WithWebSocketEnabled(enabled bool) Option {
+	return optionFunc(func(c *config) {
+		if enabled {
+			c.webSocketMode = openairesponses.WebSocketModeAuto
+		} else {
+			c.webSocketMode = openairesponses.WebSocketModeDisabled
+		}
+	})
+}
+
+func WithWebSocketMode(mode openairesponses.WebSocketMode) Option {
+	return optionFunc(func(c *config) {
+		c.webSocketMode = mode
 	})
 }
 

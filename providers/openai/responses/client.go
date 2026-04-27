@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/codewandler/llmadapter/providers/openai/internal/responsesws"
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -24,6 +25,9 @@ type Client struct {
 	supportsPreviousResponseID bool
 	bodyMutator                func(unified.Request, []byte) ([]byte, []unified.WarningEvent, error)
 	transport                  transport.ByteStreamTransport
+	webSocketTransport         transport.ByteStreamTransport
+	webSocketMode              WebSocketMode
+	webSocketSession           *responsesws.Session
 }
 
 func NewClient(opts ...Option) (unified.Client, error) {
@@ -37,6 +41,9 @@ func NewClient(opts ...Option) (unified.Client, error) {
 	if cfg.transport == nil {
 		cfg.transport = transport.NewHTTPByteStreamTransport(transport.HTTPTransportConfig{FrameFormat: transport.FrameFormatSSE})
 	}
+	if cfg.webSocketTransport == nil && cfg.webSocketMode != WebSocketModeDefault && cfg.webSocketMode != WebSocketModeDisabled {
+		cfg.webSocketTransport = NewDefaultWebSocketTransport()
+	}
 	return &Client{
 		apiKey:                     cfg.apiKey,
 		baseURL:                    cfg.baseURL,
@@ -45,6 +52,9 @@ func NewClient(opts ...Option) (unified.Client, error) {
 		supportsPreviousResponseID: cfg.supportsPreviousResponseID,
 		bodyMutator:                cfg.bodyMutator,
 		transport:                  cfg.transport,
+		webSocketTransport:         cfg.webSocketTransport,
+		webSocketMode:              cfg.webSocketMode,
+		webSocketSession:           responsesws.NewSession(),
 	}, nil
 }
 
@@ -72,6 +82,17 @@ func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unifi
 			return nil, err
 		}
 		warningEvents = append(warningEvents, warnings...)
+	}
+	if c.shouldUseWebSocket(req, body) {
+		stream, err := c.openWebSocket(ctx, req, body)
+		if err == nil {
+			out := make(chan unified.Event)
+			go c.readStream(ctx, warningEvents, stream, out)
+			return out, nil
+		}
+		if c.webSocketMode == WebSocketModeEnabled {
+			return nil, err
+		}
 	}
 	stream, err := c.transport.Open(ctx, &transport.Request{
 		Method: http.MethodPost,

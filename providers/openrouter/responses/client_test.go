@@ -94,6 +94,9 @@ func TestClientStreamWithFakeTransport(t *testing.T) {
 	if fake.Seen[0].Header.Get("Authorization") != "Bearer key" {
 		t.Fatalf("missing authorization header: %+v", fake.Seen[0].Header)
 	}
+	if got := fake.Seen[0].Header.Get("OpenAI-Beta"); got != "" {
+		t.Fatalf("OpenRouter Responses should not opt into OpenAI WebSocket beta, got %q", got)
+	}
 }
 
 func TestClientStreamMapsOpenRouterPromptCacheWriteUsage(t *testing.T) {

@@ -18,7 +18,18 @@ type config struct {
 	supportsPreviousResponseID bool
 	bodyMutator                func(unified.Request, []byte) ([]byte, []unified.WarningEvent, error)
 	transport                  transport.ByteStreamTransport
+	webSocketTransport         transport.ByteStreamTransport
+	webSocketMode              WebSocketMode
 }
+
+type WebSocketMode int
+
+const (
+	WebSocketModeDefault WebSocketMode = iota
+	WebSocketModeAuto
+	WebSocketModeEnabled
+	WebSocketModeDisabled
+)
 
 type optionFunc func(*config)
 
@@ -39,6 +50,25 @@ func WithBaseURL(url string) Option {
 func WithTransport(t transport.ByteStreamTransport) Option {
 	return optionFunc(func(c *config) {
 		c.transport = t
+	})
+}
+
+func WithWebSocketTransport(t transport.ByteStreamTransport) Option {
+	return optionFunc(func(c *config) {
+		c.webSocketTransport = t
+	})
+}
+
+func WithWebSocketMode(mode WebSocketMode) Option {
+	return optionFunc(func(c *config) {
+		c.webSocketMode = mode
+	})
+}
+
+func NewDefaultWebSocketTransport() transport.ByteStreamTransport {
+	return transport.NewWebSocketByteStreamTransport(transport.WebSocketTransportConfig{
+		EnableCompression: true,
+		ForceIPv4:         true,
 	})
 }
 

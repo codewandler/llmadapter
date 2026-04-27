@@ -5,6 +5,7 @@ go 1.26.1
 require (
 	github.com/andybalholm/brotli v1.2.1
 	github.com/codewandler/modeldb v0.13.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/klauspost/compress v1.18.5
 	github.com/spf13/cobra v1.10.2
 )
