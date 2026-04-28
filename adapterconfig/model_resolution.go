@@ -26,6 +26,7 @@ type ModelResolutionCandidate struct {
 	ModelDBService       string
 	Capabilities         router.CapabilitySet
 	CapabilitySource     string
+	Limits               modeldb.Limits
 	ConsumerContinuation unified.ContinuationMode
 	InternalContinuation unified.ContinuationMode
 	Transport            unified.TransportKind
@@ -75,6 +76,7 @@ func ResolveModelCandidates(cfg Config, model string, sourceAPI adapt.ApiKind) (
 			ModelDBService:       endpoint.Tags[TagModelDBServiceID],
 			Capabilities:         endpoint.Capabilities,
 			CapabilitySource:     routeCapabilitySource(provider, endpoint, route, catalog, modelDBEnabled),
+			Limits:               modelLimitsFromCatalog(catalog, route, endpoint, modelDBEnabled),
 			ConsumerContinuation: endpoint.ConsumerContinuation,
 			InternalContinuation: endpoint.InternalContinuation,
 			Transport:            endpoint.Transport,
@@ -251,4 +253,31 @@ func modelResolutionProviderTypePriority(providerType string) int {
 	default:
 		return 5
 	}
+}
+
+// modelLimitsFromCatalog resolves the model limits from the modeldb catalog
+// for the given route. When the offering has a LimitsOverride, it takes
+// precedence over the base model limits. Returns zero Limits when modeldb is
+// not enabled or the model is not found.
+func modelLimitsFromCatalog(catalog modeldb.Catalog, route RouteConfig, endpoint router.ProviderEndpoint, modelDBEnabled bool) modeldb.Limits {
+	if !modelDBEnabled {
+		return modeldb.Limits{}
+	}
+	wireModelID := pricingWireModel(route)
+	serviceID := endpoint.Tags[TagModelDBServiceID]
+	if wireModelID == "" || serviceID == "" {
+		return modeldb.Limits{}
+	}
+	offering, ok := catalog.Offerings[modeldb.OfferingRef{ServiceID: serviceID, WireModelID: wireModelID}]
+	if !ok {
+		return modeldb.Limits{}
+	}
+	if offering.LimitsOverride != nil {
+		return *offering.LimitsOverride
+	}
+	model, ok := catalog.Models[offering.ModelKey]
+	if !ok {
+		return modeldb.Limits{}
+	}
+	return model.Limits
 }

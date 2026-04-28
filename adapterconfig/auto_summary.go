@@ -10,6 +10,7 @@ type AutoRouteSummary struct {
 	NativeModel     string        `json:"native_model,omitempty"`
 	EnabledProvider string        `json:"enabled_provider,omitempty"`
 	EnabledReason   string        `json:"enabled_reason,omitempty"`
+	ContextWindow   int           `json:"context_window,omitempty"`
 }
 
 func (r AutoResult) RouteSummary(sourceAPI adapt.ApiKind, model string) (AutoRouteSummary, bool) {
@@ -21,11 +22,12 @@ func (r AutoResult) RouteSummary(sourceAPI adapt.ApiKind, model string) (AutoRou
 		return AutoRouteSummary{}, false
 	}
 	summary := AutoRouteSummary{
-		SourceAPI:   resolution.SourceAPI,
-		Model:       resolution.PublicModel,
-		Provider:    resolution.Provider,
-		ProviderAPI: resolution.ProviderAPI,
-		NativeModel: resolution.NativeModel,
+		SourceAPI:     resolution.SourceAPI,
+		Model:         resolution.PublicModel,
+		Provider:      resolution.Provider,
+		ProviderAPI:   resolution.ProviderAPI,
+		NativeModel:   resolution.NativeModel,
+		ContextWindow: resolution.Limits.ContextWindow,
 	}
 	if summary.Model == "" {
 		summary.Model = model
