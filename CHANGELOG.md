@@ -10,6 +10,24 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.15] - 2026-05-02
+
+### Fixed
+
+- Kept reusable OpenAI/Codex Responses WebSocket connections alive while idle by running a shared background read pump that continues processing server ping frames and replies with pongs between streamed requests.
+
+## [1.0.0-rc.14] - 2026-04-28
+
+### Added
+
+- Added model limit propagation through `ModelResolutionCandidate` and `AutoRouteSummary`, including context-window exposure from modeldb catalog limits with offering-level overrides.
+
+## [1.0.0-rc.13] - 2026-04-28
+
+### Changed
+
+- Parallelized live e2e provider subtests for text, tool, gateway, and agentic-coding smoke coverage.
+
 ## [1.0.0-rc.12] - 2026-04-28
 
 ### Changed

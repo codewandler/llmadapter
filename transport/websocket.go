@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -71,13 +72,14 @@ func (t *WebSocketByteStreamTransport) Open(ctx context.Context, req *Request) (
 		conn.Close()
 		return nil, err
 	}
+	stream := newWebSocketByteStream(conn, resp.Header.Clone())
 	if len(body) > 0 {
-		if err := conn.WriteMessage(websocket.TextMessage, body); err != nil {
+		if err := stream.Write(ctx, body); err != nil {
 			conn.Close()
 			return nil, err
 		}
 	}
-	return &webSocketByteStream{conn: conn, header: resp.Header.Clone()}, nil
+	return stream, nil
 }
 
 func requestBodyBytes(body io.Reader) ([]byte, error) {
@@ -99,8 +101,65 @@ func requestBodyBytes(body io.Reader) ([]byte, error) {
 }
 
 type webSocketByteStream struct {
-	conn   *websocket.Conn
-	header http.Header
+	conn      *websocket.Conn
+	header    http.Header
+	writeMu   sync.Mutex
+	closeOnce sync.Once
+	done      chan struct{}
+	readCh    chan webSocketRead
+}
+
+type webSocketRead struct {
+	messageType int
+	data        []byte
+	err         error
+}
+
+func newWebSocketByteStream(conn *websocket.Conn, header http.Header) *webSocketByteStream {
+	conn.SetPingHandler(func(appData string) error {
+		return conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(10*time.Second))
+	})
+	s := &webSocketByteStream{
+		conn:   conn,
+		header: header,
+		done:   make(chan struct{}),
+		readCh: make(chan webSocketRead, 32),
+	}
+	go s.readLoop()
+	return s
+}
+
+func (s *webSocketByteStream) readLoop() {
+	defer close(s.readCh)
+	for {
+		messageType, data, err := s.conn.ReadMessage()
+		if err != nil {
+			s.sendRead(webSocketRead{err: err})
+			return
+		}
+		switch messageType {
+		case websocket.TextMessage, websocket.BinaryMessage, websocket.CloseMessage:
+			if !s.sendRead(webSocketRead{
+				messageType: messageType,
+				data:        append([]byte(nil), data...),
+			}) {
+				return
+			}
+		default:
+			// Control frames are handled by gorilla while ReadMessage runs. Keep
+			// the read pump alive so idle pooled connections answer server pings.
+			continue
+		}
+	}
+}
+
+func (s *webSocketByteStream) sendRead(read webSocketRead) bool {
+	select {
+	case s.readCh <- read:
+		return true
+	case <-s.done:
+		return false
+	}
 }
 
 func (s *webSocketByteStream) Header() http.Header {
@@ -116,41 +175,58 @@ func (s *webSocketByteStream) Write(ctx context.Context, frame []byte) error {
 	if len(frame) == 0 {
 		return nil
 	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = s.conn.SetWriteDeadline(deadline)
+	} else {
+		_ = s.conn.SetWriteDeadline(time.Time{})
 	}
 	return s.conn.WriteMessage(websocket.TextMessage, frame)
 }
 
 func (s *webSocketByteStream) Recv(ctx context.Context) ([]byte, error) {
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = s.conn.SetReadDeadline(deadline)
-	}
 	for {
-		messageType, data, err := s.conn.ReadMessage()
-		if err != nil {
-			var closeErr *websocket.CloseError
-			if errors.As(err, &closeErr) && closeErr.Text != "" {
-				return nil, fmt.Errorf("websocket closed: code=%d text=%s", closeErr.Code, closeErr.Text)
-			}
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case read, ok := <-s.readCh:
+			if !ok {
 				return nil, io.EOF
 			}
-			return nil, err
-		}
-		switch messageType {
-		case websocket.TextMessage:
-			return append([]byte(nil), data...), nil
-		case websocket.BinaryMessage:
-			return nil, fmt.Errorf("websocket binary messages are unsupported")
-		case websocket.CloseMessage:
-			return nil, io.EOF
-		default:
-			continue
+			if read.err != nil {
+				return nil, webSocketReadError(read.err)
+			}
+			switch read.messageType {
+			case websocket.TextMessage:
+				return read.data, nil
+			case websocket.BinaryMessage:
+				return nil, fmt.Errorf("websocket binary messages are unsupported")
+			case websocket.CloseMessage:
+				return nil, io.EOF
+			default:
+				continue
+			}
 		}
 	}
 }
 
+func webSocketReadError(err error) error {
+	var closeErr *websocket.CloseError
+	if errors.As(err, &closeErr) && closeErr.Text != "" {
+		return fmt.Errorf("websocket closed: code=%d text=%s", closeErr.Code, closeErr.Text)
+	}
+	if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+		return io.EOF
+	}
+	return err
+}
+
 func (s *webSocketByteStream) Close() error {
-	return s.conn.Close()
+	var err error
+	s.closeOnce.Do(func() {
+		close(s.done)
+		err = s.conn.Close()
+	})
+	return err
 }
