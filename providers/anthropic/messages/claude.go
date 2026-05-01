@@ -71,26 +71,29 @@ func WithClaudeCode() Option {
 }
 
 func WithClaudeHeaders() Option {
-	return WithHeaderFunc(func(ctx context.Context, req *http.Request) error {
-		q := req.URL.Query()
-		q.Set("beta", "true")
-		req.URL.RawQuery = q.Encode()
+	return optionFunc(func(c *Config) error {
+		c.QuotaProvider = "claude"
+		return WithHeaderFunc(func(ctx context.Context, req *http.Request) error {
+			q := req.URL.Query()
+			q.Set("beta", "true")
+			req.URL.RawQuery = q.Encode()
 
-		req.Header.Set("User-Agent", claudeUserAgent)
-		req.Header.Set("Anthropic-Beta", claudeBeta)
-		req.Header.Set("Anthropic-Dangerous-Direct-Browser-Access", "true")
-		req.Header.Set("X-App", "cli")
-		req.Header.Set("X-Stainless-Lang", "js")
-		req.Header.Set("X-Stainless-Os", claudeStainlessOS())
-		req.Header.Set("X-Stainless-Arch", claudeStainlessArch())
-		req.Header.Set("X-Stainless-Package-Version", claudeStainlessPkgVer)
-		req.Header.Set("X-Stainless-Retry-Count", "0")
-		req.Header.Set("X-Stainless-Runtime", "node")
-		req.Header.Set("X-Stainless-Runtime-Version", claudeStainlessNode)
-		req.Header.Set("X-Stainless-Timeout", "600")
-		req.Header.Set("Accept-Encoding", transport.ExtendedAcceptEncoding)
-		req.Header.Set("Connection", "keep-alive")
-		return nil
+			req.Header.Set("User-Agent", claudeUserAgent)
+			req.Header.Set("Anthropic-Beta", claudeBeta)
+			req.Header.Set("Anthropic-Dangerous-Direct-Browser-Access", "true")
+			req.Header.Set("X-App", "cli")
+			req.Header.Set("X-Stainless-Lang", "js")
+			req.Header.Set("X-Stainless-Os", claudeStainlessOS())
+			req.Header.Set("X-Stainless-Arch", claudeStainlessArch())
+			req.Header.Set("X-Stainless-Package-Version", claudeStainlessPkgVer)
+			req.Header.Set("X-Stainless-Retry-Count", "0")
+			req.Header.Set("X-Stainless-Runtime", "node")
+			req.Header.Set("X-Stainless-Runtime-Version", claudeStainlessNode)
+			req.Header.Set("X-Stainless-Timeout", "600")
+			req.Header.Set("Accept-Encoding", transport.ExtendedAcceptEncoding)
+			req.Header.Set("Connection", "keep-alive")
+			return nil
+		}).applyAnthropic(c)
 	})
 }
 

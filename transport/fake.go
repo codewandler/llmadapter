@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"io"
+	"net/http"
 	"sync"
 )
 
@@ -12,6 +13,7 @@ type FakeByteStreamTransport struct {
 	// ErrAtFrame controls when Err is returned. Use -1 to return Err after all frames.
 	ErrAtFrame int
 	OpenErr    error
+	Header     http.Header
 
 	mu   sync.Mutex
 	Seen []*Request
@@ -28,15 +30,20 @@ func (t *FakeByteStreamTransport) Open(ctx context.Context, req *Request) (ByteS
 	for i := range t.Frames {
 		frames[i] = append([]byte(nil), t.Frames[i]...)
 	}
-	return &fakeByteStream{frames: frames, err: t.Err, errAtFrame: t.ErrAtFrame}, nil
+	return &fakeByteStream{frames: frames, err: t.Err, errAtFrame: t.ErrAtFrame, header: t.Header.Clone()}, nil
 }
 
 type fakeByteStream struct {
 	frames     [][]byte
 	err        error
 	errAtFrame int
+	header     http.Header
 	index      int
 	closed     bool
+}
+
+func (s *fakeByteStream) Header() http.Header {
+	return s.header.Clone()
 }
 
 func (s *fakeByteStream) Recv(ctx context.Context) ([]byte, error) {

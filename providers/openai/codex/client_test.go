@@ -203,6 +203,125 @@ func TestClientAppliesCodexExtensions(t *testing.T) {
 	checkHeader(HeaderTimingMetrics, "true")
 }
 
+func TestClientCapturesHTTPSSETurnStateAndQuotaHeaders(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{
+		Header: http.Header{
+			"X-Codex-Turn-State":               []string{"sticky-http"},
+			"X-Codex-Primary-Used-Percent":     []string{"12.5"},
+			"X-Codex-Primary-Window-Minutes":   []string{"15"},
+			"X-Codex-Secondary-Used-Percent":   []string{"40"},
+			"X-Codex-Secondary-Window-Minutes": []string{"60"},
+		},
+		Frames: [][]byte{
+			[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5.4","status":"in_progress"}}`),
+			[]byte(`data: {"type":"response.done","response":{"id":"resp_1","model":"gpt-5.4","status":"completed"}}`),
+			[]byte(`data: [DONE]`),
+		},
+	}
+	client, err := NewClient(
+		WithAccessToken("token"),
+		WithBaseURL("https://example.invalid/backend-api"),
+		WithTransport(fake),
+		WithWebSocketEnabled(false),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := unified.Request{Model: "codex", Stream: true}
+	if err := unified.SetCodexExtensions(&req.Extensions, unified.CodexExtensions{
+		InteractionMode: unified.InteractionSession,
+		SessionID:       "sess",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Quotas) != 1 {
+		t.Fatalf("quotas = %+v, want one quota event", resp.Quotas)
+	}
+	limit := resp.Quotas[0].Limits[0]
+	if limit.ID != "codex" || len(limit.Windows) != 2 {
+		t.Fatalf("quota limit = %+v", limit)
+	}
+	if limit.Windows[0].Name != "primary" || limit.Windows[0].UsedPercent != 12.5 {
+		t.Fatalf("primary quota = %+v", limit.Windows[0])
+	}
+	if limit.Windows[1].Name != "secondary" || limit.Windows[1].UsedPercent != 40 {
+		t.Fatalf("secondary quota = %+v", limit.Windows[1])
+	}
+
+	events, err = client.Request(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unified.Collect(context.Background(), events); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.Seen) != 2 {
+		t.Fatalf("seen requests = %d, want 2", len(fake.Seen))
+	}
+	if got := fake.Seen[1].Header.Get(HeaderCodexTurnState); got != "sticky-http" {
+		t.Fatalf("%s on second request = %q, want sticky-http", HeaderCodexTurnState, got)
+	}
+}
+
+func TestClientMapsWebSocketRateLimitEventToQuota(t *testing.T) {
+	httpFake := &transport.FakeByteStreamTransport{}
+	wsFake := &reusableWebSocketTransport{
+		turnFrames: [][][]byte{{
+			[]byte(`{"type":"codex.rate_limits","plan_type":"plus","rate_limits":{"primary":{"used_percent":55,"window_minutes":15},"secondary":{"used_percent":20,"window_minutes":60}},"credits":{"has_credits":true,"unlimited":false,"balance":"10"}}`),
+			[]byte(`{"type":"response.done","response":{"id":"resp_ws","model":"gpt-5.4","status":"completed"}}`),
+		}},
+	}
+	client, err := NewClient(
+		WithAccessToken("token"),
+		WithBaseURL("https://example.invalid/backend-api"),
+		WithTransport(httpFake),
+		WithWebSocketTransport(wsFake),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := unified.Request{Model: "codex", Stream: true}
+	if err := unified.SetCodexExtensions(&req.Extensions, unified.CodexExtensions{
+		InteractionMode: unified.InteractionSession,
+		SessionID:       "sess",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Quotas) != 1 {
+		t.Fatalf("quotas = %+v, want one quota event", resp.Quotas)
+	}
+	quota := resp.Quotas[0]
+	if quota.Provider != ProviderName || quota.Plan != "plus" {
+		t.Fatalf("quota metadata = %+v", quota)
+	}
+	limit := quota.Limits[0]
+	if len(limit.Windows) != 2 || limit.Windows[0].UsedPercent != 55 || limit.Windows[1].UsedPercent != 20 {
+		t.Fatalf("quota windows = %+v", limit.Windows)
+	}
+	if limit.Credits == nil || limit.Credits.HasCredits == nil || !*limit.Credits.HasCredits || limit.Credits.Balance != "10" {
+		t.Fatalf("quota credits = %+v", limit.Credits)
+	}
+	if len(httpFake.Seen) != 0 {
+		t.Fatalf("http fallback requests = %d, want 0", len(httpFake.Seen))
+	}
+}
+
 func TestClientRejectsInvalidCodexExtensions(t *testing.T) {
 	tests := []struct {
 		name string

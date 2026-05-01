@@ -16,12 +16,13 @@ import (
 type HeaderFunc func(context.Context, *http.Request) error
 
 type NativeClient struct {
-	transport transport.ByteStreamTransport
-	baseURL   string
-	apiKey    string
-	version   string
-	headers   http.Header
-	headerFns []HeaderFunc
+	transport     transport.ByteStreamTransport
+	baseURL       string
+	apiKey        string
+	version       string
+	headers       http.Header
+	headerFns     []HeaderFunc
+	quotaProvider string
 }
 
 func (c *NativeClient) ApiKind() adapt.ApiKind {
@@ -66,6 +67,13 @@ func (c *NativeClient) Request(ctx context.Context, req MessageRequest) (<-chan 
 	go func() {
 		defer close(out)
 		defer stream.Close()
+		if carrier, ok := stream.(transport.HeaderCarrier); ok {
+			if quota, ok := anthropicQuotaUsageFromHeader(carrier.Header(), c.quotaProvider); ok {
+				if !sendNativeEvent(ctx, out, quota) {
+					return
+				}
+			}
+		}
 		decoder := &SSEFrameDecoder{}
 		for {
 			raw, err := stream.Recv(ctx)

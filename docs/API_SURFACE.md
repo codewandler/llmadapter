@@ -49,6 +49,12 @@ Keep new cross-package helpers internal unless there is a clear external impleme
 
 Codex WebSocket continuation does not change the public API surface: consumers still send full replay-style requests to `codex_responses`, while the provider may internally use WebSocket and `previous_response_id` after same-session/same-branch lineage checks pass. Do not add consumer branching logic based on provider name, API family, `Transport`, or `InternalContinuation`.
 
+## Quota Telemetry
+
+Providers can emit `unified.QuotaUsageEvent` when an upstream reports subscription or quota-window usage. The event is observational metadata for library consumers; it does not affect routing, retry, or request projection. `unified.Collect` preserves quota snapshots in `Response.Quotas`.
+
+Codex maps `x-codex-primary-used-percent`, `x-codex-secondary-used-percent`, and related window/reset headers into primary and secondary quota windows. Claude-compatible access maps live `anthropic-ratelimit-unified-5h-*` and `anthropic-ratelimit-unified-7d-*` headers into the same primary and secondary session windows. Anthropic API-key access maps documented `anthropic-ratelimit-*` headers into request/token quota windows with limit, remaining, reset, and derived used-percent fields. Providers with similar subscription models should map their native telemetry into the same event rather than exposing provider-specific headers directly; provider-specific labels and statuses remain in `ProviderRaw`.
+
 ## V1 Review Result
 
 No exported renames are required from the current surface before v1.0.0 promotion. The potentially confusing pieces have explicit boundaries:

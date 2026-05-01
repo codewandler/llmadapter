@@ -74,6 +74,71 @@ data: {"type":"message_stop"}`),
 	}
 }
 
+func TestIntegrationMapsAnthropicRateLimitHeadersToQuota(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{
+		Header: http.Header{
+			"Anthropic-Ratelimit-Requests-Limit":         []string{"100"},
+			"Anthropic-Ratelimit-Requests-Remaining":     []string{"75"},
+			"Anthropic-Ratelimit-Requests-Reset":         []string{"2026-05-02T12:00:00Z"},
+			"Anthropic-Ratelimit-Input-Tokens-Limit":     []string{"10000"},
+			"Anthropic-Ratelimit-Input-Tokens-Remaining": []string{"2500"},
+			"Anthropic-Ratelimit-Input-Tokens-Reset":     []string{"2026-05-02T12:01:00Z"},
+		},
+		Frames: [][]byte{
+			[]byte(`event: message_start
+data: {"type":"message_start","message":{"id":"msg","role":"assistant","model":"claude-test"}}`),
+			[]byte(`event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}`),
+			[]byte(`event: message_stop
+data: {"type":"message_stop"}`),
+		},
+	}
+	client, err := NewClient(WithAPIKey("key"), WithBaseURL("https://anthropic.test"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 64
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Quotas) != 1 {
+		t.Fatalf("quotas = %+v, want one quota event", resp.Quotas)
+	}
+	quota := resp.Quotas[0]
+	if quota.Provider != "anthropic" || len(quota.Limits) != 1 {
+		t.Fatalf("quota metadata = %+v", quota)
+	}
+	windows := quota.Limits[0].Windows
+	if len(windows) != 2 {
+		t.Fatalf("windows = %+v, want 2", windows)
+	}
+	if windows[0].Name != "requests" || windows[0].UsedPercent != 25 {
+		t.Fatalf("requests window = %+v", windows[0])
+	}
+	if windows[0].Limit == nil || *windows[0].Limit != 100 || windows[0].Remaining == nil || *windows[0].Remaining != 75 {
+		t.Fatalf("requests limit/remaining = %+v", windows[0])
+	}
+	if windows[0].ResetsAtUnix == nil || *windows[0].ResetsAtUnix != 1777723200 {
+		t.Fatalf("requests reset = %+v", windows[0].ResetsAtUnix)
+	}
+	if windows[1].Name != "input_tokens" || windows[1].UsedPercent != 75 {
+		t.Fatalf("input tokens window = %+v", windows[1])
+	}
+}
+
 func TestIntegrationEmitsBestEffortWarnings(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`event: message_start

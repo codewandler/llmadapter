@@ -113,6 +113,37 @@ type UsageEvent struct {
 
 func (UsageEvent) isEvent() {}
 
+type QuotaUsageEvent struct {
+	Provider    string            `json:"provider,omitempty"`
+	Plan        string            `json:"plan,omitempty"`
+	Limits      []QuotaLimitUsage `json:"limits,omitempty"`
+	ProviderRaw json.RawMessage   `json:"provider_raw,omitempty"`
+}
+
+func (QuotaUsageEvent) isEvent() {}
+
+type QuotaLimitUsage struct {
+	ID      string             `json:"id,omitempty"`
+	Name    string             `json:"name,omitempty"`
+	Windows []QuotaWindowUsage `json:"windows,omitempty"`
+	Credits *QuotaCredits      `json:"credits,omitempty"`
+}
+
+type QuotaWindowUsage struct {
+	Name          string  `json:"name,omitempty"`
+	UsedPercent   float64 `json:"used_percent"`
+	Limit         *int64  `json:"limit,omitempty"`
+	Remaining     *int64  `json:"remaining,omitempty"`
+	WindowMinutes *int    `json:"window_minutes,omitempty"`
+	ResetsAtUnix  *int64  `json:"resets_at_unix,omitempty"`
+}
+
+type QuotaCredits struct {
+	HasCredits *bool  `json:"has_credits,omitempty"`
+	Unlimited  *bool  `json:"unlimited,omitempty"`
+	Balance    string `json:"balance,omitempty"`
+}
+
 type FinishReason string
 
 const (

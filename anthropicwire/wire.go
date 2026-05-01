@@ -193,6 +193,25 @@ type Event interface {
 	isAnthropicEvent()
 }
 
+type QuotaUsageEvent struct {
+	Type     string              `json:"type"`
+	Provider string              `json:"provider,omitempty"`
+	Windows  []QuotaWindowUsage  `json:"windows,omitempty"`
+	Raw      map[string][]string `json:"raw,omitempty"`
+}
+
+func (QuotaUsageEvent) isAnthropicEvent() {}
+
+type QuotaWindowUsage struct {
+	Name          string   `json:"name,omitempty"`
+	Utilization   *float64 `json:"utilization,omitempty"`
+	Limit         *int64   `json:"limit,omitempty"`
+	Remaining     *int64   `json:"remaining,omitempty"`
+	WindowMinutes *int     `json:"window_minutes,omitempty"`
+	ResetUnix     *int64   `json:"reset_unix,omitempty"`
+	ResetRFC3339  string   `json:"reset_rfc3339,omitempty"`
+}
+
 type MessageStartEvent struct {
 	Type    string          `json:"type"`
 	Message MessageResponse `json:"message"`

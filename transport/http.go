@@ -54,7 +54,7 @@ func (t *HTTPByteStreamTransport) Open(ctx context.Context, req *Request) (ByteS
 		return nil, apiErrorFromHTTP(resp.StatusCode, resp.Header, body)
 	}
 
-	stream := &httpByteStream{body: resp.Body, format: t.frameFormat}
+	stream := &httpByteStream{body: resp.Body, header: resp.Header.Clone(), format: t.frameFormat}
 	switch t.frameFormat {
 	case FrameFormatSSE:
 		stream.sse = NewSSEReader(resp.Body)
@@ -165,11 +165,16 @@ func retryAfter(value string) time.Duration {
 
 type httpByteStream struct {
 	body   io.ReadCloser
+	header http.Header
 	format FrameFormat
 	sse    *SSEReader
 	ndjson *NDJSONReader
 	raw    []byte
 	sent   bool
+}
+
+func (s *httpByteStream) Header() http.Header {
+	return s.header.Clone()
 }
 
 func (s *httpByteStream) Recv(ctx context.Context) ([]byte, error) {

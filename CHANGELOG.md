@@ -10,6 +10,17 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.16] - 2026-05-02
+
+### Added
+
+- Added `unified.QuotaUsageEvent` and `Response.Quotas` so providers can expose subscription/quota-window telemetry to library consumers.
+- Mapped Codex quota headers such as `x-codex-primary-used-percent` / `x-codex-secondary-used-percent`, Claude-compatible `anthropic-ratelimit-unified-5h-*` / `anthropic-ratelimit-unified-7d-*` headers, and Anthropic API `anthropic-ratelimit-*` headers into unified quota usage events.
+
+### Fixed
+
+- Captured `x-codex-turn-state` from successful Codex HTTP/SSE responses and replayed it on later HTTP/SSE requests for the same session/branch, matching the existing WebSocket sticky-routing behavior.
+
 ## [1.0.0-rc.15] - 2026-05-02
 
 ### Fixed

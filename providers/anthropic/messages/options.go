@@ -27,9 +27,10 @@ type Config struct {
 	Betas        []string
 	NoAPIKeyAuth bool
 
-	Headers   http.Header
-	HeaderFns []HeaderFunc
-	Transport transport.ByteStreamTransport
+	Headers       http.Header
+	HeaderFns     []HeaderFunc
+	Transport     transport.ByteStreamTransport
+	QuotaProvider string
 
 	RequestProcessors         []adapt.RequestProcessor
 	ProviderRequestProcessors []adapt.ProviderRequestProcessor[MessageRequest]
@@ -39,9 +40,10 @@ type Config struct {
 
 func NewClient(opts ...Option) (unified.Client, error) {
 	cfg := Config{
-		BaseURL: defaultBaseURL,
-		Version: defaultVersion,
-		Headers: make(http.Header),
+		BaseURL:       defaultBaseURL,
+		Version:       defaultVersion,
+		Headers:       make(http.Header),
+		QuotaProvider: "anthropic",
 	}
 	for _, opt := range opts {
 		if err := opt.applyAnthropic(&cfg); err != nil {
@@ -59,12 +61,13 @@ func NewClient(opts ...Option) (unified.Client, error) {
 	}
 
 	native := &NativeClient{
-		transport: cfg.Transport,
-		baseURL:   cfg.BaseURL,
-		apiKey:    cfg.APIKey,
-		version:   cfg.Version,
-		headers:   cfg.Headers,
-		headerFns: cfg.HeaderFns,
+		transport:     cfg.Transport,
+		baseURL:       cfg.BaseURL,
+		apiKey:        cfg.APIKey,
+		version:       cfg.Version,
+		headers:       cfg.Headers,
+		headerFns:     cfg.HeaderFns,
+		quotaProvider: cfg.QuotaProvider,
 	}
 	return &AdaptedClient{
 		native:          native,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1544,6 +1545,7 @@ func runInferRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 		inReasoning bool
 		hadOutput   bool
 		lastUsage   *unified.UsageEvent
+		quotas      []unified.QuotaUsageEvent
 		routeEvent  *unified.RouteEvent
 	)
 	for ev := range events {
@@ -1578,6 +1580,8 @@ func runInferRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 		case unified.UsageEvent:
 			copy := e
 			lastUsage = &copy
+		case unified.QuotaUsageEvent:
+			quotas = append(quotas, e)
 		case unified.ErrorEvent:
 			if inReasoning {
 				fmt.Fprint(w, ansiReset)
@@ -1593,6 +1597,7 @@ func runInferRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 	}
 	printInferRouteMetadata(w, routeEvent)
 	printInferUsage(w, lastUsage)
+	printInferQuotas(w, quotas)
 	return nil
 }
 
@@ -1701,6 +1706,53 @@ func printInferUsage(w io.Writer, usage *unified.UsageEvent) {
 	if total := usage.Costs.Total(); total > 0 {
 		fmt.Fprintf(w, "  cost: %s\n", formatCost(total))
 	}
+}
+
+func printInferQuotas(w io.Writer, quotas []unified.QuotaUsageEvent) {
+	if len(quotas) == 0 {
+		return
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "%s── quotas ──%s\n", ansiDim, ansiReset)
+	for i, quota := range quotas {
+		fmt.Fprintf(w, "  [%d] provider: %s\n", i+1, quota.Provider)
+		if quota.Plan != "" {
+			fmt.Fprintf(w, "      plan: %s\n", quota.Plan)
+		}
+		if len(quota.ProviderRaw) > 0 {
+			fmt.Fprintf(w, "      raw: %s\n", compactJSON(quota.ProviderRaw))
+		}
+		for _, limit := range quota.Limits {
+			fmt.Fprintf(w, "      limit: %s\n", limit.ID)
+			if limit.Name != "" {
+				fmt.Fprintf(w, "        name: %s\n", limit.Name)
+			}
+			for _, window := range limit.Windows {
+				fmt.Fprintf(w, "        window=%s used=%.2f%%", window.Name, window.UsedPercent)
+				if window.Limit != nil {
+					fmt.Fprintf(w, " limit=%d", *window.Limit)
+				}
+				if window.Remaining != nil {
+					fmt.Fprintf(w, " remaining=%d", *window.Remaining)
+				}
+				if window.WindowMinutes != nil {
+					fmt.Fprintf(w, " minutes=%d", *window.WindowMinutes)
+				}
+				if window.ResetsAtUnix != nil {
+					fmt.Fprintf(w, " resets_at=%d", *window.ResetsAtUnix)
+				}
+				fmt.Fprintln(w)
+			}
+		}
+	}
+}
+
+func compactJSON(raw json.RawMessage) string {
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, raw); err != nil {
+		return string(raw)
+	}
+	return buf.String()
 }
 
 func printInferRequestMetadata(w io.Writer, req unified.Request) {

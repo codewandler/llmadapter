@@ -282,7 +282,7 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	if len(data) == 0 || string(data) == "[DONE]" {
 		return nil, nil
 	}
-	if len(d.pendingJSON) > 0 && !isProviderExecutionData(data) {
+	if len(d.pendingJSON) > 0 && !isLLMAdapterMetadataData(data) {
 		data = append(append([]byte(nil), d.pendingJSON...), data...)
 	}
 	var ev eventWire
@@ -328,6 +328,12 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 			InternalContinuation: meta.InternalContinuation,
 			Transport:            meta.Transport,
 		})
+	case "llmadapter.quota_usage":
+		var quota unified.QuotaUsageEvent
+		if err := json.Unmarshal(ev.Raw, &quota); err != nil {
+			return nil, err
+		}
+		out = append(out, quota)
 	case "response.created":
 		out = append(out, d.start()...)
 	case "response.output_item.added":
@@ -377,9 +383,11 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	return out, nil
 }
 
-func isProviderExecutionData(data []byte) bool {
+func isLLMAdapterMetadataData(data []byte) bool {
 	return bytes.Contains(data, []byte(`"type":"llmadapter.provider_execution"`)) ||
-		bytes.Contains(data, []byte(`"type": "llmadapter.provider_execution"`))
+		bytes.Contains(data, []byte(`"type": "llmadapter.provider_execution"`)) ||
+		bytes.Contains(data, []byte(`"type":"llmadapter.quota_usage"`)) ||
+		bytes.Contains(data, []byte(`"type": "llmadapter.quota_usage"`))
 }
 
 func truncateForError(raw []byte, max int) string {

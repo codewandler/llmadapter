@@ -16,6 +16,7 @@ func TestEventsSatisfyInterface(t *testing.T) {
 		ToolCallDoneEvent{},
 		CitationEvent{},
 		UsageEvent{},
+		QuotaUsageEvent{},
 		CompletedEvent{},
 		WarningEvent{},
 		RawEvent{},
@@ -23,7 +24,7 @@ func TestEventsSatisfyInterface(t *testing.T) {
 		ProviderExecutionEvent{},
 		ErrorEvent{},
 	}
-	if len(events) != 18 {
+	if len(events) != 19 {
 		t.Fatalf("unexpected event count")
 	}
 }

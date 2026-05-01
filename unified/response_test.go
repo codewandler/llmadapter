@@ -7,7 +7,7 @@ import (
 )
 
 func TestCollectTextToolUsageAndError(t *testing.T) {
-	ch := make(chan Event, 10)
+	ch := make(chan Event, 11)
 	ch <- MessageStartEvent{ID: "msg", Model: "model"}
 	ch <- ContentBlockStartEvent{Index: 0, Kind: ContentKindText}
 	ch <- TextDeltaEvent{Index: 0, Text: "hello "}
@@ -20,6 +20,16 @@ func TestCollectTextToolUsageAndError(t *testing.T) {
 		{Kind: TokenKindInputNew, Count: 1},
 		{Kind: TokenKindOutput, Count: 2},
 	}, nil)
+	ch <- QuotaUsageEvent{
+		Provider: "codex",
+		Limits: []QuotaLimitUsage{{
+			ID: "codex",
+			Windows: []QuotaWindowUsage{{
+				Name:        "primary",
+				UsedPercent: 12.5,
+			}},
+		}},
+	}
 	ch <- CompletedEvent{FinishReason: FinishReasonStop}
 	close(ch)
 
@@ -38,6 +48,9 @@ func TestCollectTextToolUsageAndError(t *testing.T) {
 	}
 	if resp.Usage.TotalTokens() != 3 {
 		t.Fatalf("usage total = %d, want 3", resp.Usage.TotalTokens())
+	}
+	if len(resp.Quotas) != 1 || resp.Quotas[0].Limits[0].Windows[0].UsedPercent != 12.5 {
+		t.Fatalf("quotas = %+v", resp.Quotas)
 	}
 
 	want := errors.New("boom")

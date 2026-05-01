@@ -29,6 +29,8 @@ func NewEventDecoder() *EventDecoder {
 
 func (d *EventDecoder) Push(ctx context.Context, ev Event) ([]unified.Event, error) {
 	switch e := ev.(type) {
+	case QuotaUsageEvent:
+		return []unified.Event{quotaEventToUnified(e)}, nil
 	case MessageStartEvent:
 		d.messageID = e.Message.ID
 		return []unified.Event{unified.MessageStartEvent{ID: e.Message.ID, Model: e.Message.Model, Role: unified.RoleAssistant}}, nil

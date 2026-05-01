@@ -312,6 +312,8 @@ Token categories include:
 
 When modeldb pricing metadata is available, adapterconfig can wrap routes with pricing enrichment so usage events include cost items.
 
+Providers may also emit `unified.QuotaUsageEvent` when an upstream exposes subscription or quota-window telemetry. `unified.Collect` appends those snapshots to `unified.Response.Quotas`. Codex maps `x-codex-primary-used-percent` / `x-codex-secondary-used-percent` header families into primary and secondary quota windows. Claude-compatible access maps live `anthropic-ratelimit-unified-5h-*` and `anthropic-ratelimit-unified-7d-*` headers into the same primary and secondary session windows. Anthropic API-key access also maps documented `anthropic-ratelimit-*` headers into request/token quota windows with limit, remaining, reset, and derived used-percent fields. Provider-specific labels and statuses remain in `ProviderRaw`.
+
 ## Direct Provider Clients
 
 You can instantiate provider clients directly:

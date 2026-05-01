@@ -7,15 +7,16 @@ import (
 )
 
 type Response struct {
-	ID           string          `json:"id,omitempty"`
-	Model        string          `json:"model,omitempty"`
-	Content      []ContentPart   `json:"content,omitempty"`
-	ToolCalls    []ToolCall      `json:"tool_calls,omitempty"`
-	FinishReason FinishReason    `json:"finish_reason,omitempty"`
-	Usage        Usage           `json:"usage,omitempty"`
-	Warnings     []WarningEvent  `json:"warnings,omitempty"`
-	Citations    []CitationEvent `json:"citations,omitempty"`
-	Raw          []RawEvent      `json:"raw,omitempty"`
+	ID           string            `json:"id,omitempty"`
+	Model        string            `json:"model,omitempty"`
+	Content      []ContentPart     `json:"content,omitempty"`
+	ToolCalls    []ToolCall        `json:"tool_calls,omitempty"`
+	FinishReason FinishReason      `json:"finish_reason,omitempty"`
+	Usage        Usage             `json:"usage,omitempty"`
+	Quotas       []QuotaUsageEvent `json:"quotas,omitempty"`
+	Warnings     []WarningEvent    `json:"warnings,omitempty"`
+	Citations    []CitationEvent   `json:"citations,omitempty"`
+	Raw          []RawEvent        `json:"raw,omitempty"`
 }
 
 func Collect(ctx context.Context, events <-chan Event) (Response, error) {
@@ -135,6 +136,8 @@ func Collect(ctx context.Context, events <-chan Event) (Response, error) {
 				}
 			case UsageEvent:
 				resp.Usage = usageFromEvent(e)
+			case QuotaUsageEvent:
+				resp.Quotas = append(resp.Quotas, e)
 			case CompletedEvent:
 				resp.FinishReason = e.FinishReason
 				if e.MessageID != "" {

@@ -137,8 +137,15 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 	if windowID != "" {
 		header.Set(HeaderCodexWindowID, windowID)
 	}
+	branchID := codexExt.BranchID
+	if branchID == "" {
+		branchID = defaultBranchID
+	}
+	decision := t.continuationDecision(sessionID, branchID, mutated)
 	if codexExt.TurnState != "" {
 		header.Set(HeaderCodexTurnState, codexExt.TurnState)
+	} else if decision.turnState != "" {
+		header.Set(HeaderCodexTurnState, decision.turnState)
 	}
 	if codexExt.TurnMetadata != "" {
 		header.Set(HeaderCodexTurnMetadata, codexExt.TurnMetadata)
@@ -156,17 +163,12 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 		header.Set(HeaderTimingMetrics, "true")
 	}
 	if t.shouldUseWebSocket(codexExt, sessionID) {
-		branchID := codexExt.BranchID
-		if branchID == "" {
-			branchID = defaultBranchID
-		}
 		if t.webSocketSession == nil {
 			t.webSocketSession = responsesws.NewSession()
 		}
 		unlockWS := t.webSocketSession.Acquire()
 		webSocketHeader := codexWebSocketHeader(header, sessionID)
-		decision := t.continuationDecision(sessionID, branchID, mutated)
-		if decision.turnState != "" {
+		if codexExt.TurnState == "" && decision.turnState != "" {
 			webSocketHeader.Set(HeaderCodexTurnState, decision.turnState)
 		}
 		webSocketBody := withPreviousResponseID(codexWebSocketBody(mutated, codexWebSocketClientMetadata(header)), decision.previousResponseID, decision.inputStart)
@@ -181,7 +183,8 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 			if err != nil {
 				return nil, err
 			}
-			return &sseWrappedByteStream{inner: stream}, nil
+			quotaFrames := t.captureSuccessfulResponseHeaders(stream, sessionID, branchID)
+			return &sseWrappedByteStream{inner: stream, preface: quotaFrames}, nil
 		}
 		failWebSocketSession := func() {
 			if sessionID != "" && t.webSocketSession != nil {
@@ -193,9 +196,11 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 		}
 		stream, err := t.webSocketStream(ctx, req, webSocketHeader, sessionID, webSocketBody)
 		if err == nil {
+			var quotaFrames [][]byte
 			if carrier, ok := stream.(transport.HeaderCarrier); ok {
 				handshake := carrier.Header()
-				t.continuations.setTurnState(sessionID, branchID, handshake.Get(HeaderCodexTurnState))
+				t.continuations.setTurnState(sessionID, branchID, headerValue(handshake, HeaderCodexTurnState))
+				quotaFrames = codexQuotaFramesFromHeader(handshake)
 			}
 			internalContinuation := unified.ContinuationReplay
 			if decision.previousResponseID != "" {
@@ -216,6 +221,7 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 					InternalContinuation: internalContinuation,
 					Transport:            unified.TransportWebSocket,
 				},
+				preface: quotaFrames,
 			}, nil
 		}
 		if errors.Is(err, errCodexWebSocketSessionLost) {
@@ -237,10 +243,23 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 	if err != nil {
 		return nil, err
 	}
+	quotaFrames := t.captureSuccessfulResponseHeaders(stream, sessionID, branchID)
 	return &sseWrappedByteStream{inner: stream, metadata: unified.ProviderExecutionEvent{
 		InternalContinuation: unified.ContinuationReplay,
 		Transport:            unified.TransportHTTPSSE,
-	}}, nil
+	}, preface: quotaFrames}, nil
+}
+
+func (t *codexTransport) captureSuccessfulResponseHeaders(stream transport.ByteStream, sessionID, branchID string) [][]byte {
+	carrier, ok := stream.(transport.HeaderCarrier)
+	if !ok {
+		return nil
+	}
+	header := carrier.Header()
+	if t.continuations != nil {
+		t.continuations.setTurnState(sessionID, branchID, headerValue(header, HeaderCodexTurnState))
+	}
+	return codexQuotaFramesFromHeader(header)
 }
 
 func (t *codexTransport) webSocketStream(ctx context.Context, req *transport.Request, header http.Header, sessionID string, body []byte) (transport.ByteStream, error) {
@@ -508,6 +527,7 @@ type sseWrappedByteStream struct {
 	completed      bool
 	metadata       unified.ProviderExecutionEvent
 	sentMetadata   bool
+	preface        [][]byte
 	pending        bytes.Buffer
 }
 
@@ -515,6 +535,11 @@ func (s *sseWrappedByteStream) Recv(ctx context.Context) ([]byte, error) {
 	if !s.sentMetadata && (s.metadata.Transport != "" || s.metadata.InternalContinuation != "") {
 		s.sentMetadata = true
 		return providerMetadataFrame(s.metadata)
+	}
+	if len(s.preface) > 0 {
+		out := s.preface[0]
+		s.preface = s.preface[1:]
+		return out, nil
 	}
 	raw, err := s.recvRaw(ctx)
 	if err != nil {
@@ -558,6 +583,11 @@ func (s *sseWrappedByteStream) recvRaw(ctx context.Context) ([]byte, error) {
 		}
 		if !json.Valid(candidate) {
 			continue
+		}
+		if quota := codexQuotaUsageJSONFromRateLimitEvent(candidate); len(quota) > 0 {
+			out := append([]byte(nil), quota...)
+			s.pending.Reset()
+			return out, nil
 		}
 		out := append([]byte(nil), candidate...)
 		s.pending.Reset()
@@ -631,6 +661,7 @@ type codexFallbackByteStream struct {
 	fallback     func(context.Context) (transport.ByteStream, error)
 	metadata     unified.ProviderExecutionEvent
 	sentMetadata bool
+	preface      [][]byte
 	started      bool
 	buffered     [][]byte
 }
@@ -640,6 +671,11 @@ func (s *codexFallbackByteStream) Recv(ctx context.Context) ([]byte, error) {
 		if s.started && !s.sentMetadata {
 			s.sentMetadata = true
 			return providerMetadataFrame(s.metadata)
+		}
+		if s.started && len(s.preface) > 0 {
+			out := s.preface[0]
+			s.preface = s.preface[1:]
+			return out, nil
 		}
 		if len(s.buffered) > 0 {
 			out := s.buffered[0]
@@ -659,6 +695,7 @@ func (s *codexFallbackByteStream) Recv(ctx context.Context) ([]byte, error) {
 					InternalContinuation: unified.ContinuationReplay,
 					Transport:            unified.TransportHTTPSSE,
 				}
+				s.preface = nil
 				s.started = true
 				continue
 			}
@@ -701,6 +738,9 @@ func providerMetadataFrame(metadata unified.ProviderExecutionEvent) ([]byte, err
 
 func isIgnorableCodexPreStartFrame(raw []byte) bool {
 	eventType := codexFrameType(raw)
+	if eventType == quotaUsageEventType {
+		return false
+	}
 	return eventType != "" && !strings.HasPrefix(eventType, "response.") && eventType != "error"
 }
 

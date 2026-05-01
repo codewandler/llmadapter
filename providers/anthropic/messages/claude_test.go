@@ -103,6 +103,52 @@ func TestClaudeCodeOptionsShapeRequest(t *testing.T) {
 	}
 }
 
+func TestClaudeHeadersSetQuotaProvider(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{
+		Header: http.Header{
+			"Anthropic-Ratelimit-Requests-Limit":     []string{"10"},
+			"Anthropic-Ratelimit-Requests-Remaining": []string{"5"},
+		},
+		Frames: [][]byte{
+			[]byte(`event: message_start
+data: {"type":"message_start","message":{"id":"msg","role":"assistant","model":"claude-test"}}`),
+			[]byte(`event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}`),
+			[]byte(`event: message_stop
+data: {"type":"message_stop"}`),
+		},
+	}
+	client, err := NewClient(
+		WithBaseURL("https://anthropic.test"),
+		WithTransport(fake),
+		WithBearerTokenProvider(NewStaticTokenProvider(NewStaticBearerToken("oauth-token"))),
+		WithClaudeHeaders(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 64
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Quotas) != 1 || resp.Quotas[0].Provider != "claude" {
+		t.Fatalf("quotas = %+v, want Claude quota provider", resp.Quotas)
+	}
+}
+
 func TestSystemCacheControlProcessor(t *testing.T) {
 	req := MessageRequest{System: NewSystemContent(
 		ContentBlock{Type: "text", Text: "first"},
