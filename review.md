@@ -6,19 +6,20 @@ Scope: full repository pass after the modeldb metadata cleanup, alias removal, M
 
 ## Findings
 
-### Low: Anthropic-compatible wrapper providers are protected from Anthropic-native metadata, but service-specific metadata is still shallow
+### Low: OpenRouter Anthropic-compatible direct metadata is blocked by modeldb exposure shape
 
-OpenRouter Messages and MiniMax Messages intentionally call `WithoutBuiltInModelMetadata()` in `providers/openrouter/messages/options.go:34` and `providers/minimax/messages/options.go:34`, and tests guard that Anthropic-native metadata such as Claude-specific `output_config` is not attached to those wrapper services.
+OpenRouter Messages intentionally calls `WithoutBuiltInModelMetadata()` in `providers/openrouter/messages/options.go:34`, and tests guard that Anthropic-native metadata such as Claude-specific `output_config` is not attached to the wrapper service.
 
-Risk: this prevents incorrect Claude/Anthropic behavior from leaking into OpenRouter/MiniMax, but it also means those wrappers do not yet have equivalent service-specific model metadata processors for their own Anthropic-compatible catalogs. Any future OpenRouter/MiniMax model-specific parameter mapping must come from mux/config route metadata, not direct wrapper construction.
+Risk: this prevents incorrect Claude/Anthropic behavior from leaking into OpenRouter, but OpenRouter direct Anthropic-compatible clients still do not get service-specific model metadata. modeldb v0.14.0 exposes OpenRouter Claude offerings for OpenAI-style API types, not `anthropic-messages`, so attaching that metadata to the Anthropic-compatible wrapper would conflate provider API surfaces.
 
-Recommendation: keep the opt-out, but add provider-specific direct metadata attachment only when modeldb has service-native OpenRouter/MiniMax Anthropic-compatible metadata that can be resolved without confusing Anthropic model IDs with third-party wire IDs.
+Recommendation: keep the opt-out until modeldb records OpenRouter `anthropic-messages` exposures for the relevant offerings, then add an OpenRouter-native direct metadata processor.
 
 ## Fixed Findings
 
 - Explicit JSON provider configs now infer modeldb service identity for known provider endpoint types, matching auto config behavior while preserving `modeldb_service_id` as an override.
 - OpenAI Responses WebSocket request-body mutation now fails locally on invalid JSON or re-encoding failures instead of falling back to HTTP/SSE or sending malformed WebSocket payloads.
 - `unified.AssistantMessageFromResponse` now gives consumers a safe stateless tool-loop replay helper that preserves assistant content/reasoning plus tool calls.
+- MiniMax Messages direct clients now attach MiniMax-native built-in model metadata while still rejecting Anthropic-native metadata for Claude IDs.
 
 ## Non-Findings Checked
 
@@ -34,6 +35,7 @@ Passed:
 
 ```sh
 env GOCACHE=/tmp/go-cache go test ./providers/minimax/messages ./providers/openrouter/messages ./tests/e2e ./cmd/llmadapter ./adapterconfig
+env GOCACHE=/tmp/go-cache go test ./providers/minimax/messages ./providers/openrouter/messages ./modelmeta
 env GOCACHE=/tmp/go-cache go test ./adapterconfig ./providers/openai/responses ./unified ./tests/e2e
 env GOCACHE=/tmp/go-cache go test ./...
 env GOCACHE=/tmp/go-cache go vet ./...
@@ -47,4 +49,4 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 
 ## Current Assessment
 
-No release-blocking findings remain in this pass. The remaining issue is a future enhancement around service-specific direct metadata for Anthropic-compatible third-party wrappers.
+No release-blocking findings remain in this pass. The remaining issue is a future modeldb-backed enhancement for OpenRouter Anthropic-compatible direct metadata.

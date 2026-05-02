@@ -138,6 +138,33 @@ func TestResolvedMetadataProjectsExposureDetails(t *testing.T) {
 	}
 }
 
+func TestBuiltInMiniMaxAnthropicMessagesMetadata(t *testing.T) {
+	catalog, err := modeldb.LoadBuiltIn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := ResolvedMetadata(catalog, "minimax", "MiniMax-M2.7", adapt.FamilyAnthropicMessages)
+	if !ok {
+		t.Fatal("expected MiniMax Anthropic Messages metadata")
+	}
+	if got.ServiceID != "minimax" || got.WireModelID != "MiniMax-M2.7" || got.APIType != string(modeldb.APITypeAnthropicMessages) {
+		t.Fatalf("unexpected identity: %+v", got)
+	}
+	if len(got.ReasoningModes) == 0 {
+		t.Fatalf("expected MiniMax reasoning modes: %+v", got)
+	}
+}
+
+func TestBuiltInOpenRouterAnthropicMessagesMetadataGap(t *testing.T) {
+	catalog, err := modeldb.LoadBuiltIn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ResolvedMetadata(catalog, "openrouter", "anthropic/claude-sonnet-4.6", adapt.FamilyAnthropicMessages); ok {
+		t.Fatal("OpenRouter should not expose Anthropic Messages metadata until modeldb records that API surface")
+	}
+}
+
 func fixtureCatalog(caps modeldb.Capabilities) modeldb.Catalog {
 	catalog := modeldb.NewCatalog()
 	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "test"}

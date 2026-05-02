@@ -144,6 +144,7 @@ Anthropic-compatible wrapper metadata guard slice: MiniMax Messages and OpenRout
 Provider modeldb identity inference slice: explicit provider configs infer modeldb service identity for known Anthropic, Claude, OpenAI, Codex, OpenRouter, and MiniMax endpoint types using the same mapping as auto config; `modeldb_service_id` remains an override instead of a required field for normal configs
 OpenAI Responses WebSocket hardening slice: WebSocket request-body preparation now returns local errors for invalid request JSON or response.create re-encoding failures, and auto WebSocket mode does not silently fall back to HTTP/SSE for those local invariant failures
 Tool-continuation helper slice: `unified.AssistantMessageFromResponse` returns the safe assistant replay message shape, including content/reasoning and cloned tool calls, so consumers can maintain stateless tool-loop continuity without hand-copying response fields
+MiniMax direct metadata slice: MiniMax Messages direct clients attach MiniMax-native built-in modeldb metadata for Anthropic-compatible requests while keeping Anthropic-native Claude metadata disabled; OpenRouter Messages remains intentionally disabled until modeldb has OpenRouter `anthropic-messages` exposures
 ```
 
 Verified:
@@ -224,6 +225,7 @@ env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter serve --config examples/llmada
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json example-fast
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --source-api anthropic.messages
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream|TestSmokeToolUse|TestSmokeToolResultContinuation|TestGatewaySmoke' -count=1 -v
+env GOCACHE=/tmp/go-cache go test ./providers/minimax/messages ./providers/openrouter/messages ./modelmeta
 ```
 
 Implemented package surface:
