@@ -147,6 +147,7 @@ client, err := adapterconfig.NewMuxClient(
 
 ## Sending A Text Request
 
+{% raw %}
 ```go
 maxTokens := 512
 events, err := client.Request(ctx, unified.Request{
@@ -169,6 +170,7 @@ if err != nil {
 	return err
 }
 ```
+{% endraw %}
 
 Extract text:
 
@@ -204,6 +206,7 @@ For Anthropic-family endpoints, response formats are encoded through provider `o
 
 Declare function tools:
 
+{% raw %}
 ```go
 req.Tools = []unified.Tool{{
 	Kind:        unified.ToolKindFunction,
@@ -217,6 +220,7 @@ req.Tools = []unified.Tool{{
 	}`),
 }}
 ```
+{% endraw %}
 
 Force a tool:
 
@@ -241,6 +245,7 @@ Tool-loop orchestration is intentionally above llmadapter. llmadapter maps tool 
 
 Use `unified.AssistantMessageFromResponse(resp)` when continuing from a collected response:
 
+{% raw %}
 ```go
 toolResp, err := unified.Collect(ctx, events)
 if err != nil {
@@ -264,6 +269,7 @@ next := unified.Request{
 	ToolChoice: &unified.ToolChoice{Mode: unified.ToolChoiceNone},
 }
 ```
+{% endraw %}
 
 ## Prompt Caching
 
@@ -279,6 +285,7 @@ For Anthropic-family endpoints, modeldb-confirmed top-level cache controls encod
 
 Explicit block cache boundary:
 
+{% raw %}
 ```go
 req.Instructions = []unified.Instruction{{
 	Kind: unified.InstructionSystem,
@@ -288,6 +295,7 @@ req.Instructions = []unified.Instruction{{
 	}},
 }}
 ```
+{% endraw %}
 
 Provider mappings are best-effort. Anthropic/Claude/Codex prompt-cache accounting is live smoke-tested; other compatible mappings may not report provider cache counters.
 
