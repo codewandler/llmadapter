@@ -18,6 +18,7 @@ match these entries as the project starts publishing releases.
 - Added a GitHub Pages workflow for publishing the `docs/` folder as a documentation site.
 - Moved research and internal planning notes under `docs/research/` and `docs/internal/`.
 - Expanded the root README to better describe llmadapter methodology, provider coverage, live verification, and diagnostics while keeping internal notes out of the public docs index.
+- Excluded `docs/internal/` and `docs/research/` from the GitHub Pages artifact.
 
 ## [1.0.0-rc.26] - 2026-05-02
 
