@@ -227,6 +227,31 @@ req.ToolChoice = &unified.ToolChoice{
 
 Tool-loop orchestration is intentionally above llmadapter. llmadapter maps tool calls/results and preserves streamed arguments; your runtime decides how to execute tools and commit conversation state. When replaying a tool loop, preserve the full assistant message that produced the tool call, including any text/reasoning content and the `ToolCalls` slice. Some OpenAI-compatible reasoning models, including MiniMax M2.x, require that complete assistant response to maintain multi-turn tool continuity.
 
+Use `unified.AssistantMessageFromResponse(resp)` when continuing from a collected response:
+
+```go
+toolResp, err := unified.Collect(ctx, events)
+if err != nil {
+	return err
+}
+
+next := unified.Request{
+	Model: model,
+	Messages: []unified.Message{
+		originalUserMessage,
+		unified.AssistantMessageFromResponse(toolResp),
+		{
+			Role: unified.RoleTool,
+			ToolResults: []unified.ToolResult{{
+				ToolCallID: toolResp.ToolCalls[0].ID,
+				Name:       toolResp.ToolCalls[0].Name,
+				Content:    []unified.ContentPart{unified.TextPart{Text: "tool output"}},
+			}},
+		},
+	},
+}
+```
+
 ## Prompt Caching
 
 Request-level cache intent:

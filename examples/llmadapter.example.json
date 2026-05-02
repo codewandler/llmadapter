@@ -23,7 +23,6 @@
       "name": "anthropic",
       "type": "anthropic",
       "api_key_env": "ANTHROPIC_API_KEY",
-      "modeldb_service_id": "anthropic",
       "model": "claude-haiku-4-5-20251001",
       "priority": 20
     },
@@ -31,14 +30,12 @@
       "name": "openai",
       "type": "openai_responses",
       "api_key_env": "OPENAI_API_KEY",
-      "modeldb_service_id": "openai",
       "priority": 10
     },
     {
       "name": "openrouter",
       "type": "openrouter_responses",
       "api_key_env": "OPENROUTER_API_KEY",
-      "modeldb_service_id": "openrouter",
       "priority": 5,
       "capabilities": {
         "streaming": true,

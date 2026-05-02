@@ -331,13 +331,24 @@ func providerModelDBServiceID(provider ProviderConfig) string {
 	if provider.ModelDBServiceID != "" {
 		return provider.ModelDBServiceID
 	}
-	if provider.Type == "claude" {
+	return modelDBServiceIDForProviderType(provider.Type)
+}
+
+func modelDBServiceIDForProviderType(providerType string) string {
+	switch providerType {
+	case "anthropic", "claude":
 		return "anthropic"
-	}
-	if provider.Type == "codex_responses" {
+	case "openai_chat", "openai_responses":
+		return "openai"
+	case "codex_responses":
 		return "codex"
+	case "openrouter_chat", "openrouter_responses", "openrouter_messages":
+		return "openrouter"
+	case "minimax_chat", "minimax_messages":
+		return "minimax"
+	default:
+		return ""
 	}
-	return ""
 }
 
 func pricingWireModel(route RouteConfig) string {

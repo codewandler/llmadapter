@@ -396,7 +396,7 @@ func checkAgenticToolContinuation(t *testing.T, client unified.Client, model str
 		MaxOutputTokens: &maxTokens,
 		Messages: []unified.Message{
 			userMessage,
-			{Role: unified.RoleAssistant, Content: first.Content, ToolCalls: []unified.ToolCall{call}},
+			unified.AssistantMessageFromResponse(first),
 			{
 				Role: unified.RoleTool,
 				ToolResults: []unified.ToolResult{{

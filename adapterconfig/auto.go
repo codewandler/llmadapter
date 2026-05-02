@@ -419,20 +419,7 @@ func autoModelDBServiceID(providerType string, enabled bool) string {
 	if !enabled {
 		return ""
 	}
-	switch providerType {
-	case "anthropic", "claude":
-		return "anthropic"
-	case "openai_chat", "openai_responses":
-		return "openai"
-	case "codex_responses":
-		return "codex"
-	case "openrouter_chat", "openrouter_responses", "openrouter_messages":
-		return "openrouter"
-	case "minimax_chat", "minimax_messages":
-		return "minimax"
-	default:
-		return ""
-	}
+	return modelDBServiceIDForProviderType(providerType)
 }
 
 func modelFromEnv(descriptor providerregistry.Descriptor) string {

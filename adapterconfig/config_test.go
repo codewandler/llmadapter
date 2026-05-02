@@ -80,6 +80,32 @@ func TestProviderEndpointConfigClaudeMetadata(t *testing.T) {
 	}
 }
 
+func TestProviderEndpointConfigInfersKnownModelDBServiceIDs(t *testing.T) {
+	tests := map[string]string{
+		"anthropic":            "anthropic",
+		"claude":               "anthropic",
+		"openai_chat":          "openai",
+		"openai_responses":     "openai",
+		"codex_responses":      "codex",
+		"openrouter_chat":      "openrouter",
+		"openrouter_responses": "openrouter",
+		"openrouter_messages":  "openrouter",
+		"minimax_chat":         "minimax",
+		"minimax_messages":     "minimax",
+	}
+	for providerType, want := range tests {
+		t.Run(providerType, func(t *testing.T) {
+			endpoint, err := ProviderEndpointConfig(ProviderConfig{Name: providerType, Type: providerType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := endpoint.Tags[TagModelDBServiceID]; got != want {
+				t.Fatalf("modeldb service = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestBuildRouterResolvesModelDBAlias(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "catalog.json")
 	if err := modeldb.SaveJSON(path, testResolvableModelDBCatalog("openrouter", "openai/gpt-test", []string{"gpt-test"})); err != nil {

@@ -3,6 +3,7 @@ package responses
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"sync"
@@ -203,6 +204,33 @@ func TestClientFallsBackFromWebSocketAutoOpenFailure(t *testing.T) {
 	}
 	if len(httpFake.Seen) != 1 || len(wsFake.Seen) != 1 {
 		t.Fatalf("http seen=%d ws seen=%d, want both", len(httpFake.Seen), len(wsFake.Seen))
+	}
+}
+
+func TestClientDoesNotFallbackWhenWebSocketRequestBodyIsInvalid(t *testing.T) {
+	httpFake := &transport.FakeByteStreamTransport{}
+	wsFake := &transport.FakeByteStreamTransport{}
+	client, err := NewClient(
+		WithAPIKey("key"),
+		WithTransport(httpFake),
+		WithWebSocketTransport(wsFake),
+		WithWebSocketMode(WebSocketModeAuto),
+		WithBodyMutator(func(unified.Request, []byte) ([]byte, []unified.WarningEvent, error) {
+			return []byte(`{`), nil, nil
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Request(context.Background(), unified.Request{Model: "gpt-test", Stream: true, CacheKey: "sess"})
+	if err == nil {
+		t.Fatal("expected invalid websocket request body error")
+	}
+	if !errors.Is(err, errWebSocketRequestBody) {
+		t.Fatalf("error = %v, want websocket request body error", err)
+	}
+	if len(httpFake.Seen) != 0 || len(wsFake.Seen) != 0 {
+		t.Fatalf("http seen=%d ws seen=%d, want no fallback/open", len(httpFake.Seen), len(wsFake.Seen))
 	}
 }
 

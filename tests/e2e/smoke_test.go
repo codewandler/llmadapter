@@ -259,11 +259,7 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 				MaxOutputTokens: &maxTokens,
 				Messages: []unified.Message{
 					userMessage,
-					{
-						Role:      unified.RoleAssistant,
-						Content:   toolResp.Content,
-						ToolCalls: []unified.ToolCall{toolCall},
-					},
+					unified.AssistantMessageFromResponse(toolResp),
 					{
 						Role: unified.RoleTool,
 						ToolResults: []unified.ToolResult{{

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,23 +17,39 @@ import (
 
 const webSocketBetaValue = "responses_websockets=2026-02-06"
 
-func (c *Client) shouldUseWebSocket(req unified.Request, body []byte) bool {
+var errWebSocketRequestBody = errors.New("openai responses websocket request body")
+
+func (c *Client) shouldUseWebSocket(req unified.Request, body []byte) (bool, error) {
 	if c.webSocketTransport == nil {
-		return false
+		return false, nil
 	}
 	switch c.webSocketMode {
 	case WebSocketModeEnabled:
-		return true
+		return true, nil
 	case WebSocketModeAuto:
-		return webSocketSessionID(req, body) != "" || requestPreviousResponseID(body) != ""
+		sessionID, err := webSocketSessionID(req, body)
+		if err != nil {
+			return false, err
+		}
+		previousResponseID, err := requestPreviousResponseID(body)
+		if err != nil {
+			return false, err
+		}
+		return sessionID != "" || previousResponseID != "", nil
 	default:
-		return false
+		return false, nil
 	}
 }
 
 func (c *Client) openWebSocket(ctx context.Context, req unified.Request, body []byte) (transport.ByteStream, error) {
-	sessionID := webSocketSessionID(req, body)
-	wsBody := webSocketBody(body)
+	sessionID, err := webSocketSessionID(req, body)
+	if err != nil {
+		return nil, err
+	}
+	wsBody, err := webSocketBody(body)
+	if err != nil {
+		return nil, err
+	}
 	header := http.Header{
 		"Authorization": []string{"Bearer " + c.apiKey},
 	}
@@ -44,7 +61,11 @@ func (c *Client) openWebSocket(ctx context.Context, req unified.Request, body []
 		Transport:            unified.TransportWebSocket,
 		InternalContinuation: unified.ContinuationReplay,
 	}
-	if requestPreviousResponseID(wsBody) != "" {
+	previousResponseID, err := requestPreviousResponseID(wsBody)
+	if err != nil {
+		return nil, err
+	}
+	if previousResponseID != "" {
 		metadata.InternalContinuation = unified.ContinuationPreviousResponseID
 	}
 	session := c.sharedWebSocketSession()
@@ -82,18 +103,18 @@ func (c *Client) sharedWebSocketSession() *responsesws.Session {
 	return c.webSocketSession
 }
 
-func webSocketBody(body []byte) []byte {
+func webSocketBody(body []byte) ([]byte, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return body
+		return nil, fmt.Errorf("%w: decode request JSON: %v", errWebSocketRequestBody, err)
 	}
 	payload["type"] = "response.create"
 	payload["stream"] = true
 	encoded, err := json.Marshal(payload)
 	if err != nil {
-		return body
+		return nil, fmt.Errorf("%w: encode response.create payload: %v", errWebSocketRequestBody, err)
 	}
-	return encoded
+	return encoded, nil
 }
 
 func webSocketURL(baseURL string) string {
@@ -111,23 +132,27 @@ func webSocketURL(baseURL string) string {
 	return u.String()
 }
 
-func webSocketSessionID(req unified.Request, body []byte) string {
+func webSocketSessionID(req unified.Request, body []byte) (string, error) {
 	if req.CacheKey != "" {
-		return req.CacheKey
+		return req.CacheKey, nil
 	}
 	var payload struct {
 		PromptCacheKey string `json:"prompt_cache_key"`
 	}
-	_ = json.Unmarshal(body, &payload)
-	return payload.PromptCacheKey
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", fmt.Errorf("%w: decode prompt cache key: %v", errWebSocketRequestBody, err)
+	}
+	return payload.PromptCacheKey, nil
 }
 
-func requestPreviousResponseID(body []byte) string {
+func requestPreviousResponseID(body []byte) (string, error) {
 	var payload struct {
 		PreviousResponseID string `json:"previous_response_id"`
 	}
-	_ = json.Unmarshal(body, &payload)
-	return payload.PreviousResponseID
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", fmt.Errorf("%w: decode previous response id: %v", errWebSocketRequestBody, err)
+	}
+	return payload.PreviousResponseID, nil
 }
 
 type webSocketResponseStream struct {

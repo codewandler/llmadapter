@@ -21,7 +21,6 @@ The same config path is used by:
       "name": "anthropic",
       "type": "anthropic",
       "api_key_env": "ANTHROPIC_API_KEY",
-      "modeldb_service_id": "anthropic",
       "model": "claude-haiku-4-5-20251001"
     }
   ],
@@ -70,10 +69,12 @@ Provider fields:
 | `base_url` | Provider base URL override. |
 | `model` | Default native model for fixed routes without `native_model`. |
 | `priority` | Tie-breaker after route weight. |
-| `modeldb_service_id` | Service identity for modeldb metadata/pricing. |
+| `modeldb_service_id` | Optional service identity override for modeldb metadata/pricing. Known provider types infer this automatically. |
 | `capabilities` | Optional override of provider descriptor defaults. |
 
 Supported provider endpoint types are documented in [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md).
+
+Known provider endpoint types infer their modeldb service identity automatically: Anthropic/Claude map to `anthropic`, OpenAI maps to `openai`, Codex maps to `codex`, OpenRouter maps to `openrouter`, and MiniMax maps to `minimax`. Set `modeldb_service_id` only when using a custom provider type or deliberately overriding that identity.
 
 Provider JSON config does not currently expose provider-internal transport toggles. For example, `codex_responses` may use WebSocket internally for explicit session requests, but that behavior is controlled by request extensions and provider implementation defaults rather than route config. Direct provider users can control this with `responses.WithWebSocketMode(...)` for `providers/openai/responses` or `codex.WithWebSocketMode(...)` for `providers/openai/codex`.
 
@@ -130,7 +131,7 @@ Dynamic routes let callers request provider/catalog models without predeclaring 
 }
 ```
 
-When modeldb is enabled for the provider endpoint, unknown dynamic models are rejected instead of silently falling back to provider defaults.
+When modeldb is enabled for dynamic routing through catalog config or an explicit provider `modeldb_service_id`, unknown dynamic models are rejected instead of silently falling back to provider defaults. Without modeldb dynamic routing, the requested model name is passed through unchanged.
 
 ## Modeldb
 
@@ -194,7 +195,7 @@ Provider descriptor capabilities are endpoint-family defaults. Override them whe
 
 Pricing enrichment is optional and absent-safe. It is enabled when a route can identify:
 
-- provider `modeldb_service_id`
+- provider modeldb service identity, inferred from known provider types or overridden with `modeldb_service_id`
 - selected wire model
 - modeldb offering with pricing
 

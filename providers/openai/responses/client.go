@@ -85,14 +85,18 @@ func (c *Client) Request(ctx context.Context, req unified.Request) (<-chan unifi
 		}
 		warningEvents = append(warningEvents, warnings...)
 	}
-	if c.shouldUseWebSocket(req, body) {
+	useWebSocket, err := c.shouldUseWebSocket(req, body)
+	if err != nil {
+		return nil, err
+	}
+	if useWebSocket {
 		stream, err := c.openWebSocket(ctx, req, body)
 		if err == nil {
 			out := make(chan unified.Event)
 			go c.readStream(ctx, warningEvents, stream, out)
 			return out, nil
 		}
-		if c.webSocketMode == WebSocketModeEnabled {
+		if c.webSocketMode == WebSocketModeEnabled || errors.Is(err, errWebSocketRequestBody) {
 			return nil, err
 		}
 	}

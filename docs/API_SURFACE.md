@@ -50,6 +50,8 @@ Keep new cross-package helpers internal unless there is a clear external impleme
 
 Codex WebSocket continuation does not change the public API surface: consumers still send full replay-style requests to `codex_responses`, while the provider may internally use WebSocket and `previous_response_id` after same-session/same-branch lineage checks pass. Do not add consumer branching logic based on provider name, API family, `Transport`, or `InternalContinuation`.
 
+`unified.AssistantMessageFromResponse` is a stateless helper for replay-style tool continuation. It copies the collected assistant content/reasoning and tool calls into a `unified.Message`; it does not make llmadapter own conversation state.
+
 ## Quota Telemetry
 
 Providers can emit `unified.QuotaUsageEvent` when an upstream reports subscription or quota-window usage. The event is observational metadata for library consumers; it does not affect routing, retry, or request projection. `unified.Collect` preserves quota snapshots in `Response.Quotas`.
