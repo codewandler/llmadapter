@@ -42,6 +42,11 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 		item := inputItemWire{Type: "message", Role: string(msg.Role), ID: msg.ID}
 		if msg.Role == unified.RoleAssistant {
 			item.Status = "completed"
+			if msg.Phase != "" {
+				item.Phase = string(msg.Phase)
+			}
+		} else if msg.Phase != "" {
+			addWarning(&warnings, "messages."+strconv.Itoa(i)+".phase", "message phase is only supported on assistant messages")
 		}
 		for j, part := range msg.Content {
 			item.Content = appendContentPart(item.Content, part, msg.Role, "messages."+strconv.Itoa(i)+".content."+strconv.Itoa(j), &warnings)
@@ -261,6 +266,7 @@ type streamDecoder struct {
 	apiKind        string
 	id             string
 	model          string
+	phase          unified.MessagePhase
 	started        bool
 	startedBlock   bool
 	blockIndex     int
@@ -339,11 +345,15 @@ func (d *streamDecoder) push(raw []byte) ([]unified.Event, error) {
 	case "response.output_item.added":
 		if ev.Item != nil && ev.Item.Type == "function_call" {
 			out = append(out, d.startToolCall(ev.OutputIndex, ev.Item)...)
+		} else if ev.Item != nil && ev.Item.Type == "message" && ev.Item.Role == "assistant" && ev.Item.Phase != "" {
+			d.phase = unified.MessagePhase(ev.Item.Phase)
 		}
 	case "response.output_item.done":
 		if ev.Item != nil && ev.Item.Type == "function_call" {
 			out = append(out, d.startToolCall(ev.OutputIndex, ev.Item)...)
 			out = append(out, d.doneToolCall(ev.OutputIndex, ev.Item.Arguments)...)
+		} else if ev.Item != nil && ev.Item.Type == "message" && ev.Item.Role == "assistant" && ev.Item.Phase != "" {
+			d.phase = unified.MessagePhase(ev.Item.Phase)
 		}
 	case "response.content_part.added":
 		out = append(out, d.start()...)
@@ -415,7 +425,7 @@ func (d *streamDecoder) start() []unified.Event {
 		return nil
 	}
 	d.started = true
-	return []unified.Event{unified.MessageStartEvent{ID: d.id, Model: d.model, Role: unified.RoleAssistant}}
+	return []unified.Event{unified.MessageStartEvent{ID: d.id, Model: d.model, Role: unified.RoleAssistant, Phase: d.phase}}
 }
 
 func (d *streamDecoder) startBlock(index int) []unified.Event {
@@ -513,8 +523,8 @@ func (d *streamDecoder) done(resp *responseWire, raw json.RawMessage) []unified.
 	if d.doneTools && reason == unified.FinishReasonStop {
 		reason = unified.FinishReasonToolCall
 	}
+	out = append(out, unified.MessageDoneEvent{ID: d.id, Phase: d.phase})
 	out = append(out, unified.CompletedEvent{FinishReason: reason, MessageID: d.id})
-	out = append(out, unified.MessageDoneEvent{ID: d.id})
 	return out
 }
 

@@ -10,16 +10,18 @@ type Event interface {
 }
 
 type MessageStartEvent struct {
-	ID    string    `json:"id,omitempty"`
-	Model string    `json:"model,omitempty"`
-	Role  Role      `json:"role,omitempty"`
-	Time  time.Time `json:"time,omitempty"`
+	ID    string       `json:"id,omitempty"`
+	Model string       `json:"model,omitempty"`
+	Role  Role         `json:"role,omitempty"`
+	Phase MessagePhase `json:"phase,omitempty"`
+	Time  time.Time    `json:"time,omitempty"`
 }
 
 func (MessageStartEvent) isEvent() {}
 
 type MessageDoneEvent struct {
-	ID string `json:"id,omitempty"`
+	ID    string       `json:"id,omitempty"`
+	Phase MessagePhase `json:"phase,omitempty"`
 }
 
 func (MessageDoneEvent) isEvent() {}

@@ -37,6 +37,7 @@ type InputItem struct {
 	Role      string        `json:"role,omitempty"`
 	ID        string        `json:"id,omitempty"`
 	Status    string        `json:"status,omitempty"`
+	Phase     string        `json:"phase,omitempty"`
 	Content   []ContentPart `json:"content,omitempty"`
 	CallID    string        `json:"call_id,omitempty"`
 	Name      string        `json:"name,omitempty"`
@@ -74,6 +75,7 @@ type OutputItem struct {
 	Type      string        `json:"type"`
 	Role      string        `json:"role,omitempty"`
 	Status    string        `json:"status,omitempty"`
+	Phase     string        `json:"phase,omitempty"`
 	Content   []ContentPart `json:"content,omitempty"`
 	CallID    string        `json:"call_id,omitempty"`
 	Name      string        `json:"name,omitempty"`

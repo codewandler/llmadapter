@@ -200,6 +200,31 @@ func TestDecodeHTTPImageContent(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPPreservesAssistantMessagePhase(t *testing.T) {
+	body := `{
+		"model":"gpt-test",
+		"input":[
+			{"type":"message","role":"assistant","phase":"commentary","content":[{"type":"output_text","text":"working"}]},
+			{"type":"message","role":"user","phase":"final_answer","content":[{"type":"input_text","text":"hello"}]}
+		]
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(req.Unified.Messages) != 2 {
+		t.Fatalf("messages = %+v", req.Unified.Messages)
+	}
+	if req.Unified.Messages[0].Phase != unified.MessagePhaseCommentary {
+		t.Fatalf("assistant phase = %q, want commentary", req.Unified.Messages[0].Phase)
+	}
+	if req.Unified.Messages[1].Phase != "" {
+		t.Fatalf("user phase = %q, want empty", req.Unified.Messages[1].Phase)
+	}
+	assertWarning(t, req.Warnings, "input.1.phase")
+}
+
 func TestDecodeHTTPInvalidToolCallArgumentsWarning(t *testing.T) {
 	body := `{
 		"model":"gpt-test",
@@ -235,7 +260,7 @@ func TestDecodeHTTPResponseFormat(t *testing.T) {
 
 func TestWriteEventsNonStreaming(t *testing.T) {
 	events := make(chan unified.Event, 8)
-	events <- unified.MessageStartEvent{ID: "resp", Model: "model"}
+	events <- unified.MessageStartEvent{ID: "resp", Model: "model", Phase: unified.MessagePhaseFinalAnswer}
 	events <- unified.ContentBlockStartEvent{Index: 0, Kind: unified.ContentKindText}
 	events <- unified.TextDeltaEvent{Index: 0, Text: "hello"}
 	events <- unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText}
@@ -257,6 +282,9 @@ func TestWriteEventsNonStreaming(t *testing.T) {
 	}
 	if resp.Object != "response" || resp.Status != "completed" || len(resp.Output) != 1 || resp.Output[0].Content[0].Text != "hello" || resp.Usage.TotalTokens != 3 {
 		t.Fatalf("unexpected response: %+v", resp)
+	}
+	if resp.Output[0].Phase != "final_answer" {
+		t.Fatalf("phase = %q, want final_answer", resp.Output[0].Phase)
 	}
 }
 
@@ -291,9 +319,10 @@ func TestWriteEventsNonStreamingCitation(t *testing.T) {
 
 func TestWriteEventsStreaming(t *testing.T) {
 	events := make(chan unified.Event, 8)
-	events <- unified.MessageStartEvent{ID: "resp", Model: "model"}
+	events <- unified.MessageStartEvent{ID: "resp", Model: "model", Phase: unified.MessagePhaseCommentary}
 	events <- unified.TextDeltaEvent{Index: 0, Text: "hello"}
 	events <- unified.ContentBlockDoneEvent{Index: 0, Kind: unified.ContentKindText}
+	events <- unified.MessageDoneEvent{ID: "resp", Phase: unified.MessagePhaseFinalAnswer}
 	events <- unified.CompletedEvent{FinishReason: unified.FinishReasonStop}
 	close(events)
 
@@ -305,6 +334,9 @@ func TestWriteEventsStreaming(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, `"type":"response.created"`) || !strings.Contains(body, `"type":"response.output_text.delta"`) || !strings.Contains(body, `"delta":"hello"`) || !strings.Contains(body, `"type":"response.done"`) {
 		t.Fatalf("unexpected stream body: %s", body)
+	}
+	if !strings.Contains(body, `"phase":"commentary"`) || !strings.Contains(body, `"phase":"final_answer"`) {
+		t.Fatalf("stream body missing phase: %s", body)
 	}
 }
 

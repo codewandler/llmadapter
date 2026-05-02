@@ -25,6 +25,7 @@ func TestClientUsesOpenAIResponsesEndpoint(t *testing.T) {
 	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","status":"in_progress"}}`),
 		[]byte(`data: {"type":"response.output_text.delta","response_id":"resp_1","output_index":0,"content_index":0,"delta":"hello"}`),
+		[]byte(`data: {"type":"response.output_item.done","item":{"id":"msg_1","type":"message","role":"assistant","status":"completed","phase":"final_answer","content":[{"type":"output_text","text":"hello"}]}}`),
 		[]byte(`data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-test","status":"completed"}}`),
 		[]byte(`data: [DONE]`),
 	}}
@@ -47,7 +48,7 @@ func TestClientUsesOpenAIResponsesEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.ID != "resp_1" || len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" {
+	if resp.ID != "resp_1" || resp.Phase != unified.MessagePhaseFinalAnswer || len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "hello" {
 		t.Fatalf("unexpected response: %+v", resp)
 	}
 	if len(fake.Seen) != 1 || fake.Seen[0].URL != "https://api.openai.com/v1/responses" {
@@ -55,6 +56,60 @@ func TestClientUsesOpenAIResponsesEndpoint(t *testing.T) {
 	}
 	if fake.Seen[0].Header.Get("Authorization") != "Bearer key" {
 		t.Fatalf("missing authorization header: %+v", fake.Seen[0].Header)
+	}
+}
+
+func TestClientRequestBodyIncludesAssistantMessagePhase(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-test","status":"completed"}}`),
+		[]byte(`data: [DONE]`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), unified.Request{
+		Model: "gpt-test",
+		Messages: []unified.Message{
+			{
+				Role:    unified.RoleUser,
+				Phase:   unified.MessagePhaseCommentary,
+				Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+			},
+			{
+				Role:    unified.RoleAssistant,
+				Phase:   unified.MessagePhaseFinalAnswer,
+				Content: []unified.ContentPart{unified.TextPart{Text: "done"}},
+			},
+		},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unified.Collect(context.Background(), events); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.Seen) != 1 {
+		t.Fatalf("requests seen = %d, want 1", len(fake.Seen))
+	}
+	var body struct {
+		Input []struct {
+			Role  string `json:"role"`
+			Phase string `json:"phase"`
+		} `json:"input"`
+	}
+	if err := json.NewDecoder(fake.Seen[0].Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Input) != 2 {
+		t.Fatalf("input items = %d, want 2", len(body.Input))
+	}
+	if body.Input[0].Phase != "" {
+		t.Fatalf("user phase = %q, want omitted", body.Input[0].Phase)
+	}
+	if body.Input[1].Role != "assistant" || body.Input[1].Phase != "final_answer" {
+		t.Fatalf("assistant item = %+v, want phase final_answer", body.Input[1])
 	}
 }
 

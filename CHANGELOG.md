@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.29] - 2026-05-03
+
+### Added
+
+- Preserved OpenAI Responses assistant message `phase` metadata through unified messages, collected responses, message start/done events, the downstream `/v1/responses` endpoint, and Responses-family provider replay.
+
 ## [1.0.0-rc.28] - 2026-05-03
 
 ### Changed

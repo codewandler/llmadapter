@@ -100,3 +100,24 @@ func TestCollectPreservesCitationsAndRawEvents(t *testing.T) {
 		t.Fatalf("raw = %+v", resp.Raw)
 	}
 }
+
+func TestCollectAndAssistantReplayPreserveMessagePhase(t *testing.T) {
+	ch := make(chan Event, 4)
+	ch <- MessageStartEvent{ID: "msg", Model: "model", Phase: MessagePhaseCommentary}
+	ch <- TextDeltaEvent{Index: 0, Text: "working"}
+	ch <- MessageDoneEvent{ID: "msg", Phase: MessagePhaseFinalAnswer}
+	ch <- CompletedEvent{FinishReason: FinishReasonStop}
+	close(ch)
+
+	resp, err := Collect(context.Background(), ch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Phase != MessagePhaseFinalAnswer {
+		t.Fatalf("phase = %q, want final_answer", resp.Phase)
+	}
+	msg := AssistantMessageFromResponse(resp)
+	if msg.Phase != MessagePhaseFinalAnswer {
+		t.Fatalf("assistant phase = %q, want final_answer", msg.Phase)
+	}
+}

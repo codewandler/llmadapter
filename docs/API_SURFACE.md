@@ -52,6 +52,8 @@ Codex WebSocket continuation does not change the public API surface: consumers s
 
 `unified.AssistantMessageFromResponse` is a stateless helper for replay-style tool continuation. It copies the collected assistant content/reasoning and tool calls into a `unified.Message`; it does not make llmadapter own conversation state.
 
+`unified.Message.Phase`, `unified.Response.Phase`, `unified.MessageStartEvent.Phase`, and `unified.MessageDoneEvent.Phase` preserve provider-supplied assistant message phase metadata such as OpenAI Responses `commentary` and `final_answer`. Empty phase means unknown/legacy behavior. Codecs only encode phase where the target wire API supports assistant message phases.
+
 ## Quota Telemetry
 
 Providers can emit `unified.QuotaUsageEvent` when an upstream reports subscription or quota-window usage. The event is observational metadata for library consumers; it does not affect routing, retry, or request projection. `unified.Collect` preserves quota snapshots in `Response.Quotas`.

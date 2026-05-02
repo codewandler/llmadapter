@@ -9,6 +9,7 @@ import (
 type Response struct {
 	ID           string            `json:"id,omitempty"`
 	Model        string            `json:"model,omitempty"`
+	Phase        MessagePhase      `json:"phase,omitempty"`
 	Content      []ContentPart     `json:"content,omitempty"`
 	ToolCalls    []ToolCall        `json:"tool_calls,omitempty"`
 	FinishReason FinishReason      `json:"finish_reason,omitempty"`
@@ -76,6 +77,16 @@ func Collect(ctx context.Context, events <-chan Event) (Response, error) {
 			case MessageStartEvent:
 				resp.ID = e.ID
 				resp.Model = e.Model
+				if e.Phase != "" {
+					resp.Phase = e.Phase
+				}
+			case MessageDoneEvent:
+				if e.ID != "" {
+					resp.ID = e.ID
+				}
+				if e.Phase != "" {
+					resp.Phase = e.Phase
+				}
 			case ContentBlockStartEvent:
 				kinds[e.Index] = e.Kind
 				if e.Kind == ContentKindText {

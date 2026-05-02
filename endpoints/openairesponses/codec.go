@@ -178,9 +178,18 @@ func decodeInputItem(item InputItem, field string) ([]unified.Message, []adapt.W
 	switch item.Type {
 	case "message":
 		content, warnings := decodeContent(item.Content, field+".content")
+		phase := unified.MessagePhase("")
+		if item.Phase != "" {
+			if item.Role == string(unified.RoleAssistant) {
+				phase = unified.MessagePhase(item.Phase)
+			} else {
+				warnings = append(warnings, decodeWarning(field+".phase", "message phase is only supported on assistant messages"))
+			}
+		}
 		return []unified.Message{{
 			ID:      item.ID,
 			Role:    unified.Role(item.Role),
+			Phase:   phase,
 			Content: content,
 		}}, warnings
 	case "function_call":
@@ -319,7 +328,7 @@ func outputFromUnified(resp unified.Response) []OutputItem {
 		}
 	}
 	if len(content) > 0 {
-		out = append(out, OutputItem{Type: "message", Role: "assistant", Status: "completed", Content: content})
+		out = append(out, OutputItem{Type: "message", Role: "assistant", Status: "completed", Phase: string(resp.Phase), Content: content})
 	}
 	for _, call := range resp.ToolCalls {
 		out = append(out, OutputItem{
@@ -380,6 +389,7 @@ func writeStream(ctx context.Context, w http.ResponseWriter, events <-chan unifi
 type streamState struct {
 	id             string
 	model          string
+	phase          unified.MessagePhase
 	textStarted    bool
 	textDone       bool
 	toolIDs        map[int]string
@@ -396,7 +406,18 @@ func (s *streamState) push(ev unified.Event) []Event {
 	case unified.MessageStartEvent:
 		s.id = e.ID
 		s.model = e.Model
+		if e.Phase != "" {
+			s.phase = e.Phase
+		}
 		return []Event{{Type: "response.created", Response: &Response{ID: e.ID, Object: "response", Model: e.Model, Status: "in_progress"}}}
+	case unified.MessageDoneEvent:
+		if e.Phase != "" {
+			s.phase = e.Phase
+		}
+		if s.textStarted {
+			return []Event{{Type: "response.output_item.done", ResponseID: s.id, OutputIndex: 0, Item: &OutputItem{Type: "message", Role: "assistant", Status: "completed", Phase: string(s.phase)}}}
+		}
+		return nil
 	case unified.ContentBlockStartEvent:
 		if e.Kind == unified.ContentKindText {
 			return s.startTextPart()
@@ -472,7 +493,7 @@ func (s *streamState) startTextPart() []Event {
 	}
 	s.textStarted = true
 	return []Event{
-		{Type: "response.output_item.added", ResponseID: s.id, OutputIndex: 0, Item: &OutputItem{Type: "message", Role: "assistant", Status: "in_progress"}},
+		{Type: "response.output_item.added", ResponseID: s.id, OutputIndex: 0, Item: &OutputItem{Type: "message", Role: "assistant", Status: "in_progress", Phase: string(s.phase)}},
 		{Type: "response.content_part.added", ResponseID: s.id, OutputIndex: 0, ContentIndex: 0, Part: &ContentPart{Type: "output_text"}},
 	}
 }

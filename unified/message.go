@@ -9,10 +9,18 @@ const (
 	RoleTool      Role = "tool"
 )
 
+type MessagePhase string
+
+const (
+	MessagePhaseCommentary  MessagePhase = "commentary"
+	MessagePhaseFinalAnswer MessagePhase = "final_answer"
+)
+
 type Message struct {
 	Role        Role           `json:"role"`
 	ID          string         `json:"id,omitempty"`
 	Name        string         `json:"name,omitempty"`
+	Phase       MessagePhase   `json:"phase,omitempty"`
 	Content     []ContentPart  `json:"content,omitempty"`
 	ToolCalls   []ToolCall     `json:"tool_calls,omitempty"`
 	ToolResults []ToolResult   `json:"tool_results,omitempty"`
@@ -25,6 +33,7 @@ func AssistantMessageFromResponse(resp Response) Message {
 	return Message{
 		Role:      RoleAssistant,
 		ID:        resp.ID,
+		Phase:     resp.Phase,
 		Content:   append([]ContentPart(nil), resp.Content...),
 		ToolCalls: cloneToolCalls(resp.ToolCalls),
 	}
