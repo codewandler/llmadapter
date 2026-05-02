@@ -92,7 +92,7 @@ func TestClientMutatesCodexRequest(t *testing.T) {
 	if err := json.NewDecoder(seen.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if body["model"] != DefaultModel {
+	if body["model"] != "codex" {
 		t.Fatalf("model = %v", body["model"])
 	}
 	if body["instructions"] != defaultInstructions {
@@ -419,7 +419,7 @@ func TestClientUsesWebSocketForSessionInteraction(t *testing.T) {
 	if body["type"] != "response.create" {
 		t.Fatalf("ws body type = %v", body["type"])
 	}
-	if body["model"] != "gpt-5.4" {
+	if body["model"] != "codex" {
 		t.Fatalf("ws body model = %v", body["model"])
 	}
 	if body["tool_choice"] != "auto" || body["parallel_tool_calls"] != true {

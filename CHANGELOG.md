@@ -10,6 +10,21 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added modeldb-resolved model metadata extensions for parameter values, parameter mappings, parameter value mappings, and reasoning modes/efforts.
+- Added direct Anthropic-family request metadata attachment for exact native model IDs so provider clients outside mux still get modeldb-backed effort behavior.
+
+### Changed
+
+- Updated modeldb dependency to v0.14.0 and use modeldb `parameter_value_mappings` for provider-specific effort wire values such as Anthropic Opus 4.7 `xhigh`.
+- Removed llmadapter built-in `codex` / `fast` / `powerful` Codex model rewrites and default auto-injected modeldb aliases; callers must use explicit modeldb/catalog/operator aliases.
+- Anthropic adaptive effort encoding now relies on modeldb metadata instead of static Claude model-name matching.
+
+### Fixed
+
+- Direct Claude/Anthropic clients now preserve `--effort` behavior without requiring mux route metadata.
+
 ## [1.0.0-rc.19] - 2026-05-02
 
 ### Added

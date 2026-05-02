@@ -81,7 +81,7 @@ Library diagnostics slice: public `diagnostics` helpers expose the same redacted
 Container slice: Dockerfile builds a standalone `llmadapter` image that runs `llmadapter serve`
 Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled and optional source API presetting
 Auto mux modeldb intent slice: when `UseModelDB` is enabled, auto intents and aliases choose a provider whose catalog service can resolve the requested model alias; unresolved intents do not fall back to provider defaults. Service-qualified names such as `openai/gpt-5.5` and `codex/gpt-5.4` constrain resolution to that service before mapping to the offering wire model.
-Model alias slice: `adapterconfig.DefaultModelDBAliases()` centralizes built-in provider-local aliases for Claude-family `haiku`, `sonnet`, and `opus`; auto mux callers can inject or override aliases through `AutoOptions.ModelDBAliases`
+Model alias slice: model aliases are resolved through the modeldb catalog or explicit operator `modeldb.aliases`; llmadapter no longer has built-in provider-local model aliases that can pin stale catalog entries
 Modeldb catalog config slice: gateway config supports `modeldb.catalog_path` as an explicit catalog base and `modeldb.overlay_paths` for local operator overlays
 Modeldb alias resolution slice: route `modeldb_model` resolves catalog aliases/names or local `modeldb.aliases` into explicit fixed native/modeldb wire model IDs
 Claude compatibility slice: `claude` registers a Claude Code-compatible Anthropic Messages endpoint with OAuth/bearer auth, Claude CLI headers/query behavior, request preflight metadata, Anthropic modeldb service identity, and Anthropic extended-thinking request mapping
@@ -137,7 +137,8 @@ Responses WebSocket option slice: `providers/openai/responses` exposes three-sta
 OpenAI Responses WebSocket smoke slice: `tests/e2e/TestSmokeOpenAIResponsesWebSocket` verifies direct OpenAI Responses WebSocket mode with live OpenAI credentials, stable cache/session key, streamed text, usage, and runtime `transport=websocket` metadata
 Codex WebSocket conformance slice: deterministic Codex provider tests cover session-mode WebSocket enabled, WebSocket disabled, missing stable session ID, pre-stream HTTP/SSE fallback, retry-after-fallback, mid-stream failure invalidation, and branch-safe internal continuation; Codex uses the same WebSocket mode vocabulary while preserving Codex-specific auth/session behavior
 Claude Code wire-diff research slice: `docs/CLAUDE_CODE_WIRE_DIFF.md` records observed Claude Code 2.1.112 request/header/stream differences, model-aware effort and adaptive-thinking behavior, advisor-tool/context-management/compaction findings, and the current llmadapter Claude-compatible provider gaps
-Claude Code parity slice: Anthropic-family wire structs preserve adaptive effort, context-management, stop-details, nested usage, service tier, inference geo, usage iterations, and server-tool usage; Claude-compatible headers now compose request/auth-aware beta values, send current Claude Code/Stainless versions plus `X-Claude-Code-Session-Id`, add `advisor-tool-2026-03-01`, add Claude Code's clear-thinking context-management edit for thinking requests, and map known effort-capable models to adaptive thinking plus `output_config.effort` while preserving manual-budget thinking for legacy or explicitly budgeted requests
+Claude Code parity slice: Anthropic-family wire structs preserve adaptive effort, context-management, stop-details, nested usage, service tier, inference geo, usage iterations, and server-tool usage; Claude-compatible headers now compose request/auth-aware beta values, send current Claude Code/Stainless versions plus `X-Claude-Code-Session-Id`, add `advisor-tool-2026-03-01`, add Claude Code's clear-thinking context-management edit for thinking requests, and map modeldb-resolved adaptive effort support to adaptive thinking plus `output_config.effort` while preserving manual-budget thinking for legacy or explicitly budgeted requests
+Modeldb parameter metadata slice: llmadapter now consumes modeldb v0.14.0; resolved modeldb offering exposure metadata flows through router model resolution into provider requests, including parameter values, parameter mappings, parameter value mappings, and reasoning modes/efforts; direct Anthropic-family clients attach exact native-model metadata from the built-in modeldb catalog before encoding; Anthropic adaptive effort selection uses that metadata instead of static Claude model-name matching; canonical `ReasoningEffortMax` maps to provider wire values such as Opus 4.7 `xhigh` via modeldb exposure metadata; router candidates can reject unsupported modeldb reasoning effort values; Codex provider-local `codex`/`fast`/`powerful` aliases were removed; and auto modeldb config no longer injects llmadapter-pinned built-in aliases ahead of catalog/operator aliases
 ```
 
 Verified:
@@ -194,6 +195,16 @@ env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug request,response
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug request,response,stream --config /tmp/llmadapter-claude-smoke.json --source-api anthropic.messages --model claude-smoke --max-tokens 16 --no-cache "Reply exactly: trace ok"
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug request,response --config /tmp/llmadapter-codex-smoke.json --source-api openai.responses --model codex-smoke --session debug-redaction-check --branch main --max-tokens 8 --no-cache "Reply: ok"
 env GOCACHE=/tmp/go-cache go run /tmp/llmadapter_codex_reuse_trace.go
+env GOCACHE=/tmp/go-cache go test ./providers/openai/codex ./providers/anthropic/messages ./router ./internal/routeattempt ./modelmeta ./adapterconfig
+modeldb v0.14.0: go generate ./...; go run ./cmd/modeldb validate --in catalog.json; go test ./...; go vet ./...; env GOMODCACHE=/tmp/go-mod-cache GOCACHE=/tmp/go-cache go build ./...
+modeldb v0.14.0: git tag/release https://github.com/codewandler/modeldb/releases/tag/v0.14.0
+env GOCACHE=/tmp/go-cache go test ./modelmeta ./router ./providers/anthropic/messages ./cmd/llmadapter ./adapterconfig ./internal/routeattempt
+env GOCACHE=/tmp/go-cache go test ./...
+env GOCACHE=/tmp/go-cache go vet ./...
+env GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod-cache go build ./...
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream|TestSmokeToolUse|TestSmokeToolResultContinuation|TestGatewaySmoke' -count=1 -v (latest full matrix failed only `TestSmokeToolResultContinuation/minimax_chat`, which returned reasoning text instead of the tool-result marker; focused changed-provider slice below passed)
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --config /tmp/llmadapter-claude-sonnet-smoke.json --source-api anthropic.messages --model claude-sonnet-smoke --max-tokens 64 --no-cache --effort max "Reply with exactly: claude effort max ok"
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke(TextStream|ToolUse|ToolResultContinuation)/(anthropic|claude|codex_responses)|TestGatewaySmoke(NonStreaming|Streaming)/(anthropic|claude|codex_responses)' -count=1 -v
 ```
 
 Implemented package surface:
@@ -616,7 +627,7 @@ agentapis has a richer canonical stream shape than llmadapter today:
 llmproviders has a higher-level provider service layer than llmadapter today:
 - modeldb-backed service/offering/model lookup
 - provider registry detection and construction from local credentials/API keys
-- alias and intent resolution such as fast/default/powerful and sonnet/opus/haiku
+- alias and intent resolution through configured/catalog modeldb aliases
 - cost-aware provider wrappers using modeldb pricing
 - Claude OAuth as an Anthropic service instance named "claude"
 - broader provider targets, including OpenAI Codex, Ollama, DockerMR/local runtime probes, OpenRouter model metadata, and a shared integration matrix
@@ -724,7 +735,7 @@ Initial integration goals:
 5. Keep credentials and clients explicit in gateway config; the catalog may select metadata and native model IDs, but it must not secretly instantiate providers.
 6. Add modeldb preference/alias support only after the explicit metadata path works:
    - resolve public aliases like sonnet/haiku through ServiceView
-   - support intent aliases such as fast/default/powerful as user config, not built-in magic
+   - support intent aliases as user/modeldb config, not built-in magic
    - allow operator preference overlays to rank service/model offerings before route weights
 7. Add catalog-driven validation tests with a small fixture catalog before using the built-in catalog in gateway tests.
 

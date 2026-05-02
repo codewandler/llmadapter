@@ -194,7 +194,7 @@ req.Reasoning = &unified.ReasoningConfig{
 
 Reasoning support is provider/API-kind specific. Check [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md) before depending on it.
 
-`ReasoningEffortMax` is available for providers that expose a maximum reasoning-effort mode. Anthropic-family providers keep explicit `MaxTokens` as manual thinking-budget intent; known effort-capable Claude/Anthropic models use adaptive thinking plus provider `output_config.effort` when only `Effort` is set.
+`ReasoningEffortMax` is available for providers that expose a maximum reasoning-effort mode. Anthropic-family providers keep explicit `MaxTokens` as manual thinking-budget intent; modeldb-resolved models whose exposure metadata supports adaptive thinking and the requested effort use adaptive thinking plus provider `output_config.effort` when only `Effort` is set. Provider-specific wire values, such as Anthropic Opus 4.7 `xhigh`, are mapped from canonical llmadapter values by modeldb exposure metadata.
 
 ## Tools
 

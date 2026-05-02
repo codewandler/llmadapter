@@ -95,6 +95,96 @@ func TestStaticRouterSkipsCapabilityMismatch(t *testing.T) {
 	}
 }
 
+func TestStaticRouterSkipsUnsupportedModelMetadataParameterValue(t *testing.T) {
+	client := noopClient{}
+	lowOnly := unified.ResolvedModelMetadata{
+		ServiceID: "anthropic",
+		ParameterValues: map[string][]string{
+			"reasoning_effort": {"low"},
+		},
+	}
+	highOK := unified.ResolvedModelMetadata{
+		ServiceID: "anthropic",
+		ParameterValues: map[string][]string{
+			"reasoning_effort": {"high"},
+		},
+	}
+	r := NewStaticRouter(
+		StaticRoute{
+			SourceAPI:     adapt.ApiAnthropicMessages,
+			ModelMetadata: &lowOnly,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "low",
+				APIKind:      adapt.ApiAnthropicMessages,
+				Family:       adapt.FamilyAnthropicMessages,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true, Reasoning: true},
+			},
+		},
+		StaticRoute{
+			SourceAPI:     adapt.ApiAnthropicMessages,
+			ModelMetadata: &highOK,
+			Endpoint: ProviderEndpoint{
+				ProviderName: "high",
+				APIKind:      adapt.ApiAnthropicMessages,
+				Family:       adapt.FamilyAnthropicMessages,
+				Client:       client,
+				Capabilities: CapabilitySet{Streaming: true, Reasoning: true},
+			},
+		},
+	)
+	route, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiAnthropicMessages,
+		Unified: unified.Request{
+			Model:     "model",
+			Reasoning: &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.ProviderName != "high" {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+}
+
+func TestStaticRouterAcceptsModelMetadataParameterValueMapping(t *testing.T) {
+	client := noopClient{}
+	meta := unified.ResolvedModelMetadata{
+		ServiceID: "anthropic",
+		ParameterValues: map[string][]string{
+			"reasoning_effort": {"xhigh"},
+		},
+		ParameterValueMappings: map[string]map[string]string{
+			"reasoning_effort": {"max": "xhigh"},
+		},
+	}
+	r := NewStaticRouter(StaticRoute{
+		SourceAPI:     adapt.ApiAnthropicMessages,
+		ModelMetadata: &meta,
+		Endpoint: ProviderEndpoint{
+			ProviderName: "anthropic",
+			APIKind:      adapt.ApiAnthropicMessages,
+			Family:       adapt.FamilyAnthropicMessages,
+			Client:       client,
+			Capabilities: CapabilitySet{Streaming: true, Reasoning: true},
+		},
+	})
+	route, err := r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiAnthropicMessages,
+		Unified: unified.Request{
+			Model:     "model",
+			Reasoning: &unified.ReasoningConfig{Effort: unified.ReasoningEffortMax},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.ProviderName != "anthropic" {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+}
+
 func TestStaticRouterRanksByRouteWeight(t *testing.T) {
 	client := noopClient{}
 	r := NewStaticRouter(

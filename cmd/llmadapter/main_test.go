@@ -570,6 +570,22 @@ func TestInferRequestNoCacheDisablesCachePolicy(t *testing.T) {
 	}
 }
 
+func TestInferRequestParsesEffortMax(t *testing.T) {
+	req, err := inferRequest("claude-opus-4-7", "hello", inferParams{maxTokens: 4096, effort: "max"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Reasoning == nil {
+		t.Fatal("expected reasoning config")
+	}
+	if !req.Reasoning.Expose || req.Reasoning.Effort != unified.ReasoningEffortMax {
+		t.Fatalf("reasoning = %+v, want exposed max effort", req.Reasoning)
+	}
+	if req.Reasoning.MaxTokens != nil {
+		t.Fatalf("infer --effort should not set a manual thinking budget: %+v", req.Reasoning)
+	}
+}
+
 func TestInferRequestSessionSetsCodexHintsAndCacheKey(t *testing.T) {
 	req, err := inferRequest("gpt-test", "hello", inferParams{
 		maxTokens:   16,

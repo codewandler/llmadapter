@@ -26,6 +26,9 @@ func RequestForRoute(req unified.Request, route router.Route) unified.Request {
 	if route.NativeModel != "" {
 		attempt.Model = route.NativeModel
 	}
+	if route.ModelMetadata != nil {
+		_ = unified.SetResolvedModelMetadata(&attempt.Extensions, *route.ModelMetadata)
+	}
 	return attempt
 }
 

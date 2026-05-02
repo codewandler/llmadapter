@@ -350,9 +350,7 @@ func autoModelDBConfig(opts AutoOptions) ModelDBConfig {
 	if !opts.UseModelDB {
 		return ModelDBConfig{}
 	}
-	aliases := DefaultModelDBAliases()
-	aliases = append(aliases, opts.ModelDBAliases...)
-	return ModelDBConfig{Aliases: aliases}
+	return ModelDBConfig{Aliases: opts.ModelDBAliases}
 }
 
 func autoModelDBCatalog(cfg Config, opts AutoOptions) (modeldb.Catalog, bool, error) {

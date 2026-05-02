@@ -195,10 +195,10 @@ That request returned `404 not_found_error`.
 Implementation implications:
 
 - Do not infer effort support from `sonnet-4-*` or `opus-4-*` string patterns alone.
-- Use a capability table, modeldb metadata, or explicit config override.
-- `ReasoningEffortMax` is now canonical. A provider-specific `xhigh` extension or enum value is still needed if exact Claude-compatible Opus 4.7 default parity is required.
+- Use modeldb exposure metadata or explicit operator overrides.
+- `ReasoningEffortMax` remains the canonical llmadapter value. Modeldb exposure `parameter_value_mappings` map canonical `max` to Anthropic's Opus 4.7 wire value `xhigh` where required.
 - Preserve the old manual-budget path for models that do not support `output_config.effort`.
-- llmadapter now uses adaptive thinking plus `output_config.effort` for known effort-capable Anthropic models when callers set effort without an explicit manual budget.
+- llmadapter now uses adaptive thinking plus `output_config.effort` when the routed modeldb exposure supports adaptive thinking and the requested effort, and callers set effort without an explicit manual budget.
 
 Official Anthropic docs currently describe effort as supported for Mythos Preview, Opus 4.7, Opus 4.6, Sonnet 4.6, and Opus 4.5. They also say manual `budget_tokens` is deprecated for Opus 4.6 and Sonnet 4.6 and unsupported for Opus 4.7. See `https://platform.claude.com/docs/en/build-with-claude/effort`.
 
@@ -326,7 +326,6 @@ Remaining implementation implications:
 
 Compatibility-critical for current Claude Code parity:
 
-- Still missing: exact Opus 4.7 `xhigh` effort modeling.
 - Still missing: canonical advisor tool request/response abstraction.
 - Still missing: canonical compaction event abstraction.
 - Partially implemented: raw preservation for unknown/new Anthropic stream events.
@@ -334,7 +333,8 @@ Compatibility-critical for current Claude Code parity:
 - Implemented: current Claude Code header versions.
 - Implemented: auth-aware beta header composition.
 - Implemented: `advisor-tool-2026-03-01` beta in Claude-compatible request paths.
-- Implemented: model-aware effort/adaptive-thinking encoding for known effort-capable models.
+- Implemented: modeldb metadata-aware effort/adaptive-thinking encoding for routed effort-capable models.
+- Implemented: exact Opus 4.7 canonical `max` to wire `xhigh` effort mapping via modeldb exposure metadata.
 - Implemented: `output_config.effort`.
 - Implemented: `thinking:{type:"adaptive"}`.
 - Implemented: `context_management.edits` through extension passthrough and a Claude preflight default for thinking requests.
@@ -362,14 +362,13 @@ Those belong above llmadapter, but llmadapter should avoid blocking them by expo
 ## Recommended Implementation Order
 
 1. Complete raw JSON preservation for unknown content block start shapes where the current `ContentBlock` struct would drop provider-specific fields.
-2. Decide how to expose Claude Opus 4.7 `xhigh` without sending unsupported values to other providers.
-3. Add modeldb/capability-table backing for Anthropic effort support rather than keeping the current conservative hard-coded allowlist.
-4. Add model/capability-aware reasoning mapping refinements:
+2. Keep Anthropic effort support backed by modeldb exposure metadata rather than model-name allowlists.
+3. Add model/capability-aware reasoning mapping refinements:
    - effort-capable models use adaptive thinking plus `output_config.effort`;
    - legacy models use manual thinking budgets;
    - unknown models do not guess effort support from family strings.
-5. Add focused decoder fixtures for advisor and compaction stream shapes using sanitized captures.
-6. Only then consider opt-in advisor/context-compaction canonical request abstractions.
+4. Add focused decoder fixtures for advisor and compaction stream shapes using sanitized captures.
+5. Only then consider opt-in advisor/context-compaction canonical request abstractions.
 
 ## Research Commands
 

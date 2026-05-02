@@ -151,12 +151,12 @@ func applyReasoning(req *adapt.Request, out *MessageRequest) error {
 	if reasoning == nil {
 		return nil
 	}
-	if reasoning.MaxTokens == nil && reasoning.Effort != "" && supportsAnthropicOutputEffort(req.Unified.Model) {
+	if wireEffort, ok := anthropicAdaptiveEffort(req.Unified); reasoning.MaxTokens == nil && ok {
 		out.Thinking = &ThinkingConfig{Type: "adaptive"}
 		if out.OutputConfig == nil {
 			out.OutputConfig = &OutputConfig{}
 		}
-		out.OutputConfig.Effort = string(reasoning.Effort)
+		out.OutputConfig.Effort = wireEffort
 		return nil
 	}
 	budget := thinkingBudget(*reasoning, out.MaxTokens)
@@ -208,22 +208,48 @@ func thinkingBudget(reasoning unified.ReasoningConfig, maxTokens int) int {
 	return 1024
 }
 
-func supportsAnthropicOutputEffort(model string) bool {
-	model = strings.ToLower(strings.TrimSpace(model))
-	switch {
-	case strings.Contains(model, "claude-sonnet-4-6"):
-		return true
-	case strings.Contains(model, "claude-opus-4-5"):
-		return true
-	case strings.Contains(model, "claude-opus-4-6"):
-		return true
-	case strings.Contains(model, "claude-opus-4-7"):
-		return true
-	case strings.Contains(model, "mythos"):
-		return true
-	default:
+func anthropicAdaptiveEffort(req unified.Request) (string, bool) {
+	if req.Reasoning == nil || req.Reasoning.Effort == "" {
+		return "", false
+	}
+	meta, ok, err := unified.ResolvedModelMetadataFrom(req.Extensions)
+	if err != nil || !ok {
+		return "", false
+	}
+	if !containsString(meta.ReasoningModes, "adaptive") && !containsParameterValue(meta.ParameterValues, "thinking.mode", "adaptive") {
+		return "", false
+	}
+	effort := string(req.Reasoning.Effort)
+	if wireValue := mappedParameterValue(meta.ParameterValueMappings, "reasoning_effort", effort); wireValue != "" {
+		return wireValue, true
+	}
+	if containsString(meta.ReasoningEfforts, effort) || containsParameterValue(meta.ParameterValues, "reasoning_effort", effort) {
+		return effort, true
+	}
+	return "", false
+}
+
+func mappedParameterValue(values map[string]map[string]string, parameter, value string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[parameter][value]
+}
+
+func containsParameterValue(values map[string][]string, parameter, value string) bool {
+	if len(values) == 0 {
 		return false
 	}
+	return containsString(values[parameter], value)
+}
+
+func containsString(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
 }
 
 func applyAnthropicExtensions(req *adapt.Request, out *MessageRequest, extensions unified.Extensions) {

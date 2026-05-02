@@ -1,8 +1,12 @@
 package modelmeta
 
 import (
+	"context"
+	"sync"
+
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/router"
+	"github.com/codewandler/llmadapter/unified"
 	"github.com/codewandler/modeldb"
 )
 
@@ -56,6 +60,96 @@ func EnrichCapabilitiesForAPIType(base router.CapabilitySet, catalog modeldb.Cat
 	return out, true
 }
 
+func ResolvedMetadata(catalog modeldb.Catalog, serviceID, wireModelID string, family adapt.ApiFamily) (unified.ResolvedModelMetadata, bool) {
+	apiType, ok := APITypeForFamily(family)
+	if !ok {
+		return unified.ResolvedModelMetadata{}, false
+	}
+	return ResolvedMetadataForAPIType(catalog, serviceID, wireModelID, apiType)
+}
+
+func ResolvedMetadataForAPIType(catalog modeldb.Catalog, serviceID, wireModelID string, apiType modeldb.APIType) (unified.ResolvedModelMetadata, bool) {
+	offering, ok := catalog.Offerings[modeldb.OfferingRef{ServiceID: serviceID, WireModelID: wireModelID}]
+	if !ok {
+		return unified.ResolvedModelMetadata{}, false
+	}
+	exposure := offering.Exposure(apiType)
+	if exposure == nil {
+		return unified.ResolvedModelMetadata{}, false
+	}
+	out := unified.ResolvedModelMetadata{
+		ServiceID:              serviceID,
+		WireModelID:            wireModelID,
+		APIType:                string(apiType),
+		ParameterValues:        copyParameterValues(exposure.ParameterValues),
+		ParameterMappings:      copyParameterMappings(exposure.ParameterMappings),
+		ParameterValueMappings: copyParameterValueMappings(exposure.ParameterValueMappings),
+	}
+	if exposure.ExposedCapabilities != nil && exposure.ExposedCapabilities.Reasoning != nil {
+		reasoning := exposure.ExposedCapabilities.Reasoning
+		out.DefaultDisplayMode = reasoning.DefaultDisplay
+		for _, mode := range reasoning.Modes {
+			out.ReasoningModes = append(out.ReasoningModes, string(mode))
+		}
+		for _, effort := range reasoning.Efforts {
+			out.ReasoningEfforts = append(out.ReasoningEfforts, string(effort))
+		}
+	} else if model, ok := catalog.Models[offering.ModelKey]; ok && model.Capabilities.Reasoning != nil {
+		reasoning := model.Capabilities.Reasoning
+		out.DefaultDisplayMode = reasoning.DefaultDisplay
+		for _, mode := range reasoning.Modes {
+			out.ReasoningModes = append(out.ReasoningModes, string(mode))
+		}
+		for _, effort := range reasoning.Efforts {
+			out.ReasoningEfforts = append(out.ReasoningEfforts, string(effort))
+		}
+	}
+	return out, true
+}
+
+func RequestMetadataProcessor(catalog modeldb.Catalog, serviceID string, family adapt.ApiFamily) adapt.RequestProcessor {
+	return requestProcessorFunc(func(_ context.Context, req *adapt.Request) error {
+		return AttachResolvedMetadata(&req.Unified, catalog, serviceID, family)
+	})
+}
+
+func BuiltInRequestMetadataProcessor(serviceID string, family adapt.ApiFamily) adapt.RequestProcessor {
+	var (
+		once    sync.Once
+		catalog modeldb.Catalog
+		err     error
+	)
+	return requestProcessorFunc(func(_ context.Context, req *adapt.Request) error {
+		once.Do(func() {
+			catalog, err = modeldb.LoadBuiltIn()
+		})
+		if err != nil {
+			return err
+		}
+		return AttachResolvedMetadata(&req.Unified, catalog, serviceID, family)
+	})
+}
+
+func AttachResolvedMetadata(req *unified.Request, catalog modeldb.Catalog, serviceID string, family adapt.ApiFamily) error {
+	if req == nil || req.Model == "" {
+		return nil
+	}
+	if _, ok, err := unified.ResolvedModelMetadataFrom(req.Extensions); ok || err != nil {
+		return err
+	}
+	meta, ok := ResolvedMetadata(catalog, serviceID, req.Model, family)
+	if !ok {
+		return nil
+	}
+	return unified.SetResolvedModelMetadata(&req.Extensions, meta)
+}
+
+type requestProcessorFunc func(context.Context, *adapt.Request) error
+
+func (f requestProcessorFunc) ProcessRequest(ctx context.Context, req *adapt.Request) error {
+	return f(ctx, req)
+}
+
 func applyExposureCapabilities(base router.CapabilitySet, caps modeldb.Capabilities, exposure modeldb.OfferingExposure) router.CapabilitySet {
 	out := base
 	out.Streaming = base.Streaming && caps.Streaming
@@ -89,4 +183,53 @@ func applyLimits(caps router.CapabilitySet, limits modeldb.Limits) router.Capabi
 		caps.MaxOutputTokens = limits.MaxOutput
 	}
 	return caps
+}
+
+func copyParameterValues(values map[string][]string) map[string][]string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(values))
+	for key, value := range values {
+		out[key] = append([]string(nil), value...)
+	}
+	return out
+}
+
+func copyParameterMappings(mappings []modeldb.ParameterMapping) map[string]string {
+	if len(mappings) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(mappings))
+	for _, mapping := range mappings {
+		if mapping.Normalized == "" || mapping.WireName == "" {
+			continue
+		}
+		out[string(mapping.Normalized)] = mapping.WireName
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func copyParameterValueMappings(mappings []modeldb.ParameterValueMapping) map[string]map[string]string {
+	if len(mappings) == 0 {
+		return nil
+	}
+	out := make(map[string]map[string]string)
+	for _, mapping := range mappings {
+		if mapping.Parameter == "" || mapping.Canonical == "" || mapping.WireValue == "" {
+			continue
+		}
+		parameter := string(mapping.Parameter)
+		if out[parameter] == nil {
+			out[parameter] = make(map[string]string)
+		}
+		out[parameter][mapping.Canonical] = mapping.WireValue
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

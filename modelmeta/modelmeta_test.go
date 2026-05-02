@@ -90,6 +90,54 @@ func TestEnrichCapabilitiesMissesUnknownExposure(t *testing.T) {
 	}
 }
 
+func TestResolvedMetadataProjectsExposureDetails(t *testing.T) {
+	catalog := fixtureCatalog(modeldb.Capabilities{
+		Reasoning: &modeldb.ReasoningCapability{
+			Available:      true,
+			Modes:          []modeldb.ReasoningMode{modeldb.ReasoningModeAdaptive},
+			Efforts:        []modeldb.ReasoningEffortLevel{modeldb.ReasoningEffortHigh},
+			DefaultDisplay: "summarized",
+		},
+	})
+	ref := modeldb.OfferingRef{ServiceID: "openai", WireModelID: "gpt-test"}
+	offering := catalog.Offerings[ref]
+	offering.Exposures[0].SupportedParameters = []modeldb.NormalizedParameter{modeldb.ParamReasoningEffort}
+	offering.Exposures[0].ParameterValues = map[string][]string{string(modeldb.ParamReasoningEffort): {string(modeldb.ReasoningEffortHigh)}}
+	offering.Exposures[0].ParameterMappings = []modeldb.ParameterMapping{{Normalized: modeldb.ParamReasoningEffort, WireName: "reasoning.effort"}}
+	offering.Exposures[0].ParameterValueMappings = []modeldb.ParameterValueMapping{{
+		Parameter: modeldb.ParamReasoningEffort,
+		Canonical: string(modeldb.ReasoningEffortMax),
+		WireValue: string(modeldb.ReasoningEffortXHigh),
+	}}
+	catalog.Offerings[ref] = offering
+
+	got, ok := ResolvedMetadata(catalog, "openai", "gpt-test", adapt.FamilyOpenAIResponses)
+	if !ok {
+		t.Fatalf("expected metadata")
+	}
+	if got.ServiceID != "openai" || got.WireModelID != "gpt-test" || got.APIType != string(modeldb.APITypeOpenAIResponses) {
+		t.Fatalf("unexpected identity: %+v", got)
+	}
+	if len(got.ReasoningModes) != 1 || got.ReasoningModes[0] != "adaptive" {
+		t.Fatalf("modes = %+v", got.ReasoningModes)
+	}
+	if len(got.ReasoningEfforts) != 1 || got.ReasoningEfforts[0] != "high" {
+		t.Fatalf("efforts = %+v", got.ReasoningEfforts)
+	}
+	if got.ParameterMappings[string(modeldb.ParamReasoningEffort)] != "reasoning.effort" {
+		t.Fatalf("mappings = %+v", got.ParameterMappings)
+	}
+	if got.ParameterValues[string(modeldb.ParamReasoningEffort)][0] != "high" {
+		t.Fatalf("values = %+v", got.ParameterValues)
+	}
+	if got.ParameterValueMappings[string(modeldb.ParamReasoningEffort)][string(modeldb.ReasoningEffortMax)] != string(modeldb.ReasoningEffortXHigh) {
+		t.Fatalf("value mappings = %+v", got.ParameterValueMappings)
+	}
+	if got.DefaultDisplayMode != "summarized" {
+		t.Fatalf("default display = %q", got.DefaultDisplayMode)
+	}
+}
+
 func fixtureCatalog(caps modeldb.Capabilities) modeldb.Catalog {
 	catalog := modeldb.NewCatalog()
 	key := modeldb.ModelKey{Creator: "openai", Family: "gpt", Version: "test"}

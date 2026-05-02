@@ -290,6 +290,7 @@ func TestAutoMuxClientAutoSourcePrefersAnthropicRouteForAnthropicAlias(t *testin
 		EnableEnv:         true,
 		EnableLocalClaude: true,
 		UseModelDB:        true,
+		DynamicModels:     true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -317,6 +318,7 @@ func TestAutoMuxClientAutoSourceOpenRouterAliasUsesCatalogEndpoint(t *testing.T)
 		EnableEnv:         true,
 		EnableLocalClaude: false,
 		UseModelDB:        true,
+		DynamicModels:     true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -392,7 +394,7 @@ func TestAutoMuxClientCanAddDynamicRoutesWithIntents(t *testing.T) {
 	}
 }
 
-func TestAutoMuxClientAddsDefaultModelAliasRoutes(t *testing.T) {
+func TestAutoMuxClientDoesNotAddBuiltInModelAliasRoutes(t *testing.T) {
 	clearAutoEnv(t)
 	claudeDir := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
@@ -409,30 +411,16 @@ func TestAutoMuxClientAddsDefaultModelAliasRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tt := range []struct {
-		alias string
-		wire  string
-	}{
-		{"haiku", "claude-haiku-4-5-20251001"},
-		{"sonnet", "claude-sonnet-4-6"},
-		{"opus", "claude-opus-4-6"},
-	} {
-		t.Run(tt.alias, func(t *testing.T) {
-			r, err := BuildRouter(result.Config)
-			if err != nil {
-				t.Fatal(err)
-			}
-			selected, err := r.Route(context.Background(), adapt.Request{
-				SourceAPI: adapt.ApiOpenAIResponses,
-				Unified:   unified.Request{Model: tt.alias, Stream: true},
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if selected.ProviderName != "claude" || selected.NativeModel != tt.wire {
-				t.Fatalf("unexpected alias route: %+v", selected)
-			}
-		})
+	r, err := BuildRouter(result.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.Route(context.Background(), adapt.Request{
+		SourceAPI: adapt.ApiOpenAIResponses,
+		Unified:   unified.Request{Model: "sonnet", Stream: true},
+	})
+	if err == nil {
+		t.Fatalf("expected catalog alias to require an explicit intent, dynamic route, or operator alias")
 	}
 }
 
@@ -505,28 +493,6 @@ func TestResolveModelDBItemSupportsServiceQualifiedName(t *testing.T) {
 	}
 	if item.Offering.ServiceID != "codex" || item.Offering.WireModelID != "gpt-5.4" {
 		t.Fatalf("unexpected item: %+v", item.Offering)
-	}
-}
-
-func TestDefaultModelDBAliases(t *testing.T) {
-	aliases := DefaultModelDBAliases()
-	want := map[string]string{
-		"anthropic/haiku":  "claude-haiku-4-5-20251001",
-		"anthropic/sonnet": "claude-sonnet-4-6",
-		"anthropic/opus":   "claude-opus-4-6",
-	}
-	for _, alias := range aliases {
-		key := alias.ServiceID + "/" + alias.Name
-		if want[key] == "" {
-			continue
-		}
-		if alias.WireModelID != want[key] {
-			t.Fatalf("%s = %q, want %q", key, alias.WireModelID, want[key])
-		}
-		delete(want, key)
-	}
-	if len(want) != 0 {
-		t.Fatalf("missing aliases: %+v", want)
 	}
 }
 

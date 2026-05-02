@@ -160,6 +160,7 @@ Example:
 ```
 
 If `catalog_path` is omitted, the built-in modeldb catalog is used. Overlays are merged after the base catalog.
+Catalog aliases are the default source of truth. `modeldb.aliases` is only for explicit operator overrides or local shortcuts, and `AutoMuxClient` does not inject llmadapter-owned built-in aliases ahead of the catalog.
 
 ## Capability Overrides
 

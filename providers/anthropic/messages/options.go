@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/modelmeta"
 	"github.com/codewandler/llmadapter/pipeline"
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
@@ -37,14 +38,16 @@ type Config struct {
 	ProviderEventProcessors   []pipeline.Processor[Event]
 	UnifiedEventProcessors    []pipeline.Processor[unified.Event]
 	ClaudeHeaders             bool
+	BuiltInModelMetadata      bool
 }
 
 func NewClient(opts ...Option) (unified.Client, error) {
 	cfg := Config{
-		BaseURL:       defaultBaseURL,
-		Version:       defaultVersion,
-		Headers:       make(http.Header),
-		QuotaProvider: "anthropic",
+		BaseURL:              defaultBaseURL,
+		Version:              defaultVersion,
+		Headers:              make(http.Header),
+		QuotaProvider:        "anthropic",
+		BuiltInModelMetadata: true,
 	}
 	for _, opt := range opts {
 		if err := opt.applyAnthropic(&cfg); err != nil {
@@ -62,6 +65,11 @@ func NewClient(opts ...Option) (unified.Client, error) {
 	}
 	if cfg.ClaudeHeaders {
 		cfg.HeaderFns = append(cfg.HeaderFns, claudeHeadersFunc())
+	}
+	if cfg.BuiltInModelMetadata {
+		cfg.RequestProcessors = append([]adapt.RequestProcessor{
+			modelmeta.BuiltInRequestMetadataProcessor("anthropic", adapt.FamilyAnthropicMessages),
+		}, cfg.RequestProcessors...)
 	}
 
 	native := &NativeClient{
@@ -150,6 +158,13 @@ func WithRequestProcessor(p adapt.RequestProcessor) Option {
 func WithUnifiedEventProcessor(p pipeline.Processor[unified.Event]) Option {
 	return optionFunc(func(c *Config) error {
 		c.UnifiedEventProcessors = append(c.UnifiedEventProcessors, p)
+		return nil
+	})
+}
+
+func WithoutBuiltInModelMetadata() Option {
+	return optionFunc(func(c *Config) error {
+		c.BuiltInModelMetadata = false
 		return nil
 	})
 }

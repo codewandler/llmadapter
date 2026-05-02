@@ -225,12 +225,60 @@ func TestCodecEncodeAdaptiveEffortForSupportedModel(t *testing.T) {
 	maxTokens := 4096
 	temperature := 0.2
 	topK := 5
-	req := adapt.Request{Unified: unified.Request{
-		Model:           "claude-sonnet-4-6",
+	ureq := unified.Request{
+		Model:           "claude-future",
 		MaxOutputTokens: &maxTokens,
 		Temperature:     &temperature,
 		TopK:            &topK,
 		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortMax},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "think"}},
+		}},
+		Stream: true,
+	}
+	if err := unified.SetResolvedModelMetadata(&ureq.Extensions, unified.ResolvedModelMetadata{
+		ServiceID:        "anthropic",
+		WireModelID:      "claude-future",
+		APIType:          "anthropic-messages",
+		ReasoningModes:   []string{"adaptive"},
+		ReasoningEfforts: []string{"low", "medium", "high", "xhigh"},
+		ParameterValues: map[string][]string{
+			"thinking.mode":    {"adaptive"},
+			"reasoning_effort": {"low", "medium", "high", "xhigh"},
+		},
+		ParameterValueMappings: map[string]map[string]string{
+			"reasoning_effort": {"max": "xhigh"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	req := adapt.Request{Unified: ureq}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.Thinking == nil || wire.Thinking.Type != "adaptive" || wire.Thinking.BudgetTokens != 0 {
+		t.Fatalf("unexpected thinking config: %+v", wire.Thinking)
+	}
+	if wire.OutputConfig == nil || wire.OutputConfig.Effort != "xhigh" {
+		t.Fatalf("unexpected output_config: %+v", wire.OutputConfig)
+	}
+	if wire.Temperature == nil || *wire.Temperature != 0.2 || wire.TopK == nil || *wire.TopK != 5 {
+		t.Fatalf("adaptive effort should not coerce temperature/top_k: temp=%v top_k=%v", wire.Temperature, wire.TopK)
+	}
+	if len(req.Warnings) != 0 {
+		t.Fatalf("warnings = %+v", req.Warnings)
+	}
+}
+
+func TestCodecDoesNotUseAdaptiveEffortWithoutModelMetadata(t *testing.T) {
+	maxTokens := 4096
+	req := adapt.Request{Unified: unified.Request{
+		Model:           "claude-sonnet-4-6",
+		MaxOutputTokens: &maxTokens,
+		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh},
 		Messages: []unified.Message{{
 			Role:    unified.RoleUser,
 			Content: []unified.ContentPart{unified.TextPart{Text: "think"}},
@@ -242,17 +290,11 @@ func TestCodecEncodeAdaptiveEffortForSupportedModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if wire.Thinking == nil || wire.Thinking.Type != "adaptive" || wire.Thinking.BudgetTokens != 0 {
+	if wire.Thinking == nil || wire.Thinking.Type != "enabled" {
 		t.Fatalf("unexpected thinking config: %+v", wire.Thinking)
 	}
-	if wire.OutputConfig == nil || wire.OutputConfig.Effort != "max" {
+	if wire.OutputConfig != nil && wire.OutputConfig.Effort != "" {
 		t.Fatalf("unexpected output_config: %+v", wire.OutputConfig)
-	}
-	if wire.Temperature == nil || *wire.Temperature != 0.2 || wire.TopK == nil || *wire.TopK != 5 {
-		t.Fatalf("adaptive effort should not coerce temperature/top_k: temp=%v top_k=%v", wire.Temperature, wire.TopK)
-	}
-	if len(req.Warnings) != 0 {
-		t.Fatalf("warnings = %+v", req.Warnings)
 	}
 }
 

@@ -336,8 +336,6 @@ func mutateCodexBody(body io.Reader) ([]byte, string, error) {
 	}
 	if model, _ := payload["model"].(string); model == "" {
 		payload["model"] = DefaultModel
-	} else {
-		payload["model"] = resolveModelAlias(model)
 	}
 	if instructions, _ := payload["instructions"].(string); strings.TrimSpace(instructions) == "" {
 		payload["instructions"] = defaultInstructions
@@ -624,19 +622,6 @@ func frameCompleted(raw []byte) bool {
 		return false
 	}
 	return payload.Type == "response.done" || payload.Type == "response.completed" || payload.Response.Status == "completed"
-}
-
-func resolveModelAlias(model string) string {
-	switch model {
-	case "", "codex":
-		return DefaultModel
-	case "fast":
-		return "gpt-5.4-mini"
-	case "powerful":
-		return "o3"
-	default:
-		return model
-	}
 }
 
 func randomInstallationID() string {

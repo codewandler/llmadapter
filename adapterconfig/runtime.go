@@ -125,6 +125,7 @@ func buildRouter(cfg Config, options MuxClientOptions) (router.Router, error) {
 			Endpoint:           endpoint,
 			CapabilityResolver: dynamicModelCapabilityResolver(endpoint, route, catalog, modelDBEnabled),
 			ModelResolver:      dynamicModelResolver(endpoint, route, catalog, cfg.ModelDB, modelDBEnabled),
+			ModelMetadata:      routeModelMetadata(endpoint, route, catalog),
 		})
 	}
 	return router.NewStaticRouter(routes...), nil
@@ -224,6 +225,19 @@ func EndpointWithModelDBMetadata(endpoint router.ProviderEndpoint, route RouteCo
 	return endpoint
 }
 
+func routeModelMetadata(endpoint router.ProviderEndpoint, route RouteConfig, catalog modeldb.Catalog) *unified.ResolvedModelMetadata {
+	serviceID := endpoint.Tags[TagModelDBServiceID]
+	wireModelID := pricingWireModel(route)
+	if serviceID == "" || wireModelID == "" {
+		return nil
+	}
+	meta, ok := modelmeta.ResolvedMetadata(catalog, serviceID, wireModelID, endpoint.Family)
+	if !ok {
+		return nil
+	}
+	return &meta
+}
+
 func dynamicModelCapabilityResolver(endpoint router.ProviderEndpoint, route RouteConfig, catalog modeldb.Catalog, modelDBEnabled bool) router.CapabilityResolver {
 	serviceID := endpoint.Tags[TagModelDBServiceID]
 	if !modelDBEnabled || !route.DynamicModels || serviceID == "" {
@@ -263,6 +277,9 @@ func dynamicModelResolver(endpoint router.ProviderEndpoint, route RouteConfig, c
 		resolution := router.ModelResolution{NativeModel: item.Offering.WireModelID}
 		if capabilities, ok := modelmeta.EnrichCapabilities(endpoint.Capabilities, catalog, serviceID, item.Offering.WireModelID, endpoint.Family); ok {
 			resolution.Capabilities = &capabilities
+		}
+		if meta, ok := modelmeta.ResolvedMetadata(catalog, serviceID, item.Offering.WireModelID, endpoint.Family); ok {
+			resolution.ModelMetadata = &meta
 		}
 		return resolution, true
 	}

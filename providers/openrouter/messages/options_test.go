@@ -114,3 +114,44 @@ data: {"type":"message_stop"}`),
 		t.Fatalf("trace = %s body=%s", wire["trace"], body)
 	}
 }
+
+func TestNewClientDoesNotAttachAnthropicNativeModelMetadata(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`event: message_start
+data: {"type":"message_start","message":{"id":"msg","type":"message","role":"assistant","model":"claude-opus-4-7","content":[]}}`),
+		[]byte(`event: message_stop
+data: {"type":"message_stop"}`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 4096
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "claude-opus-4-7",
+		MaxOutputTokens: &maxTokens,
+		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortMax},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unified.Collect(context.Background(), events); err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(fake.Seen[0].Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := wire["output_config"]; ok {
+		t.Fatalf("openrouter wrapper should not attach Anthropic-native xhigh metadata: body=%s", body)
+	}
+}

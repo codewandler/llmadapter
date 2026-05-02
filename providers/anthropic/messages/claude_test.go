@@ -125,7 +125,7 @@ func TestClaudeHeadersComposeBetasFromRequest(t *testing.T) {
 	}
 
 	maxTokens := 4096
-	events, err := client.Request(context.Background(), unified.Request{
+	req := unified.Request{
 		Model:           "claude-sonnet-4-6",
 		MaxOutputTokens: &maxTokens,
 		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh},
@@ -134,7 +134,8 @@ func TestClaudeHeadersComposeBetasFromRequest(t *testing.T) {
 			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
 		}},
 		Stream: true,
-	})
+	}
+	events, err := client.Request(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,6 +152,71 @@ func TestClaudeHeadersComposeBetasFromRequest(t *testing.T) {
 	}
 	if strings.Contains(beta, "oauth-2025-04-20") {
 		t.Fatalf("api-key request should not include oauth beta: %q", beta)
+	}
+	body, err := io.ReadAll(fake.Seen[0].Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire MessageRequest
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire.Thinking == nil || wire.Thinking.Type != "adaptive" {
+		t.Fatalf("thinking = %+v, want adaptive from direct-provider model metadata", wire.Thinking)
+	}
+	if wire.OutputConfig == nil || wire.OutputConfig.Effort != "high" {
+		t.Fatalf("output_config = %+v, want effort high", wire.OutputConfig)
+	}
+}
+
+func TestClaudeHeadersMapDirectProviderOpusMaxEffortFromModelDB(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{}
+	client, err := NewClient(
+		WithBaseURL("https://anthropic.test"),
+		WithTransport(fake),
+		WithAPIKey("api-key"),
+		WithClaudeHeaders(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	maxTokens := 4096
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "claude-opus-4-7",
+		MaxOutputTokens: &maxTokens,
+		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortMax},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range events {
+	}
+	if len(fake.Seen) != 1 {
+		t.Fatalf("requests = %d", len(fake.Seen))
+	}
+	beta := fake.Seen[0].Header.Get("Anthropic-Beta")
+	if !strings.Contains(beta, "effort-2025-11-24") {
+		t.Fatalf("beta %q missing effort beta", beta)
+	}
+	body, err := io.ReadAll(fake.Seen[0].Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire MessageRequest
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire.Thinking == nil || wire.Thinking.Type != "adaptive" {
+		t.Fatalf("thinking = %+v, want adaptive from direct-provider model metadata", wire.Thinking)
+	}
+	if wire.OutputConfig == nil || wire.OutputConfig.Effort != "xhigh" {
+		t.Fatalf("output_config = %+v, want modeldb-mapped effort xhigh", wire.OutputConfig)
 	}
 }
 

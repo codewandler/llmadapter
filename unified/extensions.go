@@ -38,6 +38,7 @@ const (
 	ExtCodexMemgenRequest         = "codex.memgen_request"
 	ExtCodexIncludeTimingMetrics  = "codex.include_timing_metrics"
 	ExtOllamaOptions              = "ollama.options"
+	ExtLLMAdapterModelDBResolved  = "llmadapter.modeldb.resolved"
 )
 
 type Extensions struct {
@@ -92,6 +93,18 @@ type CodexExtensions struct {
 	Subagent             bool
 	MemgenRequest        bool
 	IncludeTimingMetrics bool
+}
+
+type ResolvedModelMetadata struct {
+	ServiceID              string                       `json:"service_id,omitempty"`
+	WireModelID            string                       `json:"wire_model_id,omitempty"`
+	APIType                string                       `json:"api_type,omitempty"`
+	ReasoningModes         []string                     `json:"reasoning_modes,omitempty"`
+	ReasoningEfforts       []string                     `json:"reasoning_efforts,omitempty"`
+	ParameterValues        map[string][]string          `json:"parameter_values,omitempty"`
+	ParameterMappings      map[string]string            `json:"parameter_mappings,omitempty"`
+	ParameterValueMappings map[string]map[string]string `json:"parameter_value_mappings,omitempty"`
+	DefaultDisplayMode     string                       `json:"default_display_mode,omitempty"`
 }
 
 func (e *Extensions) Set(key string, value any) error {
@@ -153,6 +166,17 @@ func GetExtension[T any](e Extensions, key string) (T, bool, error) {
 		return zero, true, err
 	}
 	return out, true, nil
+}
+
+func SetResolvedModelMetadata(e *Extensions, meta ResolvedModelMetadata) error {
+	if meta.ServiceID == "" && meta.WireModelID == "" && meta.APIType == "" {
+		return nil
+	}
+	return e.Set(ExtLLMAdapterModelDBResolved, meta)
+}
+
+func ResolvedModelMetadataFrom(e Extensions) (ResolvedModelMetadata, bool, error) {
+	return GetExtension[ResolvedModelMetadata](e, ExtLLMAdapterModelDBResolved)
 }
 
 func OpenRouterRawExtensionsFrom(e Extensions) OpenRouterRawExtensions {

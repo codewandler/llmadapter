@@ -64,6 +64,28 @@ func TestRequestForRouteRewritesNativeModelWithoutMutatingOriginal(t *testing.T)
 	}
 }
 
+func TestRequestForRouteAttachesModelMetadataWithoutMutatingOriginal(t *testing.T) {
+	req := unified.Request{Model: "public"}
+	meta := unified.ResolvedModelMetadata{
+		ServiceID:        "anthropic",
+		WireModelID:      "claude-future",
+		APIType:          "anthropic-messages",
+		ReasoningModes:   []string{"adaptive"},
+		ReasoningEfforts: []string{"high"},
+	}
+	got := RequestForRoute(req, router.Route{NativeModel: "claude-future", ModelMetadata: &meta})
+	resolved, ok, err := unified.ResolvedModelMetadataFrom(got.Extensions)
+	if err != nil || !ok {
+		t.Fatalf("metadata missing: ok=%t err=%v", ok, err)
+	}
+	if resolved.ServiceID != "anthropic" || resolved.WireModelID != "claude-future" {
+		t.Fatalf("metadata = %+v", resolved)
+	}
+	if _, ok, _ := unified.ResolvedModelMetadataFrom(req.Extensions); ok {
+		t.Fatalf("original request mutated: %+v", req.Extensions)
+	}
+}
+
 func TestErrorIncludesProviderAndAPI(t *testing.T) {
 	err := Error(router.Route{ProviderName: "primary", TargetAPI: adapt.ApiOpenAIResponses}, errors.New("down"))
 	if !strings.Contains(err.Error(), "provider primary/openai.responses failed: down") {

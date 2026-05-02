@@ -22,6 +22,7 @@ type Route struct {
 	ConsumerContinuation unified.ContinuationMode
 	InternalContinuation unified.ContinuationMode
 	Transport            unified.TransportKind
+	ModelMetadata        *unified.ResolvedModelMetadata
 }
 
 type Router interface {
@@ -89,13 +90,15 @@ type StaticRoute struct {
 	Endpoint           ProviderEndpoint
 	CapabilityResolver CapabilityResolver
 	ModelResolver      ModelResolver
+	ModelMetadata      *unified.ResolvedModelMetadata
 }
 
 type CapabilityResolver func(context.Context, adapt.Request, ProviderEndpoint) CapabilitySet
 
 type ModelResolution struct {
-	NativeModel  string
-	Capabilities *CapabilitySet
+	NativeModel   string
+	Capabilities  *CapabilitySet
+	ModelMetadata *unified.ResolvedModelMetadata
 }
 
 type ModelResolver func(context.Context, adapt.Request, ProviderEndpoint) (ModelResolution, bool)
@@ -130,6 +133,7 @@ func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, 
 			return nil, fmt.Errorf("route for model %q has no client", req.Unified.Model)
 		}
 		caps := routeCapabilities(ctx, route, req)
+		modelMetadata := route.ModelMetadata
 		nativeModel := route.NativeModel
 		if nativeModel == "" {
 			nativeModel = req.Unified.Model
@@ -146,12 +150,15 @@ func (r *StaticRouter) Routes(ctx context.Context, req adapt.Request) ([]Route, 
 			if resolution.Capabilities != nil {
 				caps = *resolution.Capabilities
 			}
+			if resolution.ModelMetadata != nil {
+				modelMetadata = resolution.ModelMetadata
+			}
 		}
-		if reason := capabilityMismatch(req.Unified, caps); reason != "" {
+		if reason := capabilityMismatch(req.Unified, caps, modelMetadata); reason != "" {
 			skipped = append(skipped, fmt.Sprintf("%s/%s: %s", route.Endpoint.ProviderName, route.Endpoint.APIKind, reason))
 			continue
 		}
-		candidates = append(candidates, resolvedStaticRoute{route: route, nativeModel: nativeModel, capabilities: caps})
+		candidates = append(candidates, resolvedStaticRoute{route: route, nativeModel: nativeModel, capabilities: caps, modelMetadata: modelMetadata})
 	}
 	if len(candidates) > 0 {
 		sort.SliceStable(candidates, func(i, j int) bool {
@@ -182,9 +189,10 @@ func (r *StaticRouter) hasExactRoute(req adapt.Request) bool {
 }
 
 type resolvedStaticRoute struct {
-	route        StaticRoute
-	nativeModel  string
-	capabilities CapabilitySet
+	route         StaticRoute
+	nativeModel   string
+	capabilities  CapabilitySet
+	modelMetadata *unified.ResolvedModelMetadata
 }
 
 func routeCapabilities(ctx context.Context, route StaticRoute, req adapt.Request) CapabilitySet {
@@ -212,6 +220,7 @@ func routeFromStatic(_ context.Context, resolved resolvedStaticRoute, req adapt.
 		ConsumerContinuation: route.Endpoint.ConsumerContinuation,
 		InternalContinuation: route.Endpoint.InternalContinuation,
 		Transport:            route.Endpoint.Transport,
+		ModelMetadata:        resolved.modelMetadata,
 	}
 }
 
@@ -240,7 +249,7 @@ func sourceAPIRank(api adapt.ApiKind) int {
 	}
 }
 
-func capabilityMismatch(req unified.Request, caps CapabilitySet) string {
+func capabilityMismatch(req unified.Request, caps CapabilitySet, meta *unified.ResolvedModelMetadata) string {
 	if req.Stream && !caps.Streaming {
 		return "streaming required"
 	}
@@ -262,6 +271,9 @@ func capabilityMismatch(req unified.Request, caps CapabilitySet) string {
 	if req.Reasoning != nil && !caps.Reasoning {
 		return "reasoning required"
 	}
+	if req.Reasoning != nil && req.Reasoning.Effort != "" && !supportsModelMetadataValue(meta, "reasoning_effort", string(req.Reasoning.Effort)) {
+		return "reasoning effort unsupported"
+	}
 	for _, msg := range req.Messages {
 		for _, part := range msg.Content {
 			switch part.(type) {
@@ -277,6 +289,46 @@ func capabilityMismatch(req unified.Request, caps CapabilitySet) string {
 		}
 	}
 	return ""
+}
+
+func supportsModelMetadataValue(meta *unified.ResolvedModelMetadata, parameter, value string) bool {
+	if meta == nil {
+		return true
+	}
+	if parameter == "reasoning_effort" && containsMetadataValue(meta.ReasoningEfforts, value) {
+		return true
+	}
+	if mappedMetadataValue(meta, parameter, value) != "" {
+		return true
+	}
+	values, ok := meta.ParameterValues[parameter]
+	if !ok || len(values) == 0 {
+		return true
+	}
+	if containsMetadataValue(values, value) {
+		return true
+	}
+	return false
+}
+
+func mappedMetadataValue(meta *unified.ResolvedModelMetadata, parameter, value string) string {
+	if meta == nil || len(meta.ParameterValueMappings) == 0 {
+		return ""
+	}
+	values := meta.ParameterValueMappings[parameter]
+	if len(values) == 0 {
+		return ""
+	}
+	return values[value]
+}
+
+func containsMetadataValue(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
 }
 
 func requiresTools(req unified.Request) bool {
