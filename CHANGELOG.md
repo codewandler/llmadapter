@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.19] - 2026-05-02
+
 ### Added
 
 - Added a public `diagnostics` package for redacted HTTP/SSE and WebSocket transport diagnostics outside the CLI.
