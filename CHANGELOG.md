@@ -10,6 +10,11 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Fixed
+
+- Omitted OpenAI Chat-compatible `tool_choice: "none"` when no tools are encoded, matching direct OpenAI validation while preserving `"none"` when tools are present.
+- Decoded downstream Anthropic Messages `tool_choice: {"type":"none"}` into unified `ToolChoiceNone`.
+
 ## [1.0.0-rc.25] - 2026-05-02
 
 ### Fixed

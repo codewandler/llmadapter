@@ -235,6 +235,8 @@ req.ToolChoice = &unified.ToolChoice{
 }
 ```
 
+Provider wire rules differ slightly. Anthropic-family endpoints encode this as `tool_choice: {"type":"none"}`. OpenAI Responses-compatible endpoints encode `tool_choice: "none"` even when no tools are present. OpenAI Chat-compatible endpoints omit `tool_choice` when no tools are encoded because direct OpenAI Chat rejects `tool_choice` without `tools`; if tools are present, they encode `tool_choice: "none"`.
+
 Tool-loop orchestration is intentionally above llmadapter. llmadapter maps tool calls/results and preserves streamed arguments; your runtime decides how to execute tools and commit conversation state. When replaying a tool loop, preserve the full assistant message that produced the tool call, including any text/reasoning content and the `ToolCalls` slice. Some OpenAI-compatible reasoning models, including MiniMax M2.x, require that complete assistant response to maintain multi-turn tool continuity.
 
 Use `unified.AssistantMessageFromResponse(resp)` when continuing from a collected response:

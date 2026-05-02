@@ -43,6 +43,23 @@ func TestDecodeHTTP(t *testing.T) {
 	}
 }
 
+func TestDecodeHTTPToolChoiceNone(t *testing.T) {
+	body := `{
+		"model":"claude-test",
+		"max_tokens":32,
+		"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}],
+		"tool_choice":{"type":"none"}
+	}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	req, err := (Codec{}).DecodeHTTP(context.Background(), httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Unified.ToolChoice == nil || req.Unified.ToolChoice.Mode != unified.ToolChoiceNone {
+		t.Fatalf("unexpected tool choice: %+v", req.Unified.ToolChoice)
+	}
+}
+
 func TestDecodeHTTPPreservesRequestMetadata(t *testing.T) {
 	body := `{"model":"claude-test","max_tokens":32,"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages?trace=1", strings.NewReader(body))

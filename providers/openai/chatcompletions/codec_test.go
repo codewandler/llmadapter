@@ -86,6 +86,41 @@ func TestEncodeRequest(t *testing.T) {
 	}
 }
 
+func TestEncodeToolChoiceNoneOmittedWithoutTools(t *testing.T) {
+	wire, _, err := encodeRequest(unified.Request{
+		Model: "gpt-test",
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		ToolChoice: &unified.ToolChoice{Mode: unified.ToolChoiceNone},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.ToolChoice != nil {
+		t.Fatalf("tool_choice = %#v, want omitted when no tools are encoded", wire.ToolChoice)
+	}
+}
+
+func TestEncodeToolChoiceNoneWithTools(t *testing.T) {
+	wire, _, err := encodeRequest(unified.Request{
+		Model: "gpt-test",
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Tools:      []unified.Tool{{Kind: unified.ToolKindFunction, Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		ToolChoice: &unified.ToolChoice{Mode: unified.ToolChoiceNone},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.ToolChoice != "none" {
+		t.Fatalf("tool_choice = %#v, want none", wire.ToolChoice)
+	}
+}
+
 func TestEncodeToolResults(t *testing.T) {
 	wire, _, err := encodeRequest(unified.Request{
 		Model: "gpt-test",

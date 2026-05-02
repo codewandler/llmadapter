@@ -19,6 +19,7 @@ No release-blocking findings remain in this pass.
 - Anthropic-family top-level `cache_control` now encodes only when resolved modeldb metadata confirms `top_level_cache_control -> cache_control`.
 - Provider-owned default HTTP/SSE transports now retry pre-stream transient 429/500/502/503/504 failures with replayed request bodies; custom `WithTransport(...)` transports remain unwrapped.
 - Anthropic-family `ToolChoiceNone` now encodes as `tool_choice: {"type":"none"}`, and the MiniMax Messages live tool-result continuation row opts into that explicit no-tool continuation with a continuation-specific output budget.
+- OpenAI Chat-compatible providers now omit `tool_choice: "none"` when no tools are encoded, matching direct OpenAI Chat validation; OpenAI Responses-compatible providers keep `"none"` with or without tools, and downstream Anthropic Messages now decodes `tool_choice.type=none`.
 
 ## Non-Findings Checked
 
@@ -41,6 +42,7 @@ env GOCACHE=/tmp/go-cache go vet ./...
 env GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod-cache go build ./...
 env GOCACHE=/tmp/go-cache go test ./transport ./providers/openai/chatcompletions ./providers/openai/responses ./providers/anthropic/messages ./providers/openai/codex
 env GOCACHE=/tmp/go-cache go test ./providers/anthropic/messages ./providers/openrouter/messages ./tests/e2e
+env GOCACHE=/tmp/go-cache go test ./providers/openai/chatcompletions ./providers/openai/responses ./providers/openrouter/chatcompletions ./providers/openrouter/responses ./endpoints/anthropicmessages ./endpoints/openaichatcompletions ./endpoints/openairesponses
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter serve --config examples/llmadapter.example.json --inspect-config
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json example-fast
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --source-api anthropic.messages

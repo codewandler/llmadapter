@@ -282,6 +282,8 @@ func decodeToolChoice(choice anthropic.ToolChoiceWire, field string) (*unified.T
 		return &unified.ToolChoice{Mode: unified.ToolChoiceAny}, nil
 	case "tool":
 		return &unified.ToolChoice{Mode: unified.ToolChoiceTool, Name: choice.Name}, nil
+	case "none":
+		return &unified.ToolChoice{Mode: unified.ToolChoiceNone}, nil
 	default:
 		return nil, []adapt.Warning{decodeWarning(field+".type", fmt.Sprintf("unsupported tool_choice type %q was dropped", choice.Type))}
 	}

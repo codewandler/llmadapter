@@ -81,7 +81,7 @@ func encodeRequestForAPI(req unified.Request, apiKind adapt.ApiKind) (requestWir
 			Parameters:  tool.InputSchema,
 		}})
 	}
-	if req.ToolChoice != nil {
+	if req.ToolChoice != nil && !(req.ToolChoice.Mode == unified.ToolChoiceNone && len(out.Tools) == 0) {
 		out.ToolChoice = encodeToolChoice(*req.ToolChoice)
 	}
 	if req.ResponseFormat != nil {
