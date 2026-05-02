@@ -147,13 +147,13 @@ Steps:
 4. Add `--config` support using the same config loading as `resolve` and `infer`.
 5. Default to auto-detected config when `--config` is omitted.
 6. Print each candidate with status, missing required features, degraded preferred features, provider instance, provider type, source API, provider API, native model, modeldb service, and evidence levels.
-7. Add `--use-case` to `resolve` so `llmadapter resolve haiku --use-case agentic_coding` ranks/annotates candidates by workload suitability.
+7. Add `--use-case` to `resolve` so commands like `llmadapter resolve anthropic/claude-haiku-4-5-20251001 --use-case agentic_coding` rank/annotate candidates by workload suitability.
 8. Do not change default routing semantics yet.
 9. Document examples in `docs/CLI.md`.
 
 Done criteria:
 
-- `llmadapter compatibility --use-case agentic_coding --model haiku` explains candidates without making provider calls.
+- `llmadapter compatibility --use-case agentic_coding --model anthropic/claude-haiku-4-5-20251001` explains candidates without making provider calls.
 - JSON output is stable enough for downstream tools.
 - `go test ./cmd/llmadapter` passes.
 
@@ -232,6 +232,8 @@ Initial candidate rows:
 | `sonnet` | `claude`, `anthropic`, `openrouter_messages` |
 | `opus` | `claude`, `anthropic`, `openrouter_messages` |
 | `minimax-latest` | `minimax_messages` |
+
+Short names in this historical plan are modeldb/catalog or test-harness public model names, not llmadapter-owned built-in aliases.
 
 Done criteria:
 

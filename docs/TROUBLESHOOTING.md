@@ -33,7 +33,7 @@ Capture a Claude/Anthropic HTTP/SSE trace:
 ```sh
 go run ./cmd/llmadapter infer \
   --debug request,response,stream \
-  -m haiku \
+  -m anthropic/claude-haiku-4-5-20251001 \
   --source-api anthropic.messages \
   --max-tokens 64 \
   "reply with one short sentence"

@@ -49,7 +49,7 @@ The output reports provider endpoint status without printing secrets.
 Use the auto-detected mux client:
 
 ```sh
-go run ./cmd/llmadapter infer -m haiku "reply with one short sentence"
+go run ./cmd/llmadapter infer -m anthropic/claude-haiku-4-5-20251001 "reply with one short sentence"
 ```
 
 The command prints route/model resolution first, streams reasoning/text when available, then prints usage and cost data when providers report it.
@@ -57,7 +57,7 @@ The command prints route/model resolution first, streams reasoning/text when ava
 Resolve without calling a provider:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001
 go run ./cmd/llmadapter resolve openai/gpt-5.5
 ```
 
@@ -76,7 +76,7 @@ Useful inspection commands:
 ```sh
 go run ./cmd/llmadapter routes --config examples/llmadapter.example.json
 go run ./cmd/llmadapter models --config examples/llmadapter.example.json
-go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json fast
+go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json example-fast
 ```
 
 ## 5. Run The Gateway
@@ -93,7 +93,7 @@ Call the OpenAI Responses-compatible endpoint:
 curl -sS http://localhost:8080/v1/responses \
   -H 'content-type: application/json' \
   -d '{
-    "model": "fast",
+    "model": "example-fast",
     "input": "Reply with exactly: llmadapter ok"
   }'
 ```

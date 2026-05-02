@@ -582,7 +582,7 @@ func TestExampleConfigLoadsAndInspects(t *testing.T) {
 	}
 	var foundModelDBRoute bool
 	for _, route := range inspection.Routes {
-		if route.Model == "fast" && route.CapabilitySource == "modeldb_exposure" && route.ModelDB.PricingAvailable {
+		if route.Model == "example-fast" && route.CapabilitySource == "modeldb_exposure" && route.ModelDB.PricingAvailable {
 			foundModelDBRoute = true
 		}
 	}

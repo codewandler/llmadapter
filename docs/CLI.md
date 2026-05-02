@@ -107,19 +107,19 @@ go run ./cmd/llmadapter models --catalog --offerings --service openrouter --quer
 Explain the selected route:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001
 ```
 
 Resolve from a config:
 
 ```sh
-go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json fast
+go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json example-fast
 ```
 
 Pin the incoming API shape:
 
 ```sh
-go run ./cmd/llmadapter resolve --source-api anthropic.messages haiku
+go run ./cmd/llmadapter resolve --source-api anthropic.messages anthropic/claude-haiku-4-5-20251001
 go run ./cmd/llmadapter resolve --source-api openai.responses openai/gpt-5.5
 ```
 
@@ -136,25 +136,25 @@ Important output fields:
 Use JSON for automation:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku --json
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --json
 ```
 
 Annotate route candidates for a workload:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku --use-case agentic_coding
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --use-case agentic_coding
 ```
 
 Return only candidates approved by live compatibility evidence:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --use-case agentic_coding --approved-only
 ```
 
 Use an explicit evidence artifact:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only --compatibility-evidence docs/compatibility/agentic_coding.json
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --use-case agentic_coding --approved-only --compatibility-evidence docs/compatibility/agentic_coding.json
 ```
 
 ## compatibility
@@ -162,19 +162,19 @@ go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only 
 Evaluate whether configured or auto-detected route candidates satisfy a workload profile:
 
 ```sh
-go run ./cmd/llmadapter compatibility --use-case agentic_coding --model haiku
+go run ./cmd/llmadapter compatibility --use-case agentic_coding --model anthropic/claude-haiku-4-5-20251001
 ```
 
 Use a config:
 
 ```sh
-go run ./cmd/llmadapter compatibility --config examples/llmadapter.example.json --model fast
+go run ./cmd/llmadapter compatibility --config examples/llmadapter.example.json --model example-fast
 ```
 
 Use JSON for downstream tools:
 
 ```sh
-go run ./cmd/llmadapter compatibility --use-case agentic_coding --model haiku --json
+go run ./cmd/llmadapter compatibility --use-case agentic_coding --model anthropic/claude-haiku-4-5-20251001 --json
 ```
 
 Initial use cases:
@@ -223,20 +223,20 @@ go run ./cmd/llmadapter infer "what is 2+2?"
 Choose a model:
 
 ```sh
-go run ./cmd/llmadapter infer -m haiku "summarize this project"
+go run ./cmd/llmadapter infer -m anthropic/claude-haiku-4-5-20251001 "summarize this project"
 go run ./cmd/llmadapter infer -m openai/gpt-5.5 "write a haiku"
 ```
 
 Use reasoning controls:
 
 ```sh
-go run ./cmd/llmadapter infer -m sonnet --thinking on --effort high "explain channels"
+go run ./cmd/llmadapter infer -m anthropic/claude-sonnet-4-6 --thinking on --effort high "explain channels"
 ```
 
 Disable cache policy for a request:
 
 ```sh
-go run ./cmd/llmadapter infer -m haiku --no-cache "short answer only"
+go run ./cmd/llmadapter infer -m anthropic/claude-haiku-4-5-20251001 --no-cache "short answer only"
 ```
 
 Use continuation diagnostics:
@@ -249,14 +249,14 @@ go run ./cmd/llmadapter infer -m codex/gpt-5.4 --interaction one_shot "single re
 Use a config:
 
 ```sh
-go run ./cmd/llmadapter infer --config examples/llmadapter.example.json -m fast "what is 2+2?"
+go run ./cmd/llmadapter infer --config examples/llmadapter.example.json -m example-fast "what is 2+2?"
 ```
 
 Enable redacted diagnostics:
 
 ```sh
-go run ./cmd/llmadapter infer --debug -m haiku "hello"
-go run ./cmd/llmadapter infer --debug request,response,stream -m sonnet "hello"
+go run ./cmd/llmadapter infer --debug -m anthropic/claude-haiku-4-5-20251001 "hello"
+go run ./cmd/llmadapter infer --debug request,response,stream -m anthropic/claude-sonnet-4-6 "hello"
 go run ./cmd/llmadapter infer --debug events -m codex/gpt-5.4 "hello"
 ```
 
@@ -339,7 +339,7 @@ go run ./cmd/llmadapter smoke -mode mux -type openai_responses
 Run through a config:
 
 ```sh
-go run ./cmd/llmadapter smoke -mode mux -config examples/llmadapter.example.json -model fast
+go run ./cmd/llmadapter smoke -mode mux -config examples/llmadapter.example.json -model example-fast
 ```
 
 Run through auto detection:

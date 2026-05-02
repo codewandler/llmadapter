@@ -92,7 +92,7 @@ go run ./cmd/llmadapter providers --auto
 Run one prompt through the auto-detected mux client:
 
 ```sh
-go run ./cmd/llmadapter infer -m haiku "reply with one short sentence"
+go run ./cmd/llmadapter infer -m anthropic/claude-haiku-4-5-20251001 "reply with one short sentence"
 ```
 
 Test session-style continuation hints without giving llmadapter ownership of the conversation:
@@ -106,7 +106,7 @@ For Codex, session mode can use provider-internal WebSocket transport when avail
 Explain how a model will route:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001
 ```
 
 Inspect provider endpoint conformance and approved compatibility evidence:
@@ -118,7 +118,7 @@ go run ./cmd/llmadapter conformance
 Select only provider/model/API paths approved for agentic coding:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --use-case agentic_coding --approved-only
 ```
 
 Run a config-driven gateway:
@@ -168,7 +168,7 @@ func main() {
 	result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
 		UseModelDB: true,
 		Intents: []adapterconfig.AutoIntent{
-			{Name: "haiku"},
+			{Name: "anthropic/claude-haiku-4-5-20251001"},
 		},
 	})
 	if err != nil {
@@ -177,7 +177,7 @@ func main() {
 
 	maxTokens := 256
 	events, err := result.Client.Request(ctx, unified.Request{
-		Model:           "haiku",
+		Model:           "anthropic/claude-haiku-4-5-20251001",
 		MaxOutputTokens: &maxTokens,
 		Stream:          true,
 		Messages: []unified.Message{{

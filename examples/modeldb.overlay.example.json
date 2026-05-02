@@ -3,11 +3,11 @@
     {
       "key": {
         "creator": "example",
-        "family": "fast",
+        "family": "example-fast",
         "version": "1"
       },
       "name": "Example Fast Model",
-      "aliases": ["fast"],
+      "aliases": ["example-fast"],
       "capabilities": {
         "streaming": true,
         "tool_use": true,
@@ -34,10 +34,10 @@
       "wire_model_id": "example/fast-model",
       "model_key": {
         "creator": "example",
-        "family": "fast",
+        "family": "example-fast",
         "version": "1"
       },
-      "aliases": ["fast"],
+      "aliases": ["example-fast"],
       "exposures": [
         {
           "api_type": "openai-responses",

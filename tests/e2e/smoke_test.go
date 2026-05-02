@@ -261,6 +261,7 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 					userMessage,
 					{
 						Role:      unified.RoleAssistant,
+						Content:   toolResp.Content,
 						ToolCalls: []unified.ToolCall{toolCall},
 					},
 					{

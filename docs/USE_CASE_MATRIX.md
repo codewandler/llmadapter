@@ -41,19 +41,19 @@ go run ./cmd/llmadapter compatibility-record --use-case agentic_coding
 Evaluate one model:
 
 ```sh
-go run ./cmd/llmadapter compatibility --use-case agentic_coding --model haiku
+go run ./cmd/llmadapter compatibility --use-case agentic_coding --model anthropic/claude-haiku-4-5-20251001
 ```
 
 Resolve and annotate candidates:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku --use-case agentic_coding
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --use-case agentic_coding
 ```
 
 Use JSON for consumers:
 
 ```sh
-go run ./cmd/llmadapter compatibility --use-case agentic_coding --model haiku --json
+go run ./cmd/llmadapter compatibility --use-case agentic_coding --model anthropic/claude-haiku-4-5-20251001 --json
 ```
 
 The CLI uses the same `adapterconfig` and modeldb-backed candidate resolution as `resolve`, `infer`, gateway, and mux construction. It does not perform a separate model lookup.
@@ -61,7 +61,7 @@ The CLI uses the same `adapterconfig` and modeldb-backed candidate resolution as
 Strict approved-only selection is available through modeldb runtime views plus this live evidence artifact:
 
 ```sh
-go run ./cmd/llmadapter resolve haiku --use-case agentic_coding --approved-only
+go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --use-case agentic_coding --approved-only
 ```
 
 Library consumers can use `adapterconfig.SelectModelForUseCase` or `AutoResult.SelectModelForUseCase` with `LoadCompatibilityEvidence`. This fails closed unless a configured provider instance, API kind, and native model match an approved row.
@@ -85,6 +85,7 @@ These rows are covered by the live agentic-coding compatibility smoke test:
 | `minimax-latest` | `minimax_messages` |
 
 Bedrock is intentionally excluded until a Bedrock provider endpoint exists.
+Short names in this generated evidence artifact are modeldb/catalog or test-harness public model names, not llmadapter-owned built-in aliases. Runtime docs prefer service-qualified names or explicit operator aliases.
 
 ## Latest Agentic-Coding Result
 
@@ -144,4 +145,4 @@ The same artifact passes `llmadapter conformance`: every approved row is also a 
 
 OpenRouter documentation says prompt caching can report `cached_tokens` and `cache_write_tokens` in detailed usage. The adapter now decodes both Responses-style `input_tokens_details` and Chat/Completions-style `prompt_tokens_details`, which is required because OpenRouter can expose the latter shape on Responses-compatible streams.
 
-Kimi uses OpenRouter model `moonshotai/kimi-k2.6`. Sonnet and Opus rows use the current repository/modeldb aliases `claude-sonnet-4-6` and `claude-opus-4-6`.
+Kimi uses OpenRouter model `moonshotai/kimi-k2.6`. Sonnet and Opus rows use catalog/test-harness public model names that resolve to `claude-sonnet-4-6` and `claude-opus-4-6`; these are not llmadapter-owned built-in aliases.

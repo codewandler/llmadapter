@@ -10,6 +10,19 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added a MiniMax Messages guard test to ensure Anthropic-native built-in model metadata is not applied to Anthropic-compatible wrapper providers.
+
+### Changed
+
+- Overhauled CLI/config/library/example docs to use modeldb catalog names, service-qualified model IDs, or explicit operator aliases instead of removed llmadapter-owned `codex` / `fast` / `powerful` shortcuts.
+- Updated example config to tag explicit Anthropic/OpenAI/OpenRouter providers with `modeldb_service_id` where modeldb enrichment is expected.
+
+### Fixed
+
+- Fixed MiniMax Chat tool-result continuation smoke coverage by replaying the complete assistant message, including content/reasoning plus `ToolCalls`, before sending the tool result.
+
 ## [1.0.0-rc.20] - 2026-05-02
 
 ### Added

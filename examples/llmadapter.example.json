@@ -6,7 +6,7 @@
     "overlay_paths": ["examples/modeldb.overlay.example.json"],
     "aliases": [
       {
-        "name": "fast",
+        "name": "example-fast",
         "service_id": "openrouter",
         "wire_model_id": "example/fast-model"
       }
@@ -23,6 +23,7 @@
       "name": "anthropic",
       "type": "anthropic",
       "api_key_env": "ANTHROPIC_API_KEY",
+      "modeldb_service_id": "anthropic",
       "model": "claude-haiku-4-5-20251001",
       "priority": 20
     },
@@ -52,24 +53,24 @@
   "routes": [
     {
       "source_api": "anthropic.messages",
-      "model": "haiku",
+      "model": "claude-haiku",
       "provider": "claude",
       "provider_api": "anthropic.messages",
       "weight": 120
     },
     {
       "source_api": "anthropic.messages",
-      "model": "haiku",
+      "model": "claude-haiku",
       "provider": "anthropic",
       "provider_api": "anthropic.messages",
       "weight": 100
     },
     {
       "source_api": "openai.responses",
-      "model": "fast",
+      "model": "example-fast",
       "provider": "openrouter",
       "provider_api": "openrouter.responses",
-      "modeldb_model": "fast",
+      "modeldb_model": "example-fast",
       "weight": 90
     },
     {

@@ -21,13 +21,14 @@ The same config path is used by:
       "name": "anthropic",
       "type": "anthropic",
       "api_key_env": "ANTHROPIC_API_KEY",
+      "modeldb_service_id": "anthropic",
       "model": "claude-haiku-4-5-20251001"
     }
   ],
   "routes": [
     {
       "source_api": "anthropic.messages",
-      "model": "haiku",
+      "model": "claude-haiku",
       "provider": "anthropic",
       "provider_api": "anthropic.messages",
       "native_model": "claude-haiku-4-5-20251001",
@@ -150,7 +151,7 @@ Example:
     "overlay_paths": ["./local-modeldb.json"],
     "aliases": [
       {
-        "name": "fast",
+        "name": "example-fast",
         "service_id": "openrouter",
         "wire_model_id": "openai/gpt-4.1-mini"
       }
@@ -161,6 +162,7 @@ Example:
 
 If `catalog_path` is omitted, the built-in modeldb catalog is used. Overlays are merged after the base catalog.
 Catalog aliases are the default source of truth. `modeldb.aliases` is only for explicit operator overrides or local shortcuts, and `AutoMuxClient` does not inject llmadapter-owned built-in aliases ahead of the catalog.
+Do not rely on legacy llmadapter-owned shortcuts such as `fast`, `powerful`, or `codex`; use modeldb catalog names, service-qualified names, or aliases you define in config.
 
 ## Capability Overrides
 
@@ -201,10 +203,10 @@ Fixed route:
 ```json
 {
   "source_api": "openai.responses",
-  "model": "fast",
+  "model": "example-fast",
   "provider": "openrouter",
   "provider_api": "openrouter.responses",
-  "modeldb_model": "fast",
+  "modeldb_model": "example-fast",
   "weight": 100
 }
 ```
@@ -232,7 +234,7 @@ Validate and inspect:
 
 ```sh
 go run ./cmd/llmadapter serve --config examples/llmadapter.example.json --inspect-config
-go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json fast
+go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json example-fast
 ```
 
-The example covers provider endpoints, dynamic routes, modeldb overlays, aliases, capability overrides, pricing metadata, and route attempt limits.
+The example covers provider endpoints, dynamic routes, modeldb overlays, explicit operator-defined aliases, capability overrides, pricing metadata, and route attempt limits.

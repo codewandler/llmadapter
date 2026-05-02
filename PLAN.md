@@ -8,19 +8,18 @@ Primary goal: keep the adapter buildable and incrementally useful while hardenin
 
 ## Current Status
 
-Status date: 2026-04-28.
+Status date: 2026-05-02.
 
-`v1.0.0-rc.12` has been cut. The current remaining v1 work is release-candidate validation and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
+`v1.0.0-rc.20` has been cut. The current remaining v1 work is release-candidate validation, cleanup of post-rc review findings, and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
 
 Highest-priority post-rc work:
 
 ```text
-Use-case compatibility approval for agentic coding.
+Resolve review findings before final v1.0.0:
 
-The provider endpoint matrix answers what endpoint implementations support.
-The new use-case compatibility layer must answer which provider/model/API-kind combinations are approved for workloads such as agentic coding.
-
-Concrete execution plan: docs/USE_CASE_COMPATIBILITY_PLAN.md
+1. Make explicit provider modeldb service identity less footgun-prone through inference or inspection/validation warnings.
+2. Harden OpenAI Responses WebSocket request mutation so internal JSON errors fail locally instead of sending malformed WebSocket payloads.
+3. Consider a public helper for safe tool-result continuation replay without changing llmadapter's stateless conversation ownership.
 ```
 
 Completed:
@@ -139,6 +138,9 @@ Codex WebSocket conformance slice: deterministic Codex provider tests cover sess
 Claude Code wire-diff research slice: `docs/CLAUDE_CODE_WIRE_DIFF.md` records observed Claude Code 2.1.112 request/header/stream differences, model-aware effort and adaptive-thinking behavior, advisor-tool/context-management/compaction findings, and the current llmadapter Claude-compatible provider gaps
 Claude Code parity slice: Anthropic-family wire structs preserve adaptive effort, context-management, stop-details, nested usage, service tier, inference geo, usage iterations, and server-tool usage; Claude-compatible headers now compose request/auth-aware beta values, send current Claude Code/Stainless versions plus `X-Claude-Code-Session-Id`, add `advisor-tool-2026-03-01`, add Claude Code's clear-thinking context-management edit for thinking requests, and map modeldb-resolved adaptive effort support to adaptive thinking plus `output_config.effort` while preserving manual-budget thinking for legacy or explicitly budgeted requests
 Modeldb parameter metadata slice: llmadapter now consumes modeldb v0.14.0; resolved modeldb offering exposure metadata flows through router model resolution into provider requests, including parameter values, parameter mappings, parameter value mappings, and reasoning modes/efforts; direct Anthropic-family clients attach exact native-model metadata from the built-in modeldb catalog before encoding; Anthropic adaptive effort selection uses that metadata instead of static Claude model-name matching; canonical `ReasoningEffortMax` maps to provider wire values such as Opus 4.7 `xhigh` via modeldb exposure metadata; router candidates can reject unsupported modeldb reasoning effort values; Codex provider-local `codex`/`fast`/`powerful` aliases were removed; and auto modeldb config no longer injects llmadapter-pinned built-in aliases ahead of catalog/operator aliases
+MiniMax tool-continuation replay slice: shared live e2e tool-result continuation now replays the complete assistant tool-call message, including content/reasoning and `ToolCalls`, before appending tool results so OpenAI-compatible reasoning models such as MiniMax M2.x can continue the tool loop instead of restarting reasoning
+Alias documentation overhaul slice: README, CLI/config/library/getting-started docs, troubleshooting docs, use-case docs, and shipped examples now use modeldb catalog names, service-qualified model IDs, or explicit operator aliases instead of removed llmadapter-owned `codex`/`fast`/`powerful` shortcuts; the example config explicitly tags provider modeldb service IDs where enrichment is expected
+Anthropic-compatible wrapper metadata guard slice: MiniMax Messages and OpenRouter Messages wrappers are covered against accidentally attaching native Anthropic built-in model metadata such as Claude-specific `output_config` to non-Anthropic services
 ```
 
 Verified:
@@ -202,9 +204,15 @@ env GOCACHE=/tmp/go-cache go test ./modelmeta ./router ./providers/anthropic/mes
 env GOCACHE=/tmp/go-cache go test ./...
 env GOCACHE=/tmp/go-cache go vet ./...
 env GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod-cache go build ./...
-env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream|TestSmokeToolUse|TestSmokeToolResultContinuation|TestGatewaySmoke' -count=1 -v (latest full matrix failed only `TestSmokeToolResultContinuation/minimax_chat`, which returned reasoning text instead of the tool-result marker; focused changed-provider slice below passed)
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream|TestSmokeToolUse|TestSmokeToolResultContinuation|TestGatewaySmoke' -count=1 -v
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --config /tmp/llmadapter-claude-sonnet-smoke.json --source-api anthropic.messages --model claude-sonnet-smoke --max-tokens 64 --no-cache --effort max "Reply with exactly: claude effort max ok"
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke(TextStream|ToolUse|ToolResultContinuation)/(anthropic|claude|codex_responses)|TestGatewaySmoke(NonStreaming|Streaming)/(anthropic|claude|codex_responses)' -count=1 -v
+env GOCACHE=/tmp/go-cache go test ./providers/minimax/messages ./providers/openrouter/messages ./tests/e2e ./cmd/llmadapter ./adapterconfig
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter serve --config examples/llmadapter.example.json --inspect-config >/tmp/llmadapter-inspect.json
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json example-fast
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --source-api anthropic.messages
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/minimax_chat' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream|TestSmokeToolUse|TestSmokeToolResultContinuation|TestGatewaySmoke' -count=1 -v
 ```
 
 Implemented package surface:

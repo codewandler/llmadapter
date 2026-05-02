@@ -25,11 +25,13 @@ Advanced consumers can process events incrementally for streaming UI, usage acco
 `adapterconfig.AutoMuxClient` detects env/local credentials and builds a mux client:
 
 ```go
+const haikuModel = "anthropic/claude-haiku-4-5-20251001"
+
 result, err := adapterconfig.AutoMuxClient(adapterconfig.AutoOptions{
 	UseModelDB:    true,
 	DynamicModels: true,
 	Intents: []adapterconfig.AutoIntent{
-		{Name: "haiku"},
+		{Name: haikuModel},
 		{Name: "openai/gpt-5.5"},
 	},
 })
@@ -49,7 +51,7 @@ Useful options:
 - `DynamicModels`: add dynamic model routes for enabled providers.
 - `SourceAPI`: pin an incoming API kind.
 - `Intents`: add routes for specific model names.
-- `ModelDBAliases`: inject or override aliases from the host application.
+- `ModelDBAliases`: inject or override aliases from the host application. llmadapter no longer injects application-owned aliases such as `fast`, `powerful`, or `codex`.
 
 ## Workload Compatibility
 
@@ -58,7 +60,7 @@ Use `adapterconfig` plus `compatibility` when a host application needs to list c
 ```go
 evaluations, err := adapterconfig.EvaluateCompatibilityCandidates(
 	result.Config,
-	"haiku",
+	haikuModel,
 	"",
 	compatibility.UseCaseAgenticCoding,
 )
@@ -72,7 +74,7 @@ To return candidates whose offline capability evidence satisfies the profile:
 ```go
 candidates, err := adapterconfig.CompatibleCandidates(
 	result.Config,
-	"haiku",
+	haikuModel,
 	"",
 	compatibility.UseCaseAgenticCoding,
 	true,
@@ -92,7 +94,7 @@ if err != nil {
 }
 
 selection, err := result.SelectModelForUseCase(
-	"haiku",
+	haikuModel,
 	"",
 	adapterconfig.UseCaseSelectionOptions{
 		UseCase:  compatibility.UseCaseAgenticCoding,
@@ -148,7 +150,7 @@ client, err := adapterconfig.NewMuxClient(
 ```go
 maxTokens := 512
 events, err := client.Request(ctx, unified.Request{
-	Model:           "haiku",
+	Model:           haikuModel,
 	MaxOutputTokens: &maxTokens,
 	Stream:          true,
 	Messages: []unified.Message{{
@@ -223,7 +225,7 @@ req.ToolChoice = &unified.ToolChoice{
 }
 ```
 
-Tool-loop orchestration is intentionally above llmadapter. llmadapter maps tool calls/results and preserves streamed arguments; your runtime decides how to execute tools and commit conversation state.
+Tool-loop orchestration is intentionally above llmadapter. llmadapter maps tool calls/results and preserves streamed arguments; your runtime decides how to execute tools and commit conversation state. When replaying a tool loop, preserve the full assistant message that produced the tool call, including any text/reasoning content and the `ToolCalls` slice. Some OpenAI-compatible reasoning models, including MiniMax M2.x, require that complete assistant response to maintain multi-turn tool continuity.
 
 ## Prompt Caching
 

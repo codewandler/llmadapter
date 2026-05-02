@@ -4,7 +4,7 @@ This directory contains load-tested config examples for `llmadapter`.
 
 ## Files
 
-- `llmadapter.example.json`: gateway/mux config with multiple provider instances, aliases, dynamic routes, capability overrides, modeldb metadata, pricing, and fallback limits.
+- `llmadapter.example.json`: gateway/mux config with multiple provider instances, an explicit operator-defined alias, dynamic routes, capability overrides, modeldb metadata, pricing, and fallback limits.
 - `modeldb.overlay.example.json`: small modeldb overlay used by the example config.
 
 ## Inspect
@@ -13,7 +13,7 @@ This directory contains load-tested config examples for `llmadapter`.
 go run ./cmd/llmadapter serve --config examples/llmadapter.example.json --inspect-config
 go run ./cmd/llmadapter routes --config examples/llmadapter.example.json
 go run ./cmd/llmadapter models --config examples/llmadapter.example.json
-go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json fast
+go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json example-fast
 ```
 
 Inspection does not require provider credentials.
@@ -39,6 +39,6 @@ Copy `llmadapter.example.json` to your own config and change:
 
 - provider instances and env vars,
 - route weights and provider priorities,
-- modeldb aliases,
+- modeldb aliases owned by your application or operator config,
 - modeldb overlay offerings,
 - capability overrides for specific provider/model combinations.
