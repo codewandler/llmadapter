@@ -160,14 +160,15 @@ func TestOpenRouterExtensionsValidationWarnings(t *testing.T) {
 
 func TestAnthropicExtensionsRoundtrip(t *testing.T) {
 	var e Extensions
-	if err := SetAnthropicExtensions(&e, AnthropicExtensions{Betas: []string{"thinking"}}); err != nil {
+	contextManagement := json.RawMessage(`{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}`)
+	if err := SetAnthropicExtensions(&e, AnthropicExtensions{Betas: []string{"thinking"}, ContextManagement: contextManagement}); err != nil {
 		t.Fatal(err)
 	}
 	got, warnings := AnthropicExtensionsFrom(e)
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %+v", warnings)
 	}
-	if !reflect.DeepEqual(got.Betas, []string{"thinking"}) {
+	if !reflect.DeepEqual(got.Betas, []string{"thinking"}) || string(got.ContextManagement) != string(contextManagement) {
 		t.Fatalf("anthropic extensions = %+v", got)
 	}
 }
@@ -177,11 +178,17 @@ func TestAnthropicExtensionsValidationWarnings(t *testing.T) {
 	if err := e.Set(ExtAnthropicBetas, []string{"thinking", "", "bad beta", "bad,beta"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := e.Set(ExtAnthropicContextManagement, []string{"not-object"}); err != nil {
+		t.Fatal(err)
+	}
 	got, warnings := AnthropicExtensionsFrom(e)
 	if !reflect.DeepEqual(got.Betas, []string{"thinking"}) {
 		t.Fatalf("anthropic extensions = %+v", got)
 	}
-	if len(warnings) != 3 {
+	if len(got.ContextManagement) != 0 {
+		t.Fatalf("invalid context management should be dropped: %+v", got)
+	}
+	if len(warnings) != 4 {
 		t.Fatalf("warnings = %+v", warnings)
 	}
 }

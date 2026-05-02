@@ -23,6 +23,7 @@ const (
 	ReasoningEffortLow    ReasoningEffort = "low"
 	ReasoningEffortMedium ReasoningEffort = "medium"
 	ReasoningEffortHigh   ReasoningEffort = "high"
+	ReasoningEffortMax    ReasoningEffort = "max"
 )
 
 type ReasoningConfig struct {

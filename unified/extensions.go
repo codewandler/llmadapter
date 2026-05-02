@@ -14,6 +14,7 @@ const (
 	ExtOpenAIPromptCacheKey       = "openai.responses.prompt_cache_key"
 	ExtOpenAIPromptCacheRetention = "openai.responses.prompt_cache_retention"
 	ExtAnthropicBetas             = "anthropic.betas"
+	ExtAnthropicContextManagement = "anthropic.context_management"
 	ExtGeminiSafetySettings       = "gemini.safety_settings"
 	ExtOpenRouterModels           = "openrouter.models"
 	ExtOpenRouterRoute            = "openrouter.route"
@@ -73,7 +74,8 @@ type OpenRouterExtensions struct {
 }
 
 type AnthropicExtensions struct {
-	Betas []string
+	Betas             []string
+	ContextManagement json.RawMessage
 }
 
 type CodexExtensions struct {
@@ -373,14 +375,17 @@ func AnthropicExtensionsFrom(e Extensions) (AnthropicExtensions, []WarningEvent)
 			out.Betas = append(out.Betas, beta)
 		}
 	}
+	out.ContextManagement = validatedRawExtension(e, ExtAnthropicContextManagement, rawObject, &warnings)
 	return out, warnings
 }
 
 func SetAnthropicExtensions(e *Extensions, value AnthropicExtensions) error {
-	if len(value.Betas) == 0 {
-		return nil
+	if len(value.Betas) > 0 {
+		if err := e.Set(ExtAnthropicBetas, append([]string(nil), value.Betas...)); err != nil {
+			return err
+		}
 	}
-	return e.Set(ExtAnthropicBetas, append([]string(nil), value.Betas...))
+	return e.SetRaw(ExtAnthropicContextManagement, value.ContextManagement)
 }
 
 func CodexExtensionsFrom(e Extensions) (CodexExtensions, []WarningEvent) {

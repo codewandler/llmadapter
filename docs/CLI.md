@@ -27,6 +27,7 @@ go build -o llmadapter ./cmd/llmadapter
 | `compatibility-record` | Refresh generated compatibility docs from an artifact. |
 | `conformance` | Report provider descriptors plus compatibility evidence. |
 | `infer` | Send a prompt through the mux client and stream output. |
+| `proxy` | Inspect provider HTTP headers and streamed messages. |
 | `serve` | Run the HTTP compatibility gateway. |
 | `smoke` | Run minimal direct, mux, config, or auto provider smoke calls. |
 
@@ -252,6 +253,28 @@ go run ./cmd/llmadapter infer --config examples/llmadapter.example.json -m fast 
 ```
 
 `infer` prints resolved model/route information before streaming output, including continuation mode and transport. By default it uses `--interaction one_shot`; setting `--session` without `--interaction` switches to `session` and also sets a stable cache/session key. For `codex_responses`, session mode with a stable session/cache key can prefer the provider-internal WebSocket transport and fall back to HTTP/SSE before streaming starts. Use `--branch` when testing branch-specific continuation behavior. The final route section reports actual provider execution metadata when the provider emits it. `--no-cache` disables cache policy but still preserves explicit session diagnostics.
+
+## proxy
+
+Run a local reverse proxy and inspect redacted request/response headers plus JSON or SSE/NDJSON body content:
+
+```sh
+go run ./cmd/llmadapter proxy --bind 127.0.0.1:8089 --upstream https://api.anthropic.com
+```
+
+Analyze Claude CLI traffic by starting the proxy on a random local port, setting Claude/Anthropic base-url environment variables for the child process, and forwarding all arguments after `--` to `claude`:
+
+```sh
+go run ./cmd/llmadapter proxy --analyze claude -- --print "reply ok"
+```
+
+Use `--command` when the Claude executable has a different name or path:
+
+```sh
+go run ./cmd/llmadapter proxy --analyze claude --command /path/to/claude -- --print "reply ok"
+```
+
+The proxy writes diagnostics to stderr and preserves the child process stdio. Sensitive headers and JSON fields such as authorization, API keys, cookies, session IDs, and account IDs are redacted. To keep stream logs readable, the proxy removes outbound `Accept-Encoding` before forwarding so Go's HTTP transport can receive and forward decompressed response bodies.
 
 ## serve
 

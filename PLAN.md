@@ -75,6 +75,7 @@ Route attempt slice: gateway and muxclient share route candidate lookup, native 
 Adapter config slice: `adapterconfig` exposes JSON config loading/defaulting/validation plus config-driven muxclient construction with modeldb alias resolution, capability metadata, and pricing processors
 CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types, inspect redacted provider credential status, inspect configured/auto-detected routes and models, explain route resolution, run the gateway server, and run minimal direct, manual mux-routed, config-driven mux, or auto-detected mux text smoke requests
 CLI inference slice: `llmadapter infer <message>` sends a prompt through the shared config/auto mux path, prints resolved route/model metadata first, streams reasoning/text deltas, and prints usage/cost data when providers report it
+CLI proxy diagnostics slice: `llmadapter proxy` can run a redacted reverse proxy for provider HTTP diagnostics, and `proxy --analyze claude -- <args>` starts a temporary Anthropic upstream proxy, points the Claude CLI at it through base-url environment variables, and logs request/response headers plus JSON/SSE/NDJSON bodies
 Container slice: Dockerfile builds a standalone `llmadapter` image that runs `llmadapter serve`
 Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled and optional source API presetting
 Auto mux modeldb intent slice: when `UseModelDB` is enabled, auto intents and aliases choose a provider whose catalog service can resolve the requested model alias; unresolved intents do not fall back to provider defaults. Service-qualified names such as `openai/gpt-5.5` and `codex/gpt-5.4` constrain resolution to that service before mapping to the offering wire model.
@@ -132,6 +133,8 @@ Codex WebSocket live smoke slice: `tests/e2e` includes `TEST_INTEGRATION`-gated 
 Responses WebSocket option slice: `providers/openai/responses` exposes three-state `WithWebSocketMode(...)` support for official OpenAI Responses WebSocket mode, with deterministic enabled/default/auto/fallback tests, a shared compression-on, IPv4-forced default WebSocket transport, and shared session reuse/open-or-write mechanics used by native OpenAI Responses and Codex; `openrouter_responses` stays on HTTP/SSE unless it explicitly opts in later
 OpenAI Responses WebSocket smoke slice: `tests/e2e/TestSmokeOpenAIResponsesWebSocket` verifies direct OpenAI Responses WebSocket mode with live OpenAI credentials, stable cache/session key, streamed text, usage, and runtime `transport=websocket` metadata
 Codex WebSocket conformance slice: deterministic Codex provider tests cover session-mode WebSocket enabled, WebSocket disabled, missing stable session ID, pre-stream HTTP/SSE fallback, retry-after-fallback, mid-stream failure invalidation, and branch-safe internal continuation; Codex uses the same WebSocket mode vocabulary while preserving Codex-specific auth/session behavior
+Claude Code wire-diff research slice: `docs/CLAUDE_CODE_WIRE_DIFF.md` records observed Claude Code 2.1.112 request/header/stream differences, model-aware effort and adaptive-thinking behavior, advisor-tool/context-management/compaction findings, and the current llmadapter Claude-compatible provider gaps
+Claude Code parity slice: Anthropic-family wire structs preserve adaptive effort, context-management, stop-details, nested usage, service tier, inference geo, usage iterations, and server-tool usage; Claude-compatible headers now compose request/auth-aware beta values, send current Claude Code/Stainless versions plus `X-Claude-Code-Session-Id`, add `advisor-tool-2026-03-01`, add Claude Code's clear-thinking context-management edit for thinking requests, and map known effort-capable models to adaptive thinking plus `output_config.effort` while preserving manual-budget thinking for legacy or explicitly budgeted requests
 ```
 
 Verified:
@@ -140,6 +143,7 @@ Verified:
 env GOCACHE=/tmp/go-cache go test ./...
 env GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod-cache go build ./...
 env GOCACHE=/tmp/go-cache go vet ./...
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter proxy --help
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestSmokeTextStream -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke' -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream/openai_chat' -count=1 -v
@@ -168,7 +172,16 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -count=1 -v
 env GOCACHE=/tmp/go-cache go test ./...
 env GOCACHE=/tmp/go-cache go test ./transport
 env GOCACHE=/tmp/go-cache go test ./providers/openai/...
+env GOCACHE=/tmp/go-cache go test ./unified ./providers/anthropic/messages ./providers
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestSmokeOpenAIResponsesWebSocket -count=1 -v
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter proxy --max-body-bytes 12000 --analyze claude -- --bare --print --verbose --output-format stream-json --include-partial-messages --model claude-sonnet-4-6 --tools "" --system-prompt "" --no-session-persistence --disable-slash-commands --strict-mcp-config --mcp-config='{"mcpServers":{}}' "Reply with exactly: sonnet46 ok"
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter proxy --max-body-bytes 12000 --analyze claude -- --bare --print --verbose --output-format stream-json --include-partial-messages --model opus --tools "" --system-prompt "" --no-session-persistence --disable-slash-commands --strict-mcp-config --mcp-config='{"mcpServers":{}}' --effort max "Reply with exactly: opus max ok"
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --config /tmp/llmadapter-claude-smoke.json --source-api anthropic.messages --model claude-smoke --max-tokens 32 --no-cache "Reply with exactly: claude infer ok"
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --config /tmp/llmadapter-anthropic-smoke.json --source-api anthropic.messages --model anthropic-smoke --max-tokens 32 --no-cache "Reply with exactly: anthropic infer ok"
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --config /tmp/llmadapter-openai-smoke.json --source-api openai.responses --model openai-smoke --max-tokens 32 --no-cache "Reply with exactly: openai infer ok"
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --config /tmp/llmadapter-codex-smoke.json --source-api openai.responses --model codex-smoke --max-tokens 32 --no-cache "Reply with exactly: codex infer ok"
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --config /tmp/llmadapter-minimax-chat-smoke.json --source-api openai.chat_completions --model minimax-chat-smoke --max-tokens 96 --no-cache "Reply with exactly: minimax infer ok"
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --config /tmp/llmadapter-claude-sonnet-smoke.json --source-api anthropic.messages --model claude-sonnet-smoke --max-tokens 64 --no-cache --effort low "Reply with exactly: claude sonnet effort ok"
 ```
 
 Implemented package surface:

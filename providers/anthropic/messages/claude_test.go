@@ -74,6 +74,9 @@ func TestClaudeCodeOptionsShapeRequest(t *testing.T) {
 	if seen.Header.Get("X-App") != "cli" || seen.Method != http.MethodPost {
 		t.Fatalf("unexpected transport request: %+v", seen)
 	}
+	if seen.Header.Get("X-Claude-Code-Session-Id") == "" {
+		t.Fatalf("missing Claude session header: %v", seen.Header)
+	}
 	if seen.Header.Get("Accept-Encoding") != transport.ExtendedAcceptEncoding {
 		t.Fatalf("unexpected Accept-Encoding: %v", seen.Header)
 	}
@@ -90,6 +93,9 @@ func TestClaudeCodeOptionsShapeRequest(t *testing.T) {
 	if !strings.Contains(system, claudeBillingHeader) || !strings.Contains(system, claudeSystemCore) || !strings.Contains(system, "be concise") {
 		t.Fatalf("unexpected system preflight: %q", system)
 	}
+	if len(wire.ContextManagement) != 0 {
+		t.Fatalf("context_management should require thinking: %s", wire.ContextManagement)
+	}
 	rawUserID, ok := wire.Metadata["user_id"].(string)
 	if !ok {
 		t.Fatalf("missing user metadata: %+v", wire.Metadata)
@@ -100,6 +106,51 @@ func TestClaudeCodeOptionsShapeRequest(t *testing.T) {
 	}
 	if userID["device_id"] != "device-1" || userID["account_uuid"] != "acct-1" || userID["session_id"] == "" {
 		t.Fatalf("unexpected user metadata: %+v", userID)
+	}
+	if userID["session_id"] != seen.Header.Get("X-Claude-Code-Session-Id") {
+		t.Fatalf("metadata/header session mismatch: %+v header=%q", userID, seen.Header.Get("X-Claude-Code-Session-Id"))
+	}
+}
+
+func TestClaudeHeadersComposeBetasFromRequest(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{}
+	client, err := NewClient(
+		WithBaseURL("https://anthropic.test"),
+		WithTransport(fake),
+		WithAPIKey("api-key"),
+		WithClaudeHeaders(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	maxTokens := 4096
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "claude-sonnet-4-6",
+		MaxOutputTokens: &maxTokens,
+		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range events {
+	}
+	if len(fake.Seen) != 1 {
+		t.Fatalf("requests = %d", len(fake.Seen))
+	}
+	beta := fake.Seen[0].Header.Get("Anthropic-Beta")
+	for _, want := range []string{"advisor-tool-2026-03-01", "effort-2025-11-24"} {
+		if !strings.Contains(beta, want) {
+			t.Fatalf("beta %q missing %q", beta, want)
+		}
+	}
+	if strings.Contains(beta, "oauth-2025-04-20") {
+		t.Fatalf("api-key request should not include oauth beta: %q", beta)
 	}
 }
 

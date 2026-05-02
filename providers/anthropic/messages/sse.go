@@ -3,7 +3,6 @@ package messages
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/codewandler/llmadapter/transport"
 )
@@ -52,7 +51,7 @@ func (d *SSEFrameDecoder) PushFrame(ctx context.Context, raw []byte) ([]Event, e
 	case "error":
 		return decodeOne[ErrorEventWire](frame.Data)
 	default:
-		return nil, fmt.Errorf("unknown anthropic SSE event type %q", eventType)
+		return []Event{RawEventWire{Type: eventType, Raw: append([]byte(nil), frame.Data...)}}, nil
 	}
 }
 

@@ -17,9 +17,13 @@ type MessageRequest struct {
 	StopSequences       []string         `json:"stop_sequences,omitempty"`
 	Stream              bool             `json:"stream,omitempty"`
 	Thinking            *ThinkingConfig  `json:"thinking,omitempty"`
+	OutputConfig        *OutputConfig    `json:"output_config,omitempty"`
+	ContextManagement   json.RawMessage  `json:"context_management,omitempty"`
 	Tools               []ToolDefinition `json:"tools,omitempty"`
 	ToolChoice          *ToolChoiceWire  `json:"tool_choice,omitempty"`
 	Metadata            map[string]any   `json:"metadata,omitempty"`
+	Betas               []string         `json:"-"`
+	ClaudeSessionID     string           `json:"-"`
 	OpenRouterModels    json.RawMessage  `json:"models,omitempty"`
 	OpenRouterRoute     json.RawMessage  `json:"route,omitempty"`
 	OpenRouterProvider  json.RawMessage  `json:"provider,omitempty"`
@@ -32,7 +36,12 @@ type MessageRequest struct {
 
 type ThinkingConfig struct {
 	Type         string `json:"type"`
-	BudgetTokens int    `json:"budget_tokens"`
+	BudgetTokens int    `json:"budget_tokens,omitempty"`
+}
+
+type OutputConfig struct {
+	Effort string          `json:"effort,omitempty"`
+	Format json.RawMessage `json:"format,omitempty"`
 }
 
 type InputMessage struct {
@@ -220,14 +229,16 @@ type MessageStartEvent struct {
 func (MessageStartEvent) isAnthropicEvent() {}
 
 type MessageResponse struct {
-	ID           string         `json:"id"`
-	Type         string         `json:"type,omitempty"`
-	Role         string         `json:"role,omitempty"`
-	Content      []ContentBlock `json:"content,omitempty"`
-	Model        string         `json:"model,omitempty"`
-	StopReason   string         `json:"stop_reason,omitempty"`
-	StopSequence string         `json:"stop_sequence,omitempty"`
-	Usage        *UsageWire     `json:"usage,omitempty"`
+	ID                string          `json:"id"`
+	Type              string          `json:"type,omitempty"`
+	Role              string          `json:"role,omitempty"`
+	Content           []ContentBlock  `json:"content,omitempty"`
+	Model             string          `json:"model,omitempty"`
+	StopReason        string          `json:"stop_reason,omitempty"`
+	StopSequence      string          `json:"stop_sequence,omitempty"`
+	StopDetails       json.RawMessage `json:"stop_details,omitempty"`
+	Usage             *UsageWire      `json:"usage,omitempty"`
+	ContextManagement json.RawMessage `json:"context_management,omitempty"`
 }
 
 type ContentBlockStartEvent struct {
@@ -262,16 +273,18 @@ type ContentBlockStopEvent struct {
 func (ContentBlockStopEvent) isAnthropicEvent() {}
 
 type MessageDeltaEvent struct {
-	Type  string           `json:"type"`
-	Delta MessageDeltaBody `json:"delta"`
-	Usage *UsageWire       `json:"usage,omitempty"`
+	Type              string           `json:"type"`
+	Delta             MessageDeltaBody `json:"delta"`
+	Usage             *UsageWire       `json:"usage,omitempty"`
+	ContextManagement json.RawMessage  `json:"context_management,omitempty"`
 }
 
 func (MessageDeltaEvent) isAnthropicEvent() {}
 
 type MessageDeltaBody struct {
-	StopReason   string `json:"stop_reason,omitempty"`
-	StopSequence string `json:"stop_sequence,omitempty"`
+	StopReason   string          `json:"stop_reason,omitempty"`
+	StopSequence string          `json:"stop_sequence,omitempty"`
+	StopDetails  json.RawMessage `json:"stop_details,omitempty"`
 }
 
 type MessageStopEvent struct {
@@ -299,8 +312,34 @@ type APIErrorBody struct {
 }
 
 type UsageWire struct {
-	InputTokens              int `json:"input_tokens,omitempty"`
-	OutputTokens             int `json:"output_tokens,omitempty"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
+	InputTokens              int                  `json:"input_tokens,omitempty"`
+	OutputTokens             int                  `json:"output_tokens,omitempty"`
+	CacheCreationInputTokens int                  `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int                  `json:"cache_read_input_tokens,omitempty"`
+	CacheCreation            *CacheCreationUsage  `json:"cache_creation,omitempty"`
+	ServiceTier              string               `json:"service_tier,omitempty"`
+	InferenceGeo             string               `json:"inference_geo,omitempty"`
+	Iterations               []UsageIterationWire `json:"iterations,omitempty"`
+	ServerToolUse            map[string]int       `json:"server_tool_use,omitempty"`
 }
+
+type CacheCreationUsage struct {
+	Ephemeral5mInputTokens int `json:"ephemeral_5m_input_tokens,omitempty"`
+	Ephemeral1hInputTokens int `json:"ephemeral_1h_input_tokens,omitempty"`
+}
+
+type UsageIterationWire struct {
+	Type                     string              `json:"type,omitempty"`
+	InputTokens              int                 `json:"input_tokens,omitempty"`
+	OutputTokens             int                 `json:"output_tokens,omitempty"`
+	CacheCreationInputTokens int                 `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int                 `json:"cache_read_input_tokens,omitempty"`
+	CacheCreation            *CacheCreationUsage `json:"cache_creation,omitempty"`
+}
+
+type RawEventWire struct {
+	Type string          `json:"type,omitempty"`
+	Raw  json.RawMessage `json:"-"`
+}
+
+func (RawEventWire) isAnthropicEvent() {}

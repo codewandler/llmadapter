@@ -36,6 +36,7 @@ type Config struct {
 	ProviderRequestProcessors []adapt.ProviderRequestProcessor[MessageRequest]
 	ProviderEventProcessors   []pipeline.Processor[Event]
 	UnifiedEventProcessors    []pipeline.Processor[unified.Event]
+	ClaudeHeaders             bool
 }
 
 func NewClient(opts ...Option) (unified.Client, error) {
@@ -58,6 +59,9 @@ func NewClient(opts ...Option) (unified.Client, error) {
 	}
 	if len(cfg.Betas) > 0 {
 		cfg.Headers.Set("anthropic-beta", strings.Join(cfg.Betas, ","))
+	}
+	if cfg.ClaudeHeaders {
+		cfg.HeaderFns = append(cfg.HeaderFns, claudeHeadersFunc())
 	}
 
 	native := &NativeClient{

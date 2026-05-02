@@ -4,6 +4,7 @@ import "github.com/codewandler/llmadapter/anthropicwire"
 
 type MessageRequest = anthropicwire.MessageRequest
 type ThinkingConfig = anthropicwire.ThinkingConfig
+type OutputConfig = anthropicwire.OutputConfig
 type InputMessage = anthropicwire.InputMessage
 type ContentBlock = anthropicwire.ContentBlock
 type BlockSource = anthropicwire.BlockSource
@@ -27,5 +28,6 @@ type PingEvent = anthropicwire.PingEvent
 type ErrorEventWire = anthropicwire.ErrorEventWire
 type APIErrorBody = anthropicwire.APIErrorBody
 type UsageWire = anthropicwire.UsageWire
+type RawEventWire = anthropicwire.RawEventWire
 
 var NewSystemContent = anthropicwire.NewSystemContent

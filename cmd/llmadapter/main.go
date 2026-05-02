@@ -59,6 +59,7 @@ func newRootCommand(out, errOut io.Writer) *cobra.Command {
 	cmd.AddCommand(newServeCommand())
 	cmd.AddCommand(newSmokeCommand())
 	cmd.AddCommand(newInferCommand())
+	cmd.AddCommand(newProxyCommand())
 	return cmd
 }
 

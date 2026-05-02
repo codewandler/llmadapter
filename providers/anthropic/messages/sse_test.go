@@ -43,9 +43,13 @@ data: [DONE]`))
 }
 
 func TestSSEFrameDecoderUnknown(t *testing.T) {
-	_, err := (&SSEFrameDecoder{}).PushFrame(context.Background(), []byte(`event: nope
-data: {}`))
-	if err == nil {
-		t.Fatalf("expected error")
+	events, err := (&SSEFrameDecoder{}).PushFrame(context.Background(), []byte(`event: nope
+data: {"type":"nope","id":"evt_1"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, ok := events[0].(RawEventWire)
+	if !ok || ev.Type != "nope" || string(ev.Raw) != `{"type":"nope","id":"evt_1"}` {
+		t.Fatalf("unexpected event: %#v", events[0])
 	}
 }

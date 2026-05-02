@@ -15,6 +15,8 @@ import (
 
 type HeaderFunc func(context.Context, *http.Request) error
 
+type messageRequestContextKey struct{}
+
 type NativeClient struct {
 	transport     transport.ByteStreamTransport
 	baseURL       string
@@ -34,6 +36,7 @@ func (c *NativeClient) Request(ctx context.Context, req MessageRequest) (<-chan 
 	if err != nil {
 		return nil, err
 	}
+	ctx = context.WithValue(ctx, messageRequestContextKey{}, req)
 	url := strings.TrimRight(c.baseURL, "/") + "/v1/messages"
 	headers := c.headers.Clone()
 	headers.Set("Content-Type", "application/json")
@@ -41,6 +44,7 @@ func (c *NativeClient) Request(ctx context.Context, req MessageRequest) (<-chan 
 		headers.Set("x-api-key", c.apiKey)
 	}
 	headers.Set("anthropic-version", c.version)
+	mergeAnthropicBetaHeader(headers, req.Betas)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -48,7 +52,7 @@ func (c *NativeClient) Request(ctx context.Context, req MessageRequest) (<-chan 
 	}
 	httpReq.Header = headers.Clone()
 	for _, fn := range c.headerFns {
-		if err := fn(ctx, httpReq); err != nil {
+		if err := fn(httpReq.Context(), httpReq); err != nil {
 			return nil, err
 		}
 	}
@@ -107,6 +111,38 @@ func (c *NativeClient) Request(ctx context.Context, req MessageRequest) (<-chan 
 		}
 	}()
 	return out, nil
+}
+
+func messageRequestFromContext(ctx context.Context) (MessageRequest, bool) {
+	req, ok := ctx.Value(messageRequestContextKey{}).(MessageRequest)
+	return req, ok
+}
+
+func mergeAnthropicBetaHeader(headers http.Header, betas []string) {
+	if len(betas) == 0 {
+		return
+	}
+	seen := make(map[string]bool)
+	var merged []string
+	for _, beta := range strings.Split(headers.Get("Anthropic-Beta"), ",") {
+		beta = strings.TrimSpace(beta)
+		if beta == "" || seen[beta] {
+			continue
+		}
+		seen[beta] = true
+		merged = append(merged, beta)
+	}
+	for _, beta := range betas {
+		beta = strings.TrimSpace(beta)
+		if beta == "" || seen[beta] {
+			continue
+		}
+		seen[beta] = true
+		merged = append(merged, beta)
+	}
+	if len(merged) > 0 {
+		headers.Set("Anthropic-Beta", strings.Join(merged, ","))
+	}
 }
 
 func sendNativeEvent(ctx context.Context, out chan<- Event, ev Event) bool {

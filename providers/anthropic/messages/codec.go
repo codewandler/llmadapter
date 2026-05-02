@@ -44,6 +44,7 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 	if err := applyReasoning(req, &out); err != nil {
 		return MessageRequest{}, err
 	}
+	applyAnthropicExtensions(req, &out, ureq.Extensions)
 
 	system, err := encodeInstructions(ureq.Instructions)
 	if err != nil {
@@ -150,6 +151,14 @@ func applyReasoning(req *adapt.Request, out *MessageRequest) error {
 	if reasoning == nil {
 		return nil
 	}
+	if reasoning.MaxTokens == nil && reasoning.Effort != "" && supportsAnthropicOutputEffort(req.Unified.Model) {
+		out.Thinking = &ThinkingConfig{Type: "adaptive"}
+		if out.OutputConfig == nil {
+			out.OutputConfig = &OutputConfig{}
+		}
+		out.OutputConfig.Effort = string(reasoning.Effort)
+		return nil
+	}
 	budget := thinkingBudget(*reasoning, out.MaxTokens)
 	if budget < 1024 {
 		return &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "reasoning.max_tokens", Reason: "Anthropic thinking requires at least 1024 budget tokens and max_tokens greater than the budget"}
@@ -188,11 +197,45 @@ func thinkingBudget(reasoning unified.ReasoningConfig, maxTokens int) int {
 		if maxTokens > 4096 {
 			return 4096
 		}
+	case unified.ReasoningEffortMax:
+		if maxTokens > 1024 {
+			return maxTokens - 1
+		}
 	}
 	if maxTokens > 2048 {
 		return maxTokens / 2
 	}
 	return 1024
+}
+
+func supportsAnthropicOutputEffort(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	switch {
+	case strings.Contains(model, "claude-sonnet-4-6"):
+		return true
+	case strings.Contains(model, "claude-opus-4-5"):
+		return true
+	case strings.Contains(model, "claude-opus-4-6"):
+		return true
+	case strings.Contains(model, "claude-opus-4-7"):
+		return true
+	case strings.Contains(model, "mythos"):
+		return true
+	default:
+		return false
+	}
+}
+
+func applyAnthropicExtensions(req *adapt.Request, out *MessageRequest, extensions unified.Extensions) {
+	values, warnings := unified.AnthropicExtensionsFrom(extensions)
+	for _, warning := range warnings {
+		key, _ := warning.Meta["key"].(string)
+		req.AddWarning(warning.Code, key, warning.Message)
+	}
+	out.Betas = append(out.Betas, values.Betas...)
+	if len(values.ContextManagement) != 0 {
+		out.ContextManagement = append(out.ContextManagement[:0], values.ContextManagement...)
+	}
 }
 
 func applyOpenRouterExtensions(req *adapt.Request, out *MessageRequest, extensions unified.Extensions) {

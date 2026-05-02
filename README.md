@@ -251,6 +251,7 @@ Routing targets provider endpoints, not just providers. This is why OpenRouter a
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md): JSON config, routes, modeldb, aliases, dynamic models, capabilities, pricing.
 - [docs/LIBRARY_USAGE.md](docs/LIBRARY_USAGE.md): Go client patterns.
 - [docs/PROVIDER_MATRIX.md](docs/PROVIDER_MATRIX.md): provider endpoint support and smoke coverage.
+- [docs/CLAUDE_CODE_WIRE_DIFF.md](docs/CLAUDE_CODE_WIRE_DIFF.md): observed Claude Code wire behavior and Claude-compatible provider parity gaps.
 - [docs/USE_CASE_MATRIX.md](docs/USE_CASE_MATRIX.md): workload compatibility status for agentic coding and summarization.
 - [docs/USE_CASE_COMPATIBILITY_PLAN.md](docs/USE_CASE_COMPATIBILITY_PLAN.md): execution plan for agentic-coding compatibility approval.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package architecture and request flow.

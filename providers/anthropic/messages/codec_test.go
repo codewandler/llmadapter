@@ -221,6 +221,72 @@ func TestCodecEncodeReasoningThinking(t *testing.T) {
 	}
 }
 
+func TestCodecEncodeAdaptiveEffortForSupportedModel(t *testing.T) {
+	maxTokens := 4096
+	temperature := 0.2
+	topK := 5
+	req := adapt.Request{Unified: unified.Request{
+		Model:           "claude-sonnet-4-6",
+		MaxOutputTokens: &maxTokens,
+		Temperature:     &temperature,
+		TopK:            &topK,
+		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortMax},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "think"}},
+		}},
+		Stream: true,
+	}}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.Thinking == nil || wire.Thinking.Type != "adaptive" || wire.Thinking.BudgetTokens != 0 {
+		t.Fatalf("unexpected thinking config: %+v", wire.Thinking)
+	}
+	if wire.OutputConfig == nil || wire.OutputConfig.Effort != "max" {
+		t.Fatalf("unexpected output_config: %+v", wire.OutputConfig)
+	}
+	if wire.Temperature == nil || *wire.Temperature != 0.2 || wire.TopK == nil || *wire.TopK != 5 {
+		t.Fatalf("adaptive effort should not coerce temperature/top_k: temp=%v top_k=%v", wire.Temperature, wire.TopK)
+	}
+	if len(req.Warnings) != 0 {
+		t.Fatalf("warnings = %+v", req.Warnings)
+	}
+}
+
+func TestCodecEncodeAnthropicExtensions(t *testing.T) {
+	maxTokens := 128
+	contextManagement := json.RawMessage(`{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}`)
+	req := adapt.Request{Unified: unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	}}
+	if err := unified.SetAnthropicExtensions(&req.Unified.Extensions, unified.AnthropicExtensions{
+		Betas:             []string{"beta-one"},
+		ContextManagement: contextManagement,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.Betas) != 1 || wire.Betas[0] != "beta-one" {
+		t.Fatalf("betas = %+v", wire.Betas)
+	}
+	if string(wire.ContextManagement) != string(contextManagement) {
+		t.Fatalf("context_management = %s", wire.ContextManagement)
+	}
+}
+
 func TestCodecOpenRouterExtensionWarnings(t *testing.T) {
 	maxTokens := 128
 	req := adapt.Request{

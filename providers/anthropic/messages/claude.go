@@ -16,11 +16,10 @@ import (
 )
 
 const (
-	claudeUserAgent       = "claude-cli/2.1.85 (external, sdk-cli)"
-	claudeBeta            = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24"
-	claudeBillingHeader   = "x-anthropic-billing-header: cc_version=2.1.85.613; cc_entrypoint=sdk-cli; cch=1757e;"
+	claudeUserAgent       = "claude-cli/2.1.112 (external, sdk-cli)"
+	claudeBillingHeader   = "x-anthropic-billing-header: cc_version=2.1.112.43b; cc_entrypoint=sdk-cli; cch=1757e;"
 	claudeSystemCore      = "You are a Claude agent, built on Anthropic's Claude Agent SDK."
-	claudeStainlessPkgVer = "0.74.0"
+	claudeStainlessPkgVer = "0.81.0"
 	claudeStainlessNode   = "v24.3.0"
 	claudeSystemCacheTTL  = "1h"
 )
@@ -73,28 +72,51 @@ func WithClaudeCode() Option {
 func WithClaudeHeaders() Option {
 	return optionFunc(func(c *Config) error {
 		c.QuotaProvider = "claude"
-		return WithHeaderFunc(func(ctx context.Context, req *http.Request) error {
-			q := req.URL.Query()
-			q.Set("beta", "true")
-			req.URL.RawQuery = q.Encode()
-
-			req.Header.Set("User-Agent", claudeUserAgent)
-			req.Header.Set("Anthropic-Beta", claudeBeta)
-			req.Header.Set("Anthropic-Dangerous-Direct-Browser-Access", "true")
-			req.Header.Set("X-App", "cli")
-			req.Header.Set("X-Stainless-Lang", "js")
-			req.Header.Set("X-Stainless-Os", claudeStainlessOS())
-			req.Header.Set("X-Stainless-Arch", claudeStainlessArch())
-			req.Header.Set("X-Stainless-Package-Version", claudeStainlessPkgVer)
-			req.Header.Set("X-Stainless-Retry-Count", "0")
-			req.Header.Set("X-Stainless-Runtime", "node")
-			req.Header.Set("X-Stainless-Runtime-Version", claudeStainlessNode)
-			req.Header.Set("X-Stainless-Timeout", "600")
-			req.Header.Set("Accept-Encoding", transport.ExtendedAcceptEncoding)
-			req.Header.Set("Connection", "keep-alive")
-			return nil
-		}).applyAnthropic(c)
+		c.ClaudeHeaders = true
+		return nil
 	})
+}
+
+func claudeHeadersFunc() HeaderFunc {
+	return func(ctx context.Context, req *http.Request) error {
+		q := req.URL.Query()
+		q.Set("beta", "true")
+		req.URL.RawQuery = q.Encode()
+
+		wireReq, _ := messageRequestFromContext(ctx)
+		betas := []string{
+			"claude-code-20250219",
+			"interleaved-thinking-2025-05-14",
+			"context-management-2025-06-27",
+			"prompt-caching-scope-2026-01-05",
+			"advisor-tool-2026-03-01",
+		}
+		if req.Header.Get("Authorization") != "" {
+			betas = append(betas, "oauth-2025-04-20")
+		}
+		if wireReq.OutputConfig != nil && wireReq.OutputConfig.Effort != "" {
+			betas = append(betas, "effort-2025-11-24")
+		}
+		mergeAnthropicBetaHeader(req.Header, betas)
+
+		req.Header.Set("User-Agent", claudeUserAgent)
+		req.Header.Set("Anthropic-Dangerous-Direct-Browser-Access", "true")
+		req.Header.Set("X-App", "cli")
+		if wireReq.ClaudeSessionID != "" {
+			req.Header.Set("X-Claude-Code-Session-Id", wireReq.ClaudeSessionID)
+		}
+		req.Header.Set("X-Stainless-Lang", "js")
+		req.Header.Set("X-Stainless-Os", claudeStainlessOS())
+		req.Header.Set("X-Stainless-Arch", claudeStainlessArch())
+		req.Header.Set("X-Stainless-Package-Version", claudeStainlessPkgVer)
+		req.Header.Set("X-Stainless-Retry-Count", "0")
+		req.Header.Set("X-Stainless-Runtime", "node")
+		req.Header.Set("X-Stainless-Runtime-Version", claudeStainlessNode)
+		req.Header.Set("X-Stainless-Timeout", "600")
+		req.Header.Set("Accept-Encoding", transport.ExtendedAcceptEncoding)
+		req.Header.Set("Connection", "keep-alive")
+		return nil
+	}
 }
 
 func WithClaudeCodePreflight() Option {
@@ -113,6 +135,7 @@ func NewClaudeCodePreflightProcessor() *ClaudeCodePreflightProcessor {
 }
 
 func (p *ClaudeCodePreflightProcessor) ProcessProviderRequest(ctx context.Context, req *MessageRequest) error {
+	req.ClaudeSessionID = p.sessionID
 	if req.System == nil {
 		req.System = &SystemContent{}
 	}
@@ -126,6 +149,9 @@ func (p *ClaudeCodePreflightProcessor) ProcessProviderRequest(ctx context.Contex
 			req.Metadata = make(map[string]any)
 		}
 		req.Metadata["user_id"] = userID
+	}
+	if req.Thinking != nil && len(req.ContextManagement) == 0 {
+		req.ContextManagement = json.RawMessage(`{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}`)
 	}
 	return nil
 }

@@ -194,6 +194,8 @@ req.Reasoning = &unified.ReasoningConfig{
 
 Reasoning support is provider/API-kind specific. Check [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md) before depending on it.
 
+`ReasoningEffortMax` is available for providers that expose a maximum reasoning-effort mode. Anthropic-family providers keep explicit `MaxTokens` as manual thinking-budget intent; known effort-capable Claude/Anthropic models use adaptive thinking plus provider `output_config.effort` when only `Effort` is set.
+
 ## Tools
 
 Declare function tools:
@@ -297,6 +299,19 @@ Typed helpers exist for mature extension groups:
 - `unified.CodexExtensions`
 
 Use namespaced extensions instead of adding provider-specific fields to `unified.Request`.
+
+Anthropic extensions currently support beta header values and raw `context_management` request data:
+
+```go
+err := unified.SetAnthropicExtensions(&req.Extensions, unified.AnthropicExtensions{
+	Betas: []string{"example-beta-2026-01-01"},
+	ContextManagement: json.RawMessage(`{
+		"edits": [
+			{"type": "clear_thinking_20251015", "keep": "all"}
+		]
+	}`),
+})
+```
 
 ## Usage And Cost
 

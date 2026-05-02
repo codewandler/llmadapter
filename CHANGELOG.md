@@ -10,6 +10,21 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.17] - 2026-05-02
+
+### Added
+
+- Added `llmadapter proxy` for redacted provider HTTP header/body inspection, including `--analyze claude -- <args>` to run the Claude CLI through a temporary Anthropic upstream proxy and log streamed SSE/NDJSON messages.
+- Added `ReasoningEffortMax` plus Anthropic-family `context_management` extension passthrough.
+- Added Claude-compatible adaptive thinking / `output_config.effort` encoding for known effort-capable Anthropic models, while preserving manual budget thinking for legacy or explicitly budgeted requests.
+- Added non-lossy Anthropic wire fields for adaptive effort, context management, stop details, nested cache creation usage, service tier, inference geo, usage iterations, and server-tool usage.
+
+### Changed
+
+- Claude-compatible headers now use Claude Code `2.1.112` / Stainless `0.81.0` values, compose beta headers from auth and request shape, include `advisor-tool-2026-03-01`, and send `X-Claude-Code-Session-Id` when Claude preflight metadata is enabled.
+- Claude Code preflight now adds the observed `clear_thinking_20251015` context-management edit for thinking requests unless the request already supplied Anthropic context management.
+- Anthropic stream decoding now preserves unknown SSE events and unknown content-block deltas as raw provider events instead of failing the stream.
+
 ## [1.0.0-rc.16] - 2026-05-02
 
 ### Added

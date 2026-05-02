@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/internal/citations"
 	"github.com/codewandler/llmadapter/unified"
 )
@@ -48,6 +49,8 @@ func (d *EventDecoder) Push(ctx context.Context, ev Event) ([]unified.Event, err
 		return nil, nil
 	case ErrorEventWire:
 		return []unified.Event{unified.ErrorEvent{Err: &unified.APIError{Type: e.Error.Type, Message: e.Error.Message, ProviderRaw: providerRawJSON(e)}}}, nil
+	case RawEventWire:
+		return []unified.Event{unified.RawEvent{APIKind: string(d.apiKind()), Type: e.Type, JSON: e.Raw, Value: e}}, nil
 	default:
 		return nil, fmt.Errorf("unsupported anthropic event %T", ev)
 	}
@@ -106,7 +109,7 @@ func (d *EventDecoder) contentBlockDelta(e ContentBlockDeltaEvent) ([]unified.Ev
 	case "signature_delta":
 		return []unified.Event{unified.ReasoningDeltaEvent{Index: e.Index, Signature: e.Delta.Signature}}, nil
 	default:
-		return nil, fmt.Errorf("unsupported Anthropic content block delta type %q", e.Delta.Type)
+		return []unified.Event{unified.RawEvent{APIKind: string(d.apiKind()), Type: e.Delta.Type, JSON: providerRawJSON(e), Value: e}}, nil
 	}
 }
 
@@ -132,6 +135,10 @@ func (d *EventDecoder) contentBlockStop(e ContentBlockStopEvent) []unified.Event
 	default:
 		return []unified.Event{unified.ContentBlockDoneEvent{Index: e.Index, Kind: unified.ContentKindText}}
 	}
+}
+
+func (d *EventDecoder) apiKind() adapt.ApiKind {
+	return adapt.ApiAnthropicMessages
 }
 
 func (d *EventDecoder) messageDelta(e MessageDeltaEvent) []unified.Event {

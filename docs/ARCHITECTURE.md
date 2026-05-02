@@ -344,7 +344,7 @@ Keep extension data namespaced, but add typed helper structs and validation for 
 - OpenRouter provider/routing/plugin/debug controls. Initial typed raw helpers are implemented through `unified.OpenRouterExtensions`.
 - OpenAI Responses continuation/cache controls. Initial typed helpers are implemented through `unified.OpenAIResponsesExtensions`.
 - Codex-specific session/window/turn controls. Initial typed helpers are implemented through `unified.CodexExtensions`.
-- Anthropic-family beta/thinking/cache controls. Initial beta helpers are implemented through `unified.AnthropicExtensions`.
+- Anthropic-family beta/context-management controls. Typed beta and raw context-management helpers are implemented through `unified.AnthropicExtensions`; known effort-capable Anthropic models map canonical effort into adaptive thinking plus provider `output_config.effort`.
 
 Typed extension readers now validate mature extension groups and return `invalid_extension_dropped` warnings for invalid values. Focused semantic checks cover OpenAI Responses cache retention, OpenRouter routing/provider/plugin/session controls, Anthropic beta header values, and Codex turn metadata. Provider encoders preserve valid extensions and drop invalid controls instead of silently sending malformed provider-specific fields.
 
