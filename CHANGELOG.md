@@ -10,6 +10,11 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added a public `diagnostics` package for redacted HTTP/SSE and WebSocket transport diagnostics outside the CLI.
+- Added troubleshooting documentation for WebSocket close, context-window, and session-recovery trace collection.
+
 ## [1.0.0-rc.18] - 2026-05-02
 
 ### Added

@@ -48,6 +48,7 @@ Stateful conversation/session logic belongs above `unified.Client`, for example 
 - **CLI inference:** run `llmadapter infer` to inspect route resolution, stream reasoning/text, and print usage.
 - **Continuation diagnostics:** route events and CLI output expose the public continuation contract consumers must follow, plus diagnostic provider transport/internal-continuation details for observability.
 - **Provider diagnostics:** run `providers`, `routes`, `models`, `resolve`, and `smoke` to understand exactly what will happen.
+- **Transport troubleshooting:** use `infer --debug` or the `diagnostics` package to inspect redacted HTTP/SSE and WebSocket request, response, and stream frames.
 - **Provider extension:** add a provider endpoint with explicit API kind/family and shared smoke coverage.
 
 ## Supported Provider Endpoints
@@ -72,6 +73,7 @@ Supported downstream gateway endpoints:
 - `/v1/messages`
 
 See [docs/PROVIDER_MATRIX.md](docs/PROVIDER_MATRIX.md) for feature coverage, credential triggers, smoke-test status, and known provider-specific limits.
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for WebSocket close, context-window, and transport-mode debugging.
 
 ## Quick Start
 

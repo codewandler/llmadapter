@@ -283,6 +283,26 @@ The mode is three-state plus default:
 - `WebSocketModeEnabled`: force WebSocket when possible.
 - `WebSocketModeDisabled`: force HTTP/SSE.
 
+## Redacted Transport Diagnostics
+
+Library consumers can use the `diagnostics` package to inspect provider HTTP/SSE and WebSocket traffic without using the CLI:
+
+```go
+scopes, err := diagnostics.ParseScopes([]string{"request,response,stream"})
+if err != nil {
+	return err
+}
+
+client, err := adapterconfig.NewMuxClient(
+	cfg,
+	adapterconfig.WithSourceAPI(adapt.ApiOpenAIResponses),
+	adapterconfig.WithProviderTransport(diagnostics.NewHTTPTransport(os.Stderr, scopes)),
+	adapterconfig.WithProviderWebSocketTransport(diagnostics.NewWebSocketTransport(os.Stderr, scopes)),
+)
+```
+
+The diagnostics transport redacts known sensitive headers and JSON keys, writes to the supplied writer, and preserves the normal `unified.Client` event stream. It is observational only; it does not change `ConsumerContinuation` or retry semantics.
+
 Direct Codex clients can use the same mode type through `codex.WithWebSocketMode(...)` or keep the compatibility shortcut `codex.WithWebSocketEnabled(false)`. JSON config and auto mux currently use provider defaults because WebSocket is an internal provider optimization, not a route-selection feature. `openrouter_responses` does not opt into OpenAI Responses WebSocket mode.
 
 The default OpenAI Responses WebSocket transport enables compression and forces IPv4. Use `responses.WithWebSocketTransport(...)` or `codex.WithWebSocketTransport(...)` to override that in tests or specialized environments.

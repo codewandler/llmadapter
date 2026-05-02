@@ -14,6 +14,7 @@ import (
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/adapterconfig"
 	"github.com/codewandler/llmadapter/compatibility"
+	"github.com/codewandler/llmadapter/diagnostics"
 	"github.com/codewandler/llmadapter/unified"
 	"github.com/codewandler/modeldb"
 )
@@ -538,7 +539,7 @@ func TestRunInferRequestStreamsReasoningTextAndUsage(t *testing.T) {
 		}, unified.CostItems{{Kind: unified.CostKindOutput, Amount: 0.0012}}),
 	}}
 	var out bytes.Buffer
-	err := runInferRequest(context.Background(), &out, io.Discard, &client, "gpt-test", "hello", inferParams{maxTokens: 16, thinking: "on", timeout: time.Second}, inferDebugScopes{})
+	err := runInferRequest(context.Background(), &out, io.Discard, &client, "gpt-test", "hello", inferParams{maxTokens: 16, thinking: "on", timeout: time.Second}, diagnostics.Scopes{})
 	if err != nil {
 		t.Fatal(err)
 	}

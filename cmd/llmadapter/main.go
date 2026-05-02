@@ -16,6 +16,7 @@ import (
 	"github.com/codewandler/llmadapter/adapterconfig"
 	"github.com/codewandler/llmadapter/compatibility"
 	"github.com/codewandler/llmadapter/conformance"
+	"github.com/codewandler/llmadapter/diagnostics"
 	"github.com/codewandler/llmadapter/gatewayserver"
 	"github.com/codewandler/llmadapter/muxclient"
 	"github.com/codewandler/llmadapter/providerregistry"
@@ -607,7 +608,7 @@ func newInferCommand() *cobra.Command {
 
 func normalizeInferArgs(params *inferParams, args []string) ([]string, error) {
 	if len(args) > 1 && len(params.debugScopes) == 1 && params.debugScopes[0] == "all" {
-		if _, err := parseInferDebugScopes([]string{args[0]}); err == nil {
+		if _, err := diagnostics.ParseScopes([]string{args[0]}); err == nil {
 			params.debugScopes = []string{args[0]}
 			args = args[1:]
 		}
@@ -1483,7 +1484,7 @@ func runSmokeRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 func runInferCommand(ctx context.Context, w io.Writer, debugw io.Writer, params inferParams, prompt string) error {
 	sourceAPI := adapt.ApiKind(params.sourceAPI)
 	model := params.model
-	debugScopes, err := parseInferDebugScopes(params.debugScopes)
+	debugScopes, err := diagnostics.ParseScopes(params.debugScopes)
 	if err != nil {
 		return err
 	}
@@ -1502,9 +1503,9 @@ func runInferCommand(ctx context.Context, w io.Writer, debugw io.Writer, params 
 		return err
 	}
 	muxOptions := []adapterconfig.MuxClientOption{adapterconfig.WithSourceAPI(resolution.SourceAPI)}
-	if debugScopes.httpEnabled() {
-		muxOptions = append(muxOptions, adapterconfig.WithProviderTransport(newInferDebugTransport(debugw, debugScopes)))
-		muxOptions = append(muxOptions, adapterconfig.WithProviderWebSocketTransport(newInferDebugWebSocketTransport(debugw, debugScopes)))
+	if debugScopes.TransportEnabled() {
+		muxOptions = append(muxOptions, adapterconfig.WithProviderTransport(diagnostics.NewHTTPTransport(debugw, debugScopes)))
+		muxOptions = append(muxOptions, adapterconfig.WithProviderWebSocketTransport(diagnostics.NewWebSocketTransport(debugw, debugScopes)))
 	}
 	client, err := adapterconfig.NewMuxClient(cfg, muxOptions...)
 	if err != nil {
@@ -1559,7 +1560,7 @@ func resolveInferModel(cfg adapterconfig.Config, model string, sourceAPI adapt.A
 	return resolutions[0], nil
 }
 
-func runInferRequest(ctx context.Context, w io.Writer, debugw io.Writer, client unified.Client, model, prompt string, params inferParams, debugScopes inferDebugScopes) error {
+func runInferRequest(ctx context.Context, w io.Writer, debugw io.Writer, client unified.Client, model, prompt string, params inferParams, debugScopes diagnostics.Scopes) error {
 	ctx, cancel := context.WithTimeout(ctx, params.timeout)
 	defer cancel()
 	req, err := inferRequest(model, prompt, params)
@@ -1579,19 +1580,19 @@ func runInferRequest(ctx context.Context, w io.Writer, debugw io.Writer, client 
 		routeEvent  *unified.RouteEvent
 	)
 	for ev := range events {
-		if debugScopes.events {
-			writeInferDebugEvent(debugw, ev)
+		if debugScopes.Events {
+			diagnostics.WriteEvent(debugw, ev)
 		}
 		switch e := ev.(type) {
 		case unified.RouteEvent:
-			if debugScopes.enabled {
-				writeInferDebugMode(debugw, "route", e.Transport, e.InternalContinuation)
+			if debugScopes.Enabled {
+				diagnostics.WriteMode(debugw, "route", e.Transport, e.InternalContinuation)
 			}
 			copy := e
 			routeEvent = &copy
 		case unified.ProviderExecutionEvent:
-			if debugScopes.enabled {
-				writeInferDebugMode(debugw, "provider", e.Transport, e.InternalContinuation)
+			if debugScopes.Enabled {
+				diagnostics.WriteMode(debugw, "provider", e.Transport, e.InternalContinuation)
 			}
 			if routeEvent == nil {
 				routeEvent = &unified.RouteEvent{}

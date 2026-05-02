@@ -77,6 +77,7 @@ CLI slice: `cmd/llmadapter` is Cobra-based and can list provider endpoint types,
 CLI inference slice: `llmadapter infer <message>` sends a prompt through the shared config/auto mux path, prints resolved route/model metadata first, streams reasoning/text deltas, and prints usage/cost data when providers report it
 CLI proxy diagnostics slice: `llmadapter proxy` can run a redacted reverse proxy for provider HTTP diagnostics, and `proxy --analyze claude -- <args>` starts a temporary Anthropic upstream proxy, points the Claude CLI at it through base-url environment variables, and logs request/response headers plus JSON/SSE/NDJSON bodies
 CLI infer debug slice: `llmadapter infer --debug[=request,response,stream,events]` can install redacting provider transports for HTTP/SSE and WebSocket request, response, and stream diagnostics on stderr, while also logging observed transport mode and optionally logging unified events without changing normal stdout output
+Library diagnostics slice: public `diagnostics` helpers expose the same redacted HTTP/SSE and WebSocket transport logging used by `llmadapter infer --debug`, and docs/TROUBLESHOOTING.md records trace recipes for WebSocket close, context-window, and session-recovery investigations
 Container slice: Dockerfile builds a standalone `llmadapter` image that runs `llmadapter serve`
 Auto mux slice: `adapterconfig.AutoMuxClient` can construct a stateless mux client from detected env credentials and local Claude Code OAuth credentials, with default modeldb service tags when enabled and optional source API presetting
 Auto mux modeldb intent slice: when `UseModelDB` is enabled, auto intents and aliases choose a provider whose catalog service can resolve the requested model alias; unresolved intents do not fall back to provider defaults. Service-qualified names such as `openai/gpt-5.5` and `codex/gpt-5.4` constrain resolution to that service before mapping to the offering wire model.
@@ -188,6 +189,10 @@ env GOCACHE=/tmp/go-cache go test ./cmd/llmadapter ./adapterconfig ./providerreg
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug response --config /tmp/llmadapter-openai-smoke.json --source-api openai.responses --model openai-smoke --max-tokens 16 --no-cache "Reply exactly: debug ok"
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug response --config /tmp/llmadapter-claude-smoke.json --source-api anthropic.messages --model claude-smoke --max-tokens 16 --no-cache "Reply exactly: debug ok"
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug response --config /tmp/llmadapter-codex-smoke.json --source-api openai.responses --model codex-smoke --session debug-ws-smoke-2 --branch main --max-tokens 16 --no-cache "Reply exactly: ws ok"
+env GOCACHE=/tmp/go-cache go test ./diagnostics ./cmd/llmadapter ./adapterconfig ./providerregistry ./muxclient
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug request,response,stream --config /tmp/llmadapter-codex-smoke.json --source-api openai.responses --model codex-smoke --session debug-trace-followup --branch main --max-tokens 16 --no-cache "Reply exactly: trace ok"
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug request,response,stream --config /tmp/llmadapter-claude-smoke.json --source-api anthropic.messages --model claude-smoke --max-tokens 16 --no-cache "Reply exactly: trace ok"
+env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug request,response --config /tmp/llmadapter-codex-smoke.json --source-api openai.responses --model codex-smoke --session debug-redaction-check --branch main --max-tokens 8 --no-cache "Reply: ok"
 ```
 
 Implemented package surface:

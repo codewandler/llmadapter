@@ -13,6 +13,7 @@ These packages are the primary v1 surface for library consumers:
 - `providerregistry`: provider endpoint descriptors and descriptor-backed client construction.
 - `gatewayserver`: shared HTTP server wiring used by `llmadapter serve` and `cmd/llmadapter-gateway`.
 - `compatibility`: workload profile definitions and candidate evaluation for use cases such as agentic coding.
+- `diagnostics`: redacted provider transport diagnostics for library consumers that need HTTP/SSE or WebSocket request, response, stream, event, and transport-mode logging.
 
 ## Extension Packages
 

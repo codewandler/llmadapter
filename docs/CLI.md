@@ -264,6 +264,8 @@ go run ./cmd/llmadapter infer --debug events -m codex/gpt-5.4 "hello"
 
 `--debug` writes diagnostics to stderr so normal streamed output remains on stdout. With no value it enables all scopes. Scope values can be comma-separated or repeated: `request` logs outbound HTTP/SSE or WebSocket request method, URL, redacted headers, request body, and initial WebSocket frame; `response` logs inbound redacted HTTP/SSE response or WebSocket handshake headers plus non-2xx error bodies; `stream` logs raw provider HTTP/SSE or WebSocket frames after transport framing; `events` logs unified events emitted by llmadapter. Debug mode also prints the observed route/provider transport mode, such as `http_sse` or `websocket`. Sensitive header and JSON keys such as authorization, API keys, cookies, session IDs, account IDs, and project IDs are redacted.
 
+See `docs/TROUBLESHOOTING.md` for WebSocket close, context-window, and session-recovery trace recipes.
+
 ## proxy
 
 Run a local reverse proxy and inspect redacted request/response headers plus JSON or SSE/NDJSON body content:
