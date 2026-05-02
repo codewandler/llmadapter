@@ -19,6 +19,7 @@ match these entries as the project starts publishing releases.
 ### Added
 
 - Added Anthropic-family JSON-schema response-format encoding through `output_config.format` when resolved model metadata confirms that the selected endpoint supports it.
+- Added metadata-gated Anthropic-family top-level `cache_control` encoding and an OpenRouter Messages structured-output live smoke.
 
 ## [1.0.0-rc.21] - 2026-05-02
 

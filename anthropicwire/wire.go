@@ -18,6 +18,7 @@ type MessageRequest struct {
 	Stream              bool             `json:"stream,omitempty"`
 	Thinking            *ThinkingConfig  `json:"thinking,omitempty"`
 	OutputConfig        *OutputConfig    `json:"output_config,omitempty"`
+	CacheControl        *CacheControl    `json:"cache_control,omitempty"`
 	ContextManagement   json.RawMessage  `json:"context_management,omitempty"`
 	Tools               []ToolDefinition `json:"tools,omitempty"`
 	ToolChoice          *ToolChoiceWire  `json:"tool_choice,omitempty"`

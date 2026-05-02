@@ -185,6 +185,43 @@ func TestCodecEncodeCachePolicy(t *testing.T) {
 	}
 }
 
+func TestCodecEncodeTopLevelCacheControlWhenModelMetadataSupportsIt(t *testing.T) {
+	maxTokens := 128
+	ureq := unified.Request{
+		Model:           "anthropic/claude-sonnet-4.6",
+		MaxOutputTokens: &maxTokens,
+		CachePolicy:     unified.CachePolicyOn,
+		CacheTTL:        "1h",
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	}
+	if err := unified.SetResolvedModelMetadata(&ureq.Extensions, unified.ResolvedModelMetadata{
+		ServiceID:   "openrouter",
+		WireModelID: "anthropic/claude-sonnet-4.6",
+		APIType:     "anthropic-messages",
+		ParameterMappings: map[string]string{
+			"top_level_cache_control": "cache_control",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	req := adapt.Request{Unified: ureq}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.CacheControl == nil || wire.CacheControl.Type != "ephemeral" || wire.CacheControl.TTL != "1h" {
+		t.Fatalf("cache_control = %+v", wire.CacheControl)
+	}
+	if got := wire.Messages[0].Content[0].Cache; got == nil || got.Type != "ephemeral" || got.TTL != "1h" {
+		t.Fatalf("message cache_control = %+v", got)
+	}
+}
+
 func TestCodecEncodeReasoningThinking(t *testing.T) {
 	maxTokens := 4096
 	temperature := 0.2

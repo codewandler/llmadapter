@@ -104,6 +104,9 @@ func applyCachePolicy(out *MessageRequest, req unified.Request) {
 	if cache == nil {
 		return
 	}
+	if anthropicTopLevelCacheControlSupported(req) {
+		out.CacheControl = cache
+	}
 	if out.System != nil {
 		out.System.ApplyCacheToLastText(cache)
 	}
@@ -131,6 +134,14 @@ func applyCacheToLastMessageBlock(messages []InputMessage, cache *CacheControl) 
 		return true
 	}
 	return false
+}
+
+func anthropicTopLevelCacheControlSupported(req unified.Request) bool {
+	meta, ok, err := unified.ResolvedModelMetadataFrom(req.Extensions)
+	if err != nil || !ok {
+		return false
+	}
+	return meta.ParameterMappings["top_level_cache_control"] == "cache_control"
 }
 
 func cacheControlForPolicy(req unified.Request) *CacheControl {

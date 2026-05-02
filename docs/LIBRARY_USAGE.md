@@ -264,6 +264,8 @@ req.CacheKey = "session-123"
 req.CacheTTL = "1h"
 ```
 
+For Anthropic-family endpoints, modeldb-confirmed top-level cache controls encode as request `cache_control`; block-level hints still encode on system/message/tool content where supported.
+
 Explicit block cache boundary:
 
 ```go

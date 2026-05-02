@@ -422,6 +422,54 @@ func TestSmokePromptCache(t *testing.T) {
 	}
 }
 
+func TestSmokeOpenRouterMessagesStructuredOutput(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+	apiKey := firstSetEnv("OPENROUTER_API_KEY", "OPENROUTER_KEY")
+	if apiKey == "" {
+		t.Skip("set OPENROUTER_API_KEY or OPENROUTER_KEY to run OpenRouter Messages structured-output smoke test")
+	}
+	model := os.Getenv("OPENROUTER_MESSAGES_STRUCTURED_MODEL")
+	if model == "" {
+		model = "anthropic/claude-sonnet-4.6"
+	}
+	client, err := openroutermessages.NewClient(openroutermessages.WithAPIKey(apiKey))
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer cancel()
+	maxTokens := 128
+	resp, err := collectSmokeResponse(ctx, client, unified.Request{
+		Model:           model,
+		MaxOutputTokens: &maxTokens,
+		ResponseFormat: &unified.ResponseFormat{
+			Kind:   unified.ResponseFormatJSONSchema,
+			Name:   "openrouter_messages_structured",
+			Strict: true,
+			Schema: json.RawMessage(`{"type":"object","properties":{"marker":{"type":"string"}},"required":["marker"],"additionalProperties":false}`),
+		},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: `Return {"marker":"openrouter messages structured ok"} and no other keys.`}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatalf("structured request: %v", err)
+	}
+	var got struct {
+		Marker string `json:"marker"`
+	}
+	if err := json.Unmarshal([]byte(responseText(resp)), &got); err != nil {
+		t.Fatalf("structured response is not JSON object: text=%q err=%v", responseText(resp), err)
+	}
+	if got.Marker != "openrouter messages structured ok" {
+		t.Fatalf("structured marker = %q response=%+v", got.Marker, resp)
+	}
+}
+
 func TestSmokeResponsesContinuation(t *testing.T) {
 	if os.Getenv("TEST_INTEGRATION") == "" {
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")

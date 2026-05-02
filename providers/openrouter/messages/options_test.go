@@ -171,6 +171,8 @@ data: {"type":"message_stop"}`),
 	events, err := client.Request(context.Background(), unified.Request{
 		Model:           "anthropic/claude-sonnet-4.6",
 		MaxOutputTokens: &maxTokens,
+		CachePolicy:     unified.CachePolicyOn,
+		CacheTTL:        "1h",
 		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh},
 		ResponseFormat: &unified.ResponseFormat{
 			Kind:   unified.ResponseFormatJSONSchema,
@@ -195,6 +197,10 @@ data: {"type":"message_stop"}`),
 		t.Fatal(err)
 	}
 	var wire struct {
+		CacheControl *struct {
+			Type string `json:"type"`
+			TTL  string `json:"ttl"`
+		} `json:"cache_control"`
 		Thinking     *struct{ Type string } `json:"thinking"`
 		OutputConfig *struct {
 			Effort string          `json:"effort"`
@@ -206,6 +212,9 @@ data: {"type":"message_stop"}`),
 	}
 	if wire.Thinking == nil || wire.Thinking.Type != "adaptive" {
 		t.Fatalf("thinking = %+v body=%s", wire.Thinking, body)
+	}
+	if wire.CacheControl == nil || wire.CacheControl.Type != "ephemeral" || wire.CacheControl.TTL != "1h" {
+		t.Fatalf("cache_control = %+v body=%s", wire.CacheControl, body)
 	}
 	if wire.OutputConfig == nil || wire.OutputConfig.Effort != "high" {
 		t.Fatalf("output_config = %+v body=%s", wire.OutputConfig, body)
