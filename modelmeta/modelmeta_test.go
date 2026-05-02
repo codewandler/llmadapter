@@ -1,6 +1,7 @@
 package modelmeta
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
@@ -155,13 +156,26 @@ func TestBuiltInMiniMaxAnthropicMessagesMetadata(t *testing.T) {
 	}
 }
 
-func TestBuiltInOpenRouterAnthropicMessagesMetadataGap(t *testing.T) {
+func TestBuiltInOpenRouterAnthropicMessagesMetadata(t *testing.T) {
 	catalog, err := modeldb.LoadBuiltIn()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := ResolvedMetadata(catalog, "openrouter", "anthropic/claude-sonnet-4.6", adapt.FamilyAnthropicMessages); ok {
-		t.Fatal("OpenRouter should not expose Anthropic Messages metadata until modeldb records that API surface")
+	got, ok := ResolvedMetadata(catalog, "openrouter", "anthropic/claude-sonnet-4.6", adapt.FamilyAnthropicMessages)
+	if !ok {
+		t.Fatal("expected OpenRouter Anthropic Messages metadata")
+	}
+	if got.ParameterMappings[string(modeldb.ParamReasoningEffort)] != "output_config.effort" {
+		t.Fatalf("reasoning effort mapping = %+v", got.ParameterMappings)
+	}
+	if got.ParameterMappings[string(modeldb.ParamResponseFormat)] != "output_config.format" {
+		t.Fatalf("response format mapping = %+v", got.ParameterMappings)
+	}
+	if got.ParameterMappings[string(modeldb.ParamTopLevelCacheControl)] != "cache_control" {
+		t.Fatalf("cache control mapping = %+v", got.ParameterMappings)
+	}
+	if !slices.Contains(got.ReasoningEfforts, string(modeldb.ReasoningEffortXHigh)) {
+		t.Fatalf("reasoning efforts = %+v", got.ReasoningEfforts)
 	}
 }
 

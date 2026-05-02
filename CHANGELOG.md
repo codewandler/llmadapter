@@ -13,6 +13,12 @@ match these entries as the project starts publishing releases.
 ### Changed
 
 - MiniMax Messages direct clients now attach MiniMax-native built-in modeldb metadata for Anthropic-compatible requests without enabling Anthropic-native Claude metadata.
+- OpenRouter Messages direct clients now attach OpenRouter-native Anthropic Messages modeldb metadata, enabling modeldb-backed adaptive effort and structured-output request shaping for OpenRouter `anthropic/...` models.
+- Updated modeldb to v0.14.3 for completed OpenRouter `anthropic-messages` metadata, including top-level cache-control and `output_config.format` structured-output mappings.
+
+### Added
+
+- Added Anthropic-family JSON-schema response-format encoding through `output_config.format` when resolved model metadata confirms that the selected endpoint supports it.
 
 ## [1.0.0-rc.21] - 2026-05-02
 

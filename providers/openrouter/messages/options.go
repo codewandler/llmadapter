@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/codewandler/llmadapter/adapt"
+	"github.com/codewandler/llmadapter/modelmeta"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
@@ -36,6 +37,7 @@ func NewClient(opts ...Option) (unified.Client, error) {
 		anthropic.WithBaseURL(cfg.baseURL),
 		anthropic.WithHeader("Authorization", "Bearer "+cfg.apiKey),
 		anthropic.WithoutBuiltInModelMetadata(),
+		anthropic.WithRequestProcessor(modelmeta.BuiltInRequestMetadataProcessor("openrouter", adapt.FamilyAnthropicMessages)),
 		anthropic.WithRequestProcessor(requestProcessorFunc(func(ctx context.Context, req *adapt.Request) error {
 			req.SourceAPI = adapt.ApiOpenRouterAnthropicMessages
 			req.Unified.Stream = true

@@ -333,7 +333,7 @@ func TestAutoMuxClientAutoSourceOpenRouterAliasUsesCatalogEndpoint(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if selected.SourceAPI != adapt.ApiOpenAIResponses || selected.ProviderName != "openrouter_responses" || selected.TargetAPI != adapt.ApiOpenRouterResponses {
+	if selected.SourceAPI != adapt.ApiAnthropicMessages || selected.ProviderName != "openrouter_messages" || selected.TargetAPI != adapt.ApiOpenRouterAnthropicMessages {
 		t.Fatalf("unexpected auto-source OpenRouter route: %+v", selected)
 	}
 }

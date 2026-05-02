@@ -28,9 +28,6 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 	if err := unsupported(req, "seed", ureq.Seed != nil); err != nil {
 		return MessageRequest{}, err
 	}
-	if err := unsupported(req, "response_format", ureq.ResponseFormat != nil); err != nil {
-		return MessageRequest{}, err
-	}
 
 	out := MessageRequest{
 		Model:         ureq.Model,
@@ -42,6 +39,9 @@ func (Codec) EncodeRequest(ctx context.Context, req *adapt.Request) (MessageRequ
 		Stream:        ureq.Stream,
 	}
 	if err := applyReasoning(req, &out); err != nil {
+		return MessageRequest{}, err
+	}
+	if err := applyResponseFormat(req, &out); err != nil {
 		return MessageRequest{}, err
 	}
 	applyAnthropicExtensions(req, &out, ureq.Extensions)
@@ -180,6 +180,61 @@ func applyReasoning(req *adapt.Request, out *MessageRequest) error {
 	}
 	out.Thinking = &ThinkingConfig{Type: "enabled", BudgetTokens: budget}
 	return nil
+}
+
+func applyResponseFormat(req *adapt.Request, out *MessageRequest) error {
+	format := req.Unified.ResponseFormat
+	if format == nil || format.Kind == "" || format.Kind == unified.ResponseFormatText {
+		return nil
+	}
+	if !anthropicResponseFormatSupported(req.Unified) {
+		return unsupported(req, "response_format", true)
+	}
+	wire, err := encodeAnthropicOutputFormat(*format)
+	if err != nil {
+		return err
+	}
+	if out.OutputConfig == nil {
+		out.OutputConfig = &OutputConfig{}
+	}
+	out.OutputConfig.Format = wire
+	return nil
+}
+
+func anthropicResponseFormatSupported(req unified.Request) bool {
+	meta, ok, err := unified.ResolvedModelMetadataFrom(req.Extensions)
+	if err != nil || !ok {
+		return false
+	}
+	return meta.ParameterMappings["response_format"] == "output_config.format"
+}
+
+func encodeAnthropicOutputFormat(format unified.ResponseFormat) (json.RawMessage, error) {
+	switch format.Kind {
+	case unified.ResponseFormatJSONSchema:
+		if len(format.Schema) == 0 {
+			return nil, &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "response_format.schema", Reason: "Anthropic output_config.format requires a JSON schema"}
+		}
+		wire := map[string]any{
+			"type":   "json_schema",
+			"schema": json.RawMessage(format.Schema),
+		}
+		if format.Name != "" {
+			wire["name"] = format.Name
+		}
+		if format.Strict {
+			wire["strict"] = true
+		}
+		b, err := json.Marshal(wire)
+		if err != nil {
+			return nil, err
+		}
+		return b, nil
+	case unified.ResponseFormatJSON:
+		return nil, &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "response_format", Reason: "Anthropic output_config.format support is currently limited to json_schema"}
+	default:
+		return nil, &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "response_format", Reason: fmt.Sprintf("unsupported response format kind %q", format.Kind)}
+	}
 }
 
 func thinkingBudget(reasoning unified.ReasoningConfig, maxTokens int) int {

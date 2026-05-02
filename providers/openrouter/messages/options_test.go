@@ -155,3 +155,66 @@ data: {"type":"message_stop"}`),
 		t.Fatalf("openrouter wrapper should not attach Anthropic-native xhigh metadata: body=%s", body)
 	}
 }
+
+func TestNewClientAttachesOpenRouterMessagesModelMetadata(t *testing.T) {
+	fake := &transport.FakeByteStreamTransport{Frames: [][]byte{
+		[]byte(`event: message_start
+data: {"type":"message_start","message":{"id":"msg","type":"message","role":"assistant","model":"anthropic/claude-sonnet-4.6","content":[]}}`),
+		[]byte(`event: message_stop
+data: {"type":"message_stop"}`),
+	}}
+	client, err := NewClient(WithAPIKey("key"), WithTransport(fake))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 4096
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "anthropic/claude-sonnet-4.6",
+		MaxOutputTokens: &maxTokens,
+		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh},
+		ResponseFormat: &unified.ResponseFormat{
+			Kind:   unified.ResponseFormatJSONSchema,
+			Name:   "answer",
+			Strict: true,
+			Schema: json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"],"additionalProperties":false}`),
+		},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unified.Collect(context.Background(), events); err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(fake.Seen[0].Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire struct {
+		Thinking     *struct{ Type string } `json:"thinking"`
+		OutputConfig *struct {
+			Effort string          `json:"effort"`
+			Format json.RawMessage `json:"format"`
+		} `json:"output_config"`
+	}
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire.Thinking == nil || wire.Thinking.Type != "adaptive" {
+		t.Fatalf("thinking = %+v body=%s", wire.Thinking, body)
+	}
+	if wire.OutputConfig == nil || wire.OutputConfig.Effort != "high" {
+		t.Fatalf("output_config = %+v body=%s", wire.OutputConfig, body)
+	}
+	var format map[string]any
+	if err := json.Unmarshal(wire.OutputConfig.Format, &format); err != nil {
+		t.Fatal(err)
+	}
+	if format["type"] != "json_schema" || format["name"] != "answer" || format["strict"] != true {
+		t.Fatalf("format = %+v body=%s", format, body)
+	}
+}
