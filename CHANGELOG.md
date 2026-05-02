@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.22] - 2026-05-02
+
 ### Changed
 
 - MiniMax Messages direct clients now attach MiniMax-native built-in modeldb metadata for Anthropic-compatible requests without enabling Anthropic-native Claude metadata.
