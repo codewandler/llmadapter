@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.23] - 2026-05-02
+
+### Added
+
+- Added metadata-gated Anthropic-family schema-free JSON response-format encoding by lowering unified JSON-object mode to a minimal provider `json_schema` object.
+
 ## [1.0.0-rc.22] - 2026-05-02
 
 ### Changed

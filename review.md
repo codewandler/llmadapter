@@ -15,7 +15,7 @@ No release-blocking findings remain in this pass.
 - `unified.AssistantMessageFromResponse` now gives consumers a safe stateless tool-loop replay helper that preserves assistant content/reasoning plus tool calls.
 - MiniMax Messages direct clients now attach MiniMax-native built-in model metadata while still rejecting Anthropic-native metadata for Claude IDs.
 - OpenRouter Messages direct clients now attach OpenRouter-native Anthropic Messages modeldb metadata for `anthropic/...` offerings without enabling Anthropic-native Claude metadata for wrapper services.
-- Anthropic-family JSON-schema response formats now encode through `output_config.format` only when resolved modeldb metadata confirms that mapping.
+- Anthropic-family JSON-schema and JSON-object response formats now encode through `output_config.format` only when resolved modeldb metadata confirms that mapping.
 - Anthropic-family top-level `cache_control` now encodes only when resolved modeldb metadata confirms `top_level_cache_control -> cache_control`.
 
 ## Non-Findings Checked
@@ -42,6 +42,7 @@ env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter serve --config examples/llmada
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json example-fast
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve anthropic/claude-haiku-4-5-20251001 --source-api anthropic.messages
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeOpenRouterMessagesStructuredOutput' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeOpenRouterMessagesJSONOutput' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/minimax_chat' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/minimax_messages' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream|TestSmokeToolUse|TestSmokeToolResultContinuation|TestGatewaySmoke' -count=1 -v

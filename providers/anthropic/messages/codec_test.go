@@ -222,6 +222,50 @@ func TestCodecEncodeTopLevelCacheControlWhenModelMetadataSupportsIt(t *testing.T
 	}
 }
 
+func TestCodecEncodeJSONResponseFormatWhenModelMetadataSupportsIt(t *testing.T) {
+	maxTokens := 128
+	ureq := unified.Request{
+		Model:           "anthropic/claude-sonnet-4.6",
+		MaxOutputTokens: &maxTokens,
+		ResponseFormat:  &unified.ResponseFormat{Kind: unified.ResponseFormatJSON},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	}
+	if err := unified.SetResolvedModelMetadata(&ureq.Extensions, unified.ResolvedModelMetadata{
+		ServiceID:   "openrouter",
+		WireModelID: "anthropic/claude-sonnet-4.6",
+		APIType:     "anthropic-messages",
+		ParameterMappings: map[string]string{
+			"response_format": "output_config.format",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	req := adapt.Request{Unified: ureq}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.OutputConfig == nil {
+		t.Fatal("missing output_config")
+	}
+	var format map[string]any
+	if err := json.Unmarshal(wire.OutputConfig.Format, &format); err != nil {
+		t.Fatal(err)
+	}
+	if format["type"] != "json_schema" {
+		t.Fatalf("format = %+v", format)
+	}
+	schema, ok := format["schema"].(map[string]any)
+	if !ok || schema["type"] != "object" {
+		t.Fatalf("schema = %+v format=%+v", schema, format)
+	}
+}
+
 func TestCodecEncodeReasoningThinking(t *testing.T) {
 	maxTokens := 4096
 	temperature := 0.2

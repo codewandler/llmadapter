@@ -470,6 +470,44 @@ func TestSmokeOpenRouterMessagesStructuredOutput(t *testing.T) {
 	}
 }
 
+func TestSmokeOpenRouterMessagesJSONOutput(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") == "" {
+		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
+	}
+	apiKey := firstSetEnv("OPENROUTER_API_KEY", "OPENROUTER_KEY")
+	if apiKey == "" {
+		t.Skip("set OPENROUTER_API_KEY or OPENROUTER_KEY to run OpenRouter Messages JSON-output smoke test")
+	}
+	model := os.Getenv("OPENROUTER_MESSAGES_STRUCTURED_MODEL")
+	if model == "" {
+		model = "anthropic/claude-sonnet-4.6"
+	}
+	client, err := openroutermessages.NewClient(openroutermessages.WithAPIKey(apiKey))
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer cancel()
+	maxTokens := 128
+	resp, err := collectSmokeResponse(ctx, client, unified.Request{
+		Model:           model,
+		MaxOutputTokens: &maxTokens,
+		ResponseFormat:  &unified.ResponseFormat{Kind: unified.ResponseFormatJSON},
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: `Return {"marker":"openrouter messages json ok"} and no other keys.`}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatalf("json request: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(responseText(resp)), &got); err != nil {
+		t.Fatalf("json response is not JSON object: text=%q err=%v", responseText(resp), err)
+	}
+}
+
 func TestSmokeResponsesContinuation(t *testing.T) {
 	if os.Getenv("TEST_INTEGRATION") == "" {
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")

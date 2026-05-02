@@ -242,7 +242,7 @@ func encodeAnthropicOutputFormat(format unified.ResponseFormat) (json.RawMessage
 		}
 		return b, nil
 	case unified.ResponseFormatJSON:
-		return nil, &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "response_format", Reason: "Anthropic output_config.format support is currently limited to json_schema"}
+		return json.RawMessage(`{"type":"json_schema","schema":{"type":"object"}}`), nil
 	default:
 		return nil, &adapt.UnsupportedFieldError{APIKind: adapt.ApiAnthropicMessages, Field: "response_format", Reason: fmt.Sprintf("unsupported response format kind %q", format.Kind)}
 	}

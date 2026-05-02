@@ -198,7 +198,7 @@ Reasoning support is provider/API-kind specific. Check [PROVIDER_MATRIX.md](PROV
 
 `ReasoningEffortMax` is available for providers that expose a maximum reasoning-effort mode. Anthropic-family providers keep explicit `MaxTokens` as manual thinking-budget intent; modeldb-resolved models whose exposure metadata supports adaptive thinking and the requested effort use adaptive thinking plus provider `output_config.effort` when only `Effort` is set. Provider-specific wire values, such as Anthropic Opus 4.7 `xhigh`, are mapped from canonical llmadapter values by modeldb exposure metadata.
 
-For Anthropic-family endpoints, JSON-schema response formats are encoded through provider `output_config.format` only when resolved modeldb metadata confirms that the selected endpoint exposes `response_format` with that wire mapping. Plain JSON mode remains unsupported on this wire path unless a provider exposes a compatible schema-free format.
+For Anthropic-family endpoints, response formats are encoded through provider `output_config.format` only when resolved modeldb metadata confirms that the selected endpoint exposes `response_format` with that wire mapping. JSON Schema uses the supplied schema; schema-free JSON object mode is lowered to a minimal provider JSON schema with object type.
 
 ## Tools
 
