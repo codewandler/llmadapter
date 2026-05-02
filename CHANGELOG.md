@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.20] - 2026-05-02
+
 ### Added
 
 - Added modeldb-resolved model metadata extensions for parameter values, parameter mappings, parameter value mappings, and reasoning modes/efforts.
