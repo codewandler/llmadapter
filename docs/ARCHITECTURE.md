@@ -140,6 +140,8 @@ The shared OpenAI Responses WebSocket default transport enables compression and 
 
 Codex WebSocket recovery is intentionally conservative. If the WebSocket fails before user-visible response output starts, llmadapter may fall back to HTTP/SSE replay for that same turn. If the WebSocket fails after output has started, llmadapter returns the stream error instead of retrying, because retrying could duplicate partial output. In both cases the provider-internal WebSocket session and continuation state are discarded, so the next request replays history until a fresh WebSocket turn completes and establishes a new internal response ID.
 
+Provider-owned default HTTP/SSE transports retry transient pre-stream failures for `429`, `500`, `502`, `503`, and `504`. Retries snapshot and replay the request body, use exponential backoff, and honor `Retry-After` when upstream provides it. Custom transports supplied via `WithTransport(...)` are not wrapped so tests and operator-provided transport semantics stay exact.
+
 Prompt caching remains a request-level primitive even when Codex uses WebSocket internally. `CachePolicy`, `CacheKey`, and the Codex session/window headers are still derived from the canonical request, and the e2e matrix includes a Codex WebSocket prompt-cache smoke that requires both `transport=websocket` and provider-reported cache-read tokens.
 
 Provider descriptors are defaults. Providers that can choose transport at request time emit `unified.ProviderExecutionEvent`; `muxclient` folds that event into the initial `RouteEvent` so consumers see the actual transport/internal continuation for the completed turn.

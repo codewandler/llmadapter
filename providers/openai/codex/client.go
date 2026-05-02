@@ -42,10 +42,10 @@ func NewClient(opts ...Option) (unified.Client, error) {
 	}
 	base := cfg.transport
 	if base == nil {
-		base = transport.NewHTTPByteStreamTransport(transport.HTTPTransportConfig{
+		base = transport.NewDefaultRetryTransport(transport.NewHTTPByteStreamTransport(transport.HTTPTransportConfig{
 			Client:      cfg.httpClient,
 			FrameFormat: transport.FrameFormatSSE,
-		})
+		}))
 	}
 	ws := cfg.webSocketTransport
 	if ws == nil && cfg.webSocketMode != openairesponses.WebSocketModeDisabled {

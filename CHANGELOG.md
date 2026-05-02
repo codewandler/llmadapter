@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.24] - 2026-05-02
+
+### Added
+
+- Added default pre-stream HTTP retries for provider-owned default HTTP/SSE transports, including replay-safe request bodies and `Retry-After` handling for retryable status codes.
+
 ## [1.0.0-rc.23] - 2026-05-02
 
 ### Added

@@ -58,7 +58,7 @@ func NewClient(opts ...Option) (unified.Client, error) {
 		return nil, fmt.Errorf("anthropic API key is required")
 	}
 	if cfg.Transport == nil {
-		cfg.Transport = transport.NewHTTPByteStreamTransport(transport.HTTPTransportConfig{FrameFormat: transport.FrameFormatSSE})
+		cfg.Transport = transport.NewDefaultRetryTransport(transport.NewHTTPByteStreamTransport(transport.HTTPTransportConfig{FrameFormat: transport.FrameFormatSSE}))
 	}
 	if len(cfg.Betas) > 0 {
 		cfg.Headers.Set("anthropic-beta", strings.Join(cfg.Betas, ","))

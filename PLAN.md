@@ -130,6 +130,7 @@ Codex WebSocket transport slice: shared transport includes a WebSocket byte-stre
 Codex branch-safe continuation slice: `codex_responses` tracks in-memory continuation state per session/branch, computes canonical per-input prefix fingerprints from the mutated Codex wire body, reuses the same explicit-session WebSocket connection for affinity, invalidates continuation state after failed/stale WebSocket sessions, and only attaches internal WebSocket `previous_response_id` for same-model, same-instructions, append-only continuations after a prior successful completion
 Provider execution metadata slice: providers can emit `unified.ProviderExecutionEvent` with actual transport/internal-continuation decisions; Codex emits this for WebSocket and HTTP/SSE paths, Responses decoding preserves it, and `muxclient` folds it into the initial `RouteEvent` for consumers
 Provider execution metadata hardening slice: `muxclient` forwards late `ProviderExecutionEvent`s if quota or other provider events force the initial route event to be sent before runtime transport metadata arrives, allowing CLI/consumers to update HTTP/SSE versus WebSocket diagnostics correctly
+Provider HTTP retry slice: provider-owned default HTTP/SSE transports now retry pre-stream transient failures for 429/500/502/503/504 with replayed request bodies, exponential backoff, and `Retry-After` handling; custom `WithTransport(...)` transports remain exact and unwrapped
 Quota telemetry slice: `unified.QuotaUsageEvent` and `Response.Quotas` expose provider subscription/quota-window telemetry without changing routing; Codex maps `x-codex-primary-used-percent` / `x-codex-secondary-used-percent` headers and Codex rate-limit events into primary/secondary quota snapshots; Claude-compatible access maps live `anthropic-ratelimit-unified-5h-*` / `anthropic-ratelimit-unified-7d-*` headers into the same primary/secondary session windows; Anthropic API-key access maps documented `anthropic-ratelimit-*` headers into request/token quota windows; Codex HTTP/SSE now captures and replays `x-codex-turn-state` for same-session/same-branch sticky routing
 Codex WebSocket live smoke slice: `tests/e2e` includes `TEST_INTEGRATION`-gated Codex session continuation and prompt-cache smokes that assert WebSocket transport, second-turn internal `previous_response_id` reuse, and provider-reported cache read accounting while WebSocket is active
 Responses WebSocket option slice: `providers/openai/responses` exposes three-state `WithWebSocketMode(...)` support for official OpenAI Responses WebSocket mode, with deterministic enabled/default/auto/fallback tests, a shared compression-on, IPv4-forced default WebSocket transport, and shared session reuse/open-or-write mechanics used by native OpenAI Responses and Codex; `openrouter_responses` stays on HTTP/SSE unless it explicitly opts in later
@@ -153,6 +154,7 @@ Verified:
 env GOCACHE=/tmp/go-cache go test ./...
 env GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod-cache go build ./...
 env GOCACHE=/tmp/go-cache go vet ./...
+env GOCACHE=/tmp/go-cache go test ./transport ./providers/openai/chatcompletions ./providers/openai/responses ./providers/anthropic/messages ./providers/openai/codex
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter proxy --help
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestSmokeTextStream -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestGatewaySmoke' -v
@@ -232,6 +234,8 @@ env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve anthropic/claude-haiku
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream|TestSmokeToolUse|TestSmokeToolResultContinuation|TestGatewaySmoke' -count=1 -v
 env GOCACHE=/tmp/go-cache go test ./providers/minimax/messages ./providers/openrouter/messages ./modelmeta
 ```
+
+Latest retry-slice live note: `env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/codex_responses' -count=1 -v` passed on 2026-05-02. The required full live matrix was rerun and failed only on `TestSmokeToolResultContinuation/minimax_messages`; isolated rerun also failed after consuming the tool result but hitting `finish_reason=length`. Treat this as the existing MiniMax Messages live continuation instability, not as a retry transport regression.
 
 Implemented package surface:
 

@@ -33,7 +33,7 @@ func NewClient(opts ...Option) (unified.Client, error) {
 		return nil, fmt.Errorf("openai API key is required")
 	}
 	if cfg.transport == nil {
-		cfg.transport = transport.NewHTTPByteStreamTransport(transport.HTTPTransportConfig{FrameFormat: transport.FrameFormatSSE})
+		cfg.transport = transport.NewDefaultRetryTransport(transport.NewHTTPByteStreamTransport(transport.HTTPTransportConfig{FrameFormat: transport.FrameFormatSSE}))
 	}
 	if cfg.apiKind == "" {
 		cfg.apiKind = adapt.ApiOpenAIChatCompletions

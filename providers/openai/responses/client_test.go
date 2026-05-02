@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -54,6 +55,55 @@ func TestClientUsesOpenAIResponsesEndpoint(t *testing.T) {
 	}
 	if fake.Seen[0].Header.Get("Authorization") != "Bearer key" {
 		t.Fatalf("missing authorization header: %+v", fake.Seen[0].Header)
+	}
+}
+
+func TestClientDefaultHTTPTransportRetriesTransient503(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			http.Error(w, `{"error":{"message":"temporary"}}`, http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","status":"in_progress"}}` + "\n\n"))
+		_, _ = w.Write([]byte(`data: {"type":"response.output_text.delta","response_id":"resp_1","output_index":0,"content_index":0,"delta":"ok"}` + "\n\n"))
+		_, _ = w.Write([]byte(`data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-test","status":"completed"}}` + "\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(
+		WithAPIKey("key"),
+		WithBaseURL(server.URL),
+		WithWebSocketMode(WebSocketModeDisabled),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 8
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "gpt-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "ok" {
+		t.Fatalf("response = %+v", resp)
 	}
 }
 

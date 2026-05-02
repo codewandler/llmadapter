@@ -4,12 +4,58 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 )
+
+func TestClientDefaultTransportRetriesTransient503(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			http.Error(w, `{"error":{"message":"temporary"}}`, http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl\",\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"}}]}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl\",\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(WithAPIKey("key"), WithBaseURL(server.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 8
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "gpt-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "ok" {
+		t.Fatalf("response = %+v", resp)
+	}
+}
 
 func TestEncodeRequest(t *testing.T) {
 	maxTokens := 32

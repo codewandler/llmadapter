@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/codewandler/llmadapter/pipeline"
@@ -71,6 +72,53 @@ data: {"type":"message_stop"}`),
 	}
 	if len(body) == 0 || fake.Seen[0].Header.Get("x-api-key") != "key" || fake.Seen[0].Method != http.MethodPost {
 		t.Fatalf("request was not populated correctly")
+	}
+}
+
+func TestClientDefaultTransportRetriesTransient503(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			http.Error(w, `{"error":{"message":"temporary"}}`, http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg\",\"role\":\"assistant\",\"model\":\"claude-test\"}}\n\n"))
+		_, _ = w.Write([]byte("event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n"))
+		_, _ = w.Write([]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\n"))
+		_, _ = w.Write([]byte("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n"))
+		_, _ = w.Write([]byte("event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}\n\n"))
+		_, _ = w.Write([]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(WithAPIKey("key"), WithBaseURL(server.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 8
+	events, err := client.Request(context.Background(), unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		Stream: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+	if len(resp.Content) != 1 || resp.Content[0].(unified.TextPart).Text != "ok" {
+		t.Fatalf("response = %+v", resp)
 	}
 }
 

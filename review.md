@@ -17,6 +17,7 @@ No release-blocking findings remain in this pass.
 - OpenRouter Messages direct clients now attach OpenRouter-native Anthropic Messages modeldb metadata for `anthropic/...` offerings without enabling Anthropic-native Claude metadata for wrapper services.
 - Anthropic-family JSON-schema and JSON-object response formats now encode through `output_config.format` only when resolved modeldb metadata confirms that mapping.
 - Anthropic-family top-level `cache_control` now encodes only when resolved modeldb metadata confirms `top_level_cache_control -> cache_control`.
+- Provider-owned default HTTP/SSE transports now retry pre-stream transient 429/500/502/503/504 failures with replayed request bodies; custom `WithTransport(...)` transports remain unwrapped.
 
 ## Non-Findings Checked
 
@@ -37,6 +38,7 @@ env GOCACHE=/tmp/go-cache go test ./adapterconfig ./providers/openai/responses .
 env GOCACHE=/tmp/go-cache go test ./...
 env GOCACHE=/tmp/go-cache go vet ./...
 env GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod-cache go build ./...
+env GOCACHE=/tmp/go-cache go test ./transport ./providers/openai/chatcompletions ./providers/openai/responses ./providers/anthropic/messages ./providers/openai/codex
 env GOCACHE=/tmp/go-cache go test ./providers/anthropic/messages ./providers/openrouter/messages ./tests/e2e
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter serve --config examples/llmadapter.example.json --inspect-config
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter resolve --config examples/llmadapter.example.json example-fast
@@ -48,6 +50,14 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream|TestSmokeToolUse|TestSmokeToolResultContinuation|TestGatewaySmoke' -count=1 -v
 ```
 
+Latest retry-slice live verification:
+
+```sh
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/codex_responses' -count=1 -v
+```
+
+The full live matrix was also rerun for this retry slice. It failed only on `TestSmokeToolResultContinuation/minimax_messages`: one run emitted a literal MiniMax tool-call block during continuation, and the isolated rerun consumed the tool result but ended with `finish_reason=length` before producing the expected marker. This does not exercise the new retry path and is tracked as live MiniMax Messages continuation instability rather than a retry regression.
+
 ## Current Assessment
 
-No release-blocking findings remain in this pass. The required full live matrix passed after the MiniMax rows were rerun and stabilized.
+No release-blocking findings remain for the retry transport change. Static verification is green, focused retry coverage is green, and targeted live Codex continuation is green. The remaining live risk is the pre-existing MiniMax Messages continuation smoke instability noted above.
