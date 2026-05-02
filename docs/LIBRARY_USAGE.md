@@ -227,6 +227,14 @@ req.ToolChoice = &unified.ToolChoice{
 }
 ```
 
+Disable further tool use on a continuation turn:
+
+```go
+req.ToolChoice = &unified.ToolChoice{
+	Mode: unified.ToolChoiceNone,
+}
+```
+
 Tool-loop orchestration is intentionally above llmadapter. llmadapter maps tool calls/results and preserves streamed arguments; your runtime decides how to execute tools and commit conversation state. When replaying a tool loop, preserve the full assistant message that produced the tool call, including any text/reasoning content and the `ToolCalls` slice. Some OpenAI-compatible reasoning models, including MiniMax M2.x, require that complete assistant response to maintain multi-turn tool continuity.
 
 Use `unified.AssistantMessageFromResponse(resp)` when continuing from a collected response:
@@ -251,6 +259,7 @@ next := unified.Request{
 			}},
 		},
 	},
+	ToolChoice: &unified.ToolChoice{Mode: unified.ToolChoiceNone},
 }
 ```
 

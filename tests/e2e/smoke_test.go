@@ -37,6 +37,8 @@ type smokeProvider struct {
 	responsesContinuation bool
 	skipInvalidModel      bool
 	maxOutputTokens       int
+	continuationMaxTokens int
+	continuationNoTools   bool
 	newClient             func(apiKey string) (unified.Client, error)
 }
 
@@ -254,9 +256,10 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 			}
 
 			toolCall := toolResp.ToolCalls[0]
-			events, err = client.Request(ctx, unified.Request{
+			continuationMaxTokens := provider.continuationMaxOutputTokens(maxTokens)
+			continuationReq := unified.Request{
 				Model:           model,
-				MaxOutputTokens: &maxTokens,
+				MaxOutputTokens: &continuationMaxTokens,
 				Messages: []unified.Message{
 					userMessage,
 					unified.AssistantMessageFromResponse(toolResp),
@@ -266,13 +269,17 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 							ToolCallID: toolCall.ID,
 							Name:       toolCall.Name,
 							Content: []unified.ContentPart{
-								unified.TextPart{Text: "lookup_city result: Berlin marker is llmadapter tool loop ok. Reply with that exact marker."},
+								unified.TextPart{Text: "lookup_city result: llmadapter tool loop ok. Do not call any tool again. Reply with exactly: llmadapter tool loop ok"},
 							},
 						}},
 					},
 				},
 				Stream: true,
-			})
+			}
+			if provider.continuationNoTools {
+				continuationReq.ToolChoice = &unified.ToolChoice{Mode: unified.ToolChoiceNone}
+			}
+			events, err = client.Request(ctx, continuationReq)
 			if err != nil {
 				t.Fatalf("continuation request: %v", err)
 			}
@@ -934,8 +941,10 @@ func smokeProviders() []smokeProvider {
 			tools:     true,
 			reasoning: true,
 			// MiniMax emits reasoning before final text on the Anthropic-compatible surface.
-			maxOutputTokens:  512,
-			skipInvalidModel: true,
+			maxOutputTokens:       512,
+			continuationMaxTokens: 1536,
+			continuationNoTools:   true,
+			skipInvalidModel:      true,
 			newClient: func(apiKey string) (unified.Client, error) {
 				return minimaxmessages.NewClient(minimaxmessages.WithAPIKey(apiKey))
 			},
@@ -1093,6 +1102,13 @@ func cacheSmokeKey(providerName string) string {
 func (p smokeProvider) maxTokens(defaultValue int) int {
 	if p.maxOutputTokens > 0 {
 		return p.maxOutputTokens
+	}
+	return defaultValue
+}
+
+func (p smokeProvider) continuationMaxOutputTokens(defaultValue int) int {
+	if p.continuationMaxTokens > 0 {
+		return p.continuationMaxTokens
 	}
 	return defaultValue
 }

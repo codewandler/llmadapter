@@ -51,6 +51,28 @@ func TestCodecEncodeRequest(t *testing.T) {
 	}
 }
 
+func TestCodecEncodeToolChoiceNone(t *testing.T) {
+	maxTokens := 128
+	req := adapt.Request{Unified: unified.Request{
+		Model:           "claude-test",
+		MaxOutputTokens: &maxTokens,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "hello"}},
+		}},
+		ToolChoice: &unified.ToolChoice{Mode: unified.ToolChoiceNone},
+		Stream:     true,
+	}}
+
+	wire, err := (Codec{}).EncodeRequest(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.ToolChoice == nil || wire.ToolChoice.Type != "none" {
+		t.Fatalf("unexpected tool choice: %+v", wire.ToolChoice)
+	}
+}
+
 func TestCodecEncodeSystemCacheControl(t *testing.T) {
 	maxTokens := 128
 	req := adapt.Request{Unified: unified.Request{

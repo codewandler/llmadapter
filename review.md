@@ -18,6 +18,7 @@ No release-blocking findings remain in this pass.
 - Anthropic-family JSON-schema and JSON-object response formats now encode through `output_config.format` only when resolved modeldb metadata confirms that mapping.
 - Anthropic-family top-level `cache_control` now encodes only when resolved modeldb metadata confirms `top_level_cache_control -> cache_control`.
 - Provider-owned default HTTP/SSE transports now retry pre-stream transient 429/500/502/503/504 failures with replayed request bodies; custom `WithTransport(...)` transports remain unwrapped.
+- Anthropic-family `ToolChoiceNone` now encodes as `tool_choice: {"type":"none"}`, and the MiniMax Messages live tool-result continuation row opts into that explicit no-tool continuation with a continuation-specific output budget.
 
 ## Non-Findings Checked
 
@@ -47,6 +48,7 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmoke
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeOpenRouterMessagesJSONOutput' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/minimax_chat' -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/minimax_messages' -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/minimax_messages' -count=5 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeTextStream|TestSmokeToolUse|TestSmokeToolResultContinuation|TestGatewaySmoke' -count=1 -v
 ```
 
@@ -56,8 +58,8 @@ Latest retry-slice live verification:
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/codex_responses' -count=1 -v
 ```
 
-The full live matrix was also rerun for this retry slice. It failed only on `TestSmokeToolResultContinuation/minimax_messages`: one run emitted a literal MiniMax tool-call block during continuation, and the isolated rerun consumed the tool result but ended with `finish_reason=length` before producing the expected marker. This does not exercise the new retry path and is tracked as live MiniMax Messages continuation instability rather than a retry regression.
+The full live matrix was also rerun for the retry slice. It initially failed only on `TestSmokeToolResultContinuation/minimax_messages`: one run emitted a literal MiniMax tool-call block during continuation, and the isolated rerun consumed the tool result but ended with `finish_reason=length` before producing the expected marker. The MiniMax Messages smoke has since been tightened and passed five consecutive isolated live runs.
 
 ## Current Assessment
 
-No release-blocking findings remain for the retry transport change. Static verification is green, focused retry coverage is green, and targeted live Codex continuation is green. The remaining live risk is the pre-existing MiniMax Messages continuation smoke instability noted above.
+No release-blocking findings remain for the retry transport and MiniMax Messages smoke changes. Static verification is green, focused retry coverage is green, targeted live Codex continuation is green, and the isolated MiniMax Messages continuation smoke is stable after the test-contract adjustment.

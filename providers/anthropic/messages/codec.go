@@ -473,10 +473,7 @@ func encodeToolChoice(req *adapt.Request, choice unified.ToolChoice) (*ToolChoic
 	case unified.ToolChoiceTool:
 		return &ToolChoiceWire{Type: "tool", Name: choice.Name}, nil
 	case unified.ToolChoiceNone:
-		if err := unsupported(req, "tool_choice.none", true); err != nil {
-			return nil, err
-		}
-		return nil, nil
+		return &ToolChoiceWire{Type: "none"}, nil
 	default:
 		return nil, fmt.Errorf("unknown tool choice mode %q", choice.Mode)
 	}

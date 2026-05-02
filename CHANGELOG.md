@@ -10,6 +10,10 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Fixed
+
+- Encoded Anthropic-family `ToolChoiceNone` as provider `tool_choice: {"type":"none"}` and used it for the MiniMax Messages tool-result continuation smoke with a MiniMax-specific continuation token budget.
+
 ## [1.0.0-rc.24] - 2026-05-02
 
 ### Added
