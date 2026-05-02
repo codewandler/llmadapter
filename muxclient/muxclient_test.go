@@ -78,6 +78,52 @@ func TestClientRoutesAndRewritesNativeModel(t *testing.T) {
 	}
 }
 
+func TestClientForwardsLateProviderExecutionMetadata(t *testing.T) {
+	provider := &fakeClient{events: []unified.Event{
+		unified.QuotaUsageEvent{Provider: "codex"},
+		unified.ProviderExecutionEvent{InternalContinuation: unified.ContinuationPreviousResponseID, Transport: unified.TransportWebSocket},
+		unified.TextDeltaEvent{Text: "ok"},
+	}}
+	client := New(router.NewStaticRouter(router.StaticRoute{
+		SourceAPI:   adapt.ApiOpenAIResponses,
+		Model:       "public",
+		NativeModel: "native",
+		Endpoint: router.ProviderEndpoint{
+			ProviderName: "codex",
+			APIKind:      adapt.ApiOpenAIResponses,
+			Family:       adapt.FamilyOpenAIResponses,
+			Client:       provider,
+			Capabilities: router.CapabilitySet{Streaming: true},
+			Transport:    unified.TransportHTTPSSE,
+		},
+	}))
+
+	events, err := client.Request(context.Background(), unified.Request{Model: "public", Stream: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-events
+	routeEvent, ok := first.(unified.RouteEvent)
+	if !ok {
+		t.Fatalf("first event = %T, want unified.RouteEvent", first)
+	}
+	if routeEvent.Transport != unified.TransportHTTPSSE {
+		t.Fatalf("initial route transport = %q, want http_sse", routeEvent.Transport)
+	}
+	second := <-events
+	if _, ok := second.(unified.QuotaUsageEvent); !ok {
+		t.Fatalf("second event = %T, want QuotaUsageEvent", second)
+	}
+	third := <-events
+	metadata, ok := third.(unified.ProviderExecutionEvent)
+	if !ok {
+		t.Fatalf("third event = %T, want ProviderExecutionEvent", third)
+	}
+	if metadata.Transport != unified.TransportWebSocket || metadata.InternalContinuation != unified.ContinuationPreviousResponseID {
+		t.Fatalf("metadata = %+v", metadata)
+	}
+}
+
 func TestClientFallsBackWhenRequestFails(t *testing.T) {
 	primary := &fakeClient{err: errors.New("down")}
 	fallback := &fakeClient{events: []unified.Event{

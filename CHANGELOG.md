@@ -10,6 +10,16 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.18] - 2026-05-02
+
+### Added
+
+- Added `llmadapter infer --debug[=request,response,stream,events]` for redacted HTTP/SSE and WebSocket request/response/stream/unified-event diagnostics on stderr, including explicit transport-mode output.
+
+### Fixed
+
+- Forwarded late provider execution metadata through `muxclient` so route diagnostics can still update from `http_sse` to `websocket` when quota or other provider events arrive first.
+
 ## [1.0.0-rc.17] - 2026-05-02
 
 ### Added

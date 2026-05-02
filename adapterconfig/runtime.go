@@ -12,6 +12,7 @@ import (
 	"github.com/codewandler/llmadapter/pricing"
 	"github.com/codewandler/llmadapter/providerregistry"
 	"github.com/codewandler/llmadapter/router"
+	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 	"github.com/codewandler/modeldb"
 )
@@ -19,8 +20,10 @@ import (
 const TagModelDBServiceID = "modeldb.service_id"
 
 type MuxClientOptions struct {
-	SourceAPI adapt.ApiKind
-	Fallback  *bool
+	SourceAPI                  adapt.ApiKind
+	Fallback                   *bool
+	ProviderTransport          transport.ByteStreamTransport
+	ProviderWebSocketTransport transport.ByteStreamTransport
 }
 
 type MuxClientOption func(*MuxClientOptions)
@@ -39,6 +42,24 @@ func WithFallback(enabled bool) MuxClientOption {
 	}
 }
 
+// WithProviderTransport overrides the byte-stream transport used by constructed
+// provider clients. It is intended for diagnostics and tests; normal callers
+// should let provider clients choose their endpoint-family default transport.
+func WithProviderTransport(t transport.ByteStreamTransport) MuxClientOption {
+	return func(o *MuxClientOptions) {
+		o.ProviderTransport = t
+	}
+}
+
+// WithProviderWebSocketTransport overrides the WebSocket byte-stream transport
+// used by provider clients that support a WebSocket mode. It is intended for
+// diagnostics and tests.
+func WithProviderWebSocketTransport(t transport.ByteStreamTransport) MuxClientOption {
+	return func(o *MuxClientOptions) {
+		o.ProviderWebSocketTransport = t
+	}
+}
+
 func NewMuxClient(cfg Config, opts ...MuxClientOption) (unified.Client, error) {
 	if err := Validate(cfg); err != nil {
 		return nil, err
@@ -49,7 +70,7 @@ func NewMuxClient(cfg Config, opts ...MuxClientOption) (unified.Client, error) {
 			opt(&options)
 		}
 	}
-	r, err := BuildRouter(cfg)
+	r, err := buildRouter(cfg, options)
 	if err != nil {
 		return nil, err
 	}
@@ -61,9 +82,13 @@ func NewMuxClient(cfg Config, opts ...MuxClientOption) (unified.Client, error) {
 }
 
 func BuildRouter(cfg Config) (router.Router, error) {
+	return buildRouter(cfg, MuxClientOptions{})
+}
+
+func buildRouter(cfg Config, options MuxClientOptions) (router.Router, error) {
 	endpoints := make([]router.ProviderEndpoint, 0, len(cfg.Providers))
 	for _, provider := range cfg.Providers {
-		endpoint, err := BuildProviderEndpoint(provider)
+		endpoint, err := buildProviderEndpoint(provider, options)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +131,11 @@ func BuildRouter(cfg Config) (router.Router, error) {
 }
 
 func BuildProviderEndpoint(provider ProviderConfig) (router.ProviderEndpoint, error) {
-	client, err := buildProviderClient(provider)
+	return buildProviderEndpoint(provider, MuxClientOptions{})
+}
+
+func buildProviderEndpoint(provider ProviderConfig, options MuxClientOptions) (router.ProviderEndpoint, error) {
+	client, err := buildProviderClient(provider, options)
 	if err != nil {
 		return router.ProviderEndpoint{}, err
 	}
@@ -243,12 +272,14 @@ func descriptorForProvider(provider ProviderConfig) (providerregistry.Descriptor
 	return providerregistry.Lookup(provider.Type)
 }
 
-func buildProviderClient(provider ProviderConfig) (unified.Client, error) {
+func buildProviderClient(provider ProviderConfig, options MuxClientOptions) (unified.Client, error) {
 	apiKey := providerAPIKey(provider)
 	return providerregistry.NewClient(providerregistry.ClientConfig{
-		Type:    provider.Type,
-		APIKey:  apiKey,
-		BaseURL: provider.BaseURL,
+		Type:               provider.Type,
+		APIKey:             apiKey,
+		BaseURL:            provider.BaseURL,
+		Transport:          options.ProviderTransport,
+		WebSocketTransport: options.ProviderWebSocketTransport,
 	})
 }
 

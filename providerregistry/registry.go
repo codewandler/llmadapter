@@ -17,6 +17,7 @@ import (
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
 	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
 	"github.com/codewandler/llmadapter/router"
+	"github.com/codewandler/llmadapter/transport"
 	"github.com/codewandler/llmadapter/unified"
 )
 
@@ -40,6 +41,12 @@ type ClientConfig struct {
 	Type    string
 	APIKey  string
 	BaseURL string
+	// Transport overrides the provider's default byte-stream transport. It is
+	// primarily useful for diagnostics and deterministic tests.
+	Transport transport.ByteStreamTransport
+	// WebSocketTransport overrides the provider's default WebSocket byte-stream
+	// transport when the endpoint supports a WebSocket mode.
+	WebSocketTransport transport.ByteStreamTransport
 }
 
 var descriptors = []Descriptor{
@@ -238,6 +245,9 @@ func newAnthropicClient(cfg ClientConfig, claudeCompatible bool) (unified.Client
 	if cfg.BaseURL != "" {
 		opts = append(opts, anthropic.WithBaseURL(cfg.BaseURL))
 	}
+	if cfg.Transport != nil {
+		opts = append(opts, anthropic.WithTransport(cfg.Transport))
+	}
 
 	return anthropic.NewClient(opts...)
 }
@@ -250,6 +260,9 @@ func newOpenAIChatClient(cfg ClientConfig) (unified.Client, error) {
 	if cfg.BaseURL != "" {
 		opts = append(opts, openai.WithBaseURL(cfg.BaseURL))
 	}
+	if cfg.Transport != nil {
+		opts = append(opts, openai.WithTransport(cfg.Transport))
+	}
 	return openai.NewClient(opts...)
 }
 
@@ -260,6 +273,12 @@ func newOpenAIResponsesClient(cfg ClientConfig) (unified.Client, error) {
 	opts := []openairesponses.Option{openairesponses.WithAPIKey(cfg.APIKey)}
 	if cfg.BaseURL != "" {
 		opts = append(opts, openairesponses.WithBaseURL(cfg.BaseURL))
+	}
+	if cfg.Transport != nil {
+		opts = append(opts, openairesponses.WithTransport(cfg.Transport))
+	}
+	if cfg.WebSocketTransport != nil {
+		opts = append(opts, openairesponses.WithWebSocketTransport(cfg.WebSocketTransport))
 	}
 	return openairesponses.NewClient(opts...)
 }
@@ -272,6 +291,12 @@ func newCodexResponsesClient(cfg ClientConfig) (unified.Client, error) {
 	if cfg.BaseURL != "" {
 		opts = append(opts, codex.WithBaseURL(cfg.BaseURL))
 	}
+	if cfg.Transport != nil {
+		opts = append(opts, codex.WithTransport(cfg.Transport))
+	}
+	if cfg.WebSocketTransport != nil {
+		opts = append(opts, codex.WithWebSocketTransport(cfg.WebSocketTransport))
+	}
 	return codex.NewClient(opts...)
 }
 
@@ -282,6 +307,9 @@ func newOpenRouterChatClient(cfg ClientConfig) (unified.Client, error) {
 	opts := []openrouter.Option{openrouter.WithAPIKey(cfg.APIKey)}
 	if cfg.BaseURL != "" {
 		opts = append(opts, openrouter.WithBaseURL(cfg.BaseURL))
+	}
+	if cfg.Transport != nil {
+		opts = append(opts, openrouter.WithTransport(cfg.Transport))
 	}
 	return openrouter.NewClient(opts...)
 }
@@ -294,6 +322,9 @@ func newOpenRouterResponsesClient(cfg ClientConfig) (unified.Client, error) {
 	if cfg.BaseURL != "" {
 		opts = append(opts, openrouterresponses.WithBaseURL(cfg.BaseURL))
 	}
+	if cfg.Transport != nil {
+		opts = append(opts, openrouterresponses.WithTransport(cfg.Transport))
+	}
 	return openrouterresponses.NewClient(opts...)
 }
 
@@ -304,6 +335,9 @@ func newOpenRouterMessagesClient(cfg ClientConfig) (unified.Client, error) {
 	opts := []openroutermessages.Option{openroutermessages.WithAPIKey(cfg.APIKey)}
 	if cfg.BaseURL != "" {
 		opts = append(opts, openroutermessages.WithBaseURL(cfg.BaseURL))
+	}
+	if cfg.Transport != nil {
+		opts = append(opts, openroutermessages.WithTransport(cfg.Transport))
 	}
 	return openroutermessages.NewClient(opts...)
 }
@@ -316,6 +350,9 @@ func newMiniMaxChatClient(cfg ClientConfig) (unified.Client, error) {
 	if cfg.BaseURL != "" {
 		opts = append(opts, minimax.WithBaseURL(cfg.BaseURL))
 	}
+	if cfg.Transport != nil {
+		opts = append(opts, minimax.WithTransport(cfg.Transport))
+	}
 	return minimax.NewClient(opts...)
 }
 
@@ -326,6 +363,9 @@ func newMiniMaxMessagesClient(cfg ClientConfig) (unified.Client, error) {
 	opts := []minimaxmessages.Option{minimaxmessages.WithAPIKey(cfg.APIKey)}
 	if cfg.BaseURL != "" {
 		opts = append(opts, minimaxmessages.WithBaseURL(cfg.BaseURL))
+	}
+	if cfg.Transport != nil {
+		opts = append(opts, minimaxmessages.WithTransport(cfg.Transport))
 	}
 	return minimaxmessages.NewClient(opts...)
 }

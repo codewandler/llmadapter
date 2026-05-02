@@ -133,8 +133,16 @@ func prependRouteEvent(ctx context.Context, route router.Route, events <-chan un
 					if metadata.Transport != "" {
 						routeEvent.Transport = metadata.Transport
 					}
-					if !sendRouteEvent() {
+					if !routeEventSent {
+						if !sendRouteEvent() {
+							return
+						}
+						continue
+					}
+					select {
+					case <-ctx.Done():
 						return
+					case out <- metadata:
 					}
 					continue
 				}

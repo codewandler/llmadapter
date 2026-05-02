@@ -562,6 +562,7 @@ type inferParams struct {
 	interaction string
 	session     string
 	branch      string
+	debugScopes []string
 }
 
 func newInferCommand() *cobra.Command {
@@ -574,12 +575,16 @@ func newInferCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "infer <message>",
 		Short: "Send a prompt through the configured or auto-detected mux client",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			args, err := normalizeInferArgs(&params, args)
+			if err != nil {
+				return err
+			}
 			if params.session != "" && !cmd.Flags().Changed("interaction") {
 				params.interaction = string(unified.InteractionSession)
 			}
-			return runInferCommand(cmd.Context(), cmd.OutOrStdout(), params, args[0])
+			return runInferCommand(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), params, args[0])
 		},
 	}
 	cmd.Flags().StringVar(&params.configPath, "config", "", "llmadapter JSON config path; defaults to auto-detected credentials")
@@ -595,7 +600,22 @@ func newInferCommand() *cobra.Command {
 	cmd.Flags().StringVar(&params.interaction, "interaction", string(unified.InteractionOneShot), "interaction mode: one_shot, session, or auto")
 	cmd.Flags().StringVar(&params.session, "session", "", "stable session/cache key for continuation diagnostics")
 	cmd.Flags().StringVar(&params.branch, "branch", "", "stable branch key for continuation diagnostics")
+	cmd.Flags().StringSliceVar(&params.debugScopes, "debug", nil, "print redacted debug diagnostics to stderr; optional scopes: request,response,stream,events")
+	cmd.Flags().Lookup("debug").NoOptDefVal = "all"
 	return cmd
+}
+
+func normalizeInferArgs(params *inferParams, args []string) ([]string, error) {
+	if len(args) > 1 && len(params.debugScopes) == 1 && params.debugScopes[0] == "all" {
+		if _, err := parseInferDebugScopes([]string{args[0]}); err == nil {
+			params.debugScopes = []string{args[0]}
+			args = args[1:]
+		}
+	}
+	if len(args) != 1 {
+		return nil, fmt.Errorf("infer requires exactly one message argument, got %d", len(args))
+	}
+	return args, nil
 }
 
 type routeInfo struct {
@@ -1460,9 +1480,13 @@ func runSmokeRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 	return nil
 }
 
-func runInferCommand(ctx context.Context, w io.Writer, params inferParams, prompt string) error {
+func runInferCommand(ctx context.Context, w io.Writer, debugw io.Writer, params inferParams, prompt string) error {
 	sourceAPI := adapt.ApiKind(params.sourceAPI)
 	model := params.model
+	debugScopes, err := parseInferDebugScopes(params.debugScopes)
+	if err != nil {
+		return err
+	}
 	cfg, err := inferConfig(params.configPath, sourceAPI, model)
 	if err != nil {
 		return err
@@ -1477,13 +1501,18 @@ func runInferCommand(ctx context.Context, w io.Writer, params inferParams, promp
 	if err != nil {
 		return err
 	}
-	client, err := adapterconfig.NewMuxClient(cfg, adapterconfig.WithSourceAPI(resolution.SourceAPI))
+	muxOptions := []adapterconfig.MuxClientOption{adapterconfig.WithSourceAPI(resolution.SourceAPI)}
+	if debugScopes.httpEnabled() {
+		muxOptions = append(muxOptions, adapterconfig.WithProviderTransport(newInferDebugTransport(debugw, debugScopes)))
+		muxOptions = append(muxOptions, adapterconfig.WithProviderWebSocketTransport(newInferDebugWebSocketTransport(debugw, debugScopes)))
+	}
+	client, err := adapterconfig.NewMuxClient(cfg, muxOptions...)
 	if err != nil {
 		return err
 	}
 	printResolution(w, resolution)
 	fmt.Fprintln(w)
-	return runInferRequest(ctx, w, client, model, prompt, params)
+	return runInferRequest(ctx, w, debugw, client, model, prompt, params, debugScopes)
 }
 
 func inferConfig(configPath string, sourceAPI adapt.ApiKind, model string) (adapterconfig.Config, error) {
@@ -1530,7 +1559,7 @@ func resolveInferModel(cfg adapterconfig.Config, model string, sourceAPI adapt.A
 	return resolutions[0], nil
 }
 
-func runInferRequest(ctx context.Context, w io.Writer, client unified.Client, model, prompt string, params inferParams) error {
+func runInferRequest(ctx context.Context, w io.Writer, debugw io.Writer, client unified.Client, model, prompt string, params inferParams, debugScopes inferDebugScopes) error {
 	ctx, cancel := context.WithTimeout(ctx, params.timeout)
 	defer cancel()
 	req, err := inferRequest(model, prompt, params)
@@ -1550,11 +1579,20 @@ func runInferRequest(ctx context.Context, w io.Writer, client unified.Client, mo
 		routeEvent  *unified.RouteEvent
 	)
 	for ev := range events {
+		if debugScopes.events {
+			writeInferDebugEvent(debugw, ev)
+		}
 		switch e := ev.(type) {
 		case unified.RouteEvent:
+			if debugScopes.enabled {
+				writeInferDebugMode(debugw, "route", e.Transport, e.InternalContinuation)
+			}
 			copy := e
 			routeEvent = &copy
 		case unified.ProviderExecutionEvent:
+			if debugScopes.enabled {
+				writeInferDebugMode(debugw, "provider", e.Transport, e.InternalContinuation)
+			}
 			if routeEvent == nil {
 				routeEvent = &unified.RouteEvent{}
 			}

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -537,7 +538,7 @@ func TestRunInferRequestStreamsReasoningTextAndUsage(t *testing.T) {
 		}, unified.CostItems{{Kind: unified.CostKindOutput, Amount: 0.0012}}),
 	}}
 	var out bytes.Buffer
-	err := runInferRequest(context.Background(), &out, &client, "gpt-test", "hello", inferParams{maxTokens: 16, thinking: "on", timeout: time.Second})
+	err := runInferRequest(context.Background(), &out, io.Discard, &client, "gpt-test", "hello", inferParams{maxTokens: 16, thinking: "on", timeout: time.Second}, inferDebugScopes{})
 	if err != nil {
 		t.Fatal(err)
 	}

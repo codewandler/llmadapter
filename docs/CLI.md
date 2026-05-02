@@ -252,7 +252,17 @@ Use a config:
 go run ./cmd/llmadapter infer --config examples/llmadapter.example.json -m fast "what is 2+2?"
 ```
 
+Enable redacted diagnostics:
+
+```sh
+go run ./cmd/llmadapter infer --debug -m haiku "hello"
+go run ./cmd/llmadapter infer --debug request,response,stream -m sonnet "hello"
+go run ./cmd/llmadapter infer --debug events -m codex/gpt-5.4 "hello"
+```
+
 `infer` prints resolved model/route information before streaming output, including continuation mode and transport. By default it uses `--interaction one_shot`; setting `--session` without `--interaction` switches to `session` and also sets a stable cache/session key. For `codex_responses`, session mode with a stable session/cache key can prefer the provider-internal WebSocket transport and fall back to HTTP/SSE before streaming starts. Use `--branch` when testing branch-specific continuation behavior. The final route section reports actual provider execution metadata when the provider emits it. `--no-cache` disables cache policy but still preserves explicit session diagnostics.
+
+`--debug` writes diagnostics to stderr so normal streamed output remains on stdout. With no value it enables all scopes. Scope values can be comma-separated or repeated: `request` logs outbound HTTP/SSE or WebSocket request method, URL, redacted headers, request body, and initial WebSocket frame; `response` logs inbound redacted HTTP/SSE response or WebSocket handshake headers plus non-2xx error bodies; `stream` logs raw provider HTTP/SSE or WebSocket frames after transport framing; `events` logs unified events emitted by llmadapter. Debug mode also prints the observed route/provider transport mode, such as `http_sse` or `websocket`. Sensitive header and JSON keys such as authorization, API keys, cookies, session IDs, account IDs, and project IDs are redacted.
 
 ## proxy
 
