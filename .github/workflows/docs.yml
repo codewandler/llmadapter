@@ -32,6 +32,8 @@ jobs:
           cp -R docs/. _docs/
           cp docs/README.md _docs/index.md
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/jekyll-build-pages@v1
         with:
           source: _docs
