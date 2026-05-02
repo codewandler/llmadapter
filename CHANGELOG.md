@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.21] - 2026-05-02
+
 ### Added
 
 - Added a MiniMax Messages guard test to ensure Anthropic-native built-in model metadata is not applied to Anthropic-compatible wrapper providers.
