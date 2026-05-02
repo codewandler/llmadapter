@@ -1,8 +1,10 @@
 # llmadapter
 
-`llmadapter` is a stateless adapter layer for LLM providers.
+`llmadapter` is a stateless adapter, router, and compatibility gateway for LLM providers.
 
 It gives Go applications, CLIs, and gateways one canonical request/event stream across OpenAI, Anthropic, OpenRouter, MiniMax, Claude Code-compatible access, Codex/ChatGPT-compatible access, and related API shapes without pretending those providers are identical.
+
+The project is built around a simple rule: route to explicit provider endpoints and preserve provider differences as metadata, warnings, capabilities, and events instead of hiding them behind a lowest-common-denominator API.
 
 ## Why It Exists
 
@@ -10,14 +12,25 @@ LLM providers expose similar concepts through different wire protocols, naming s
 
 `llmadapter` keeps those differences explicit while giving consumers a common integration surface:
 
-- one Go `unified.Client` abstraction,
-- one configurable routing/mux layer,
+- a stream-first Go `unified.Client` abstraction,
+- a deterministic modeldb-backed routing/mux layer,
 - OpenAI/Anthropic-compatible gateway endpoints,
-- provider/model/capability inspection,
-- usage, cost, quota, reasoning, citation, and warning events,
-- stream-first transports with conservative retry/fallback behavior.
+- endpoint-family capability checks and model metadata,
+- usage, cost, quota, reasoning, citation, raw-provider, and warning events,
+- redacted request/response/stream diagnostics,
+- conservative retry, fallback, and WebSocket recovery behavior.
 
 It is built for agent runtimes and infrastructure that need predictable provider access while owning their own conversation state, tool execution, memory, compaction, and session policy.
+
+## Methodology
+
+`llmadapter` is intentionally explicit about provider mechanics:
+
+- **Provider endpoints, not generic providers:** OpenRouter, MiniMax, OpenAI, Codex, Anthropic, and Claude-compatible access can expose different API kinds. Each callable surface is modeled separately.
+- **Canonical stream, provider evidence:** text, reasoning, tool calls, usage, quota, citations, warnings, raw metadata, route decisions, and transport diagnostics are surfaced as events.
+- **Modeldb as source of truth:** model aliases, offerings, capabilities, pricing, token limits, and provider-specific parameter mappings come from modeldb plus operator overlays.
+- **Stateless public contract:** llmadapter does not own conversation state. Consumers replay or use public continuation fields according to route metadata; provider-internal continuation remains diagnostic.
+- **Live-verified compatibility:** the provider matrix is backed by credential-gated smoke tests for text, tools, tool continuation, gateway routing, reasoning where supported, prompt-cache accounting where providers expose it, and selected WebSocket/session behavior.
 
 ## What You Can Do
 
@@ -45,6 +58,18 @@ Current v1 release-candidate endpoint types:
 | `minimax_messages` | MiniMax Anthropic-compatible Messages |
 
 See [docs/PROVIDER_MATRIX.md](docs/PROVIDER_MATRIX.md) for feature coverage and live smoke-test status.
+
+## Coverage Highlights
+
+- Gateway endpoints: `/v1/chat/completions`, `/v1/responses`, `/v1/messages`.
+- Provider families: Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, compatible OpenRouter and MiniMax surfaces, Claude Code-compatible access, and Codex/ChatGPT-compatible Responses.
+- Tool loops: canonical tool call/result mapping with replay helpers and provider-specific continuation constraints.
+- Reasoning: streamed reasoning content/signatures where providers expose it.
+- Structured output: JSON/schema mappings where model metadata confirms support.
+- Prompt caching: canonical cache intent and provider-specific cache accounting where available.
+- Quota telemetry: unified quota events for provider subscription/rate-limit windows.
+- Transport diagnostics: redacted HTTP/SSE and WebSocket request/response/stream inspection.
+- Retry/fallback: pre-stream retry/fallback only; no duplicate partial output after response streaming starts.
 
 ## Quick Start
 
@@ -88,7 +113,7 @@ curl -sS http://localhost:8080/v1/responses \
 
 ## Documentation
 
-Start with [docs/README.md](docs/README.md).
+Start with [docs/README.md](docs/README.md) or the published documentation site: https://codewandler.github.io/llmadapter/
 
 The repository includes a GitHub Pages workflow that can publish the `docs/` folder as a documentation site.
 

@@ -17,6 +17,7 @@ match these entries as the project starts publishing releases.
 - Reworked the root README as a concise public landing page and added `docs/README.md` as the detailed documentation index.
 - Added a GitHub Pages workflow for publishing the `docs/` folder as a documentation site.
 - Moved research and internal planning notes under `docs/research/` and `docs/internal/`.
+- Expanded the root README to better describe llmadapter methodology, provider coverage, live verification, and diagnostics while keeping internal notes out of the public docs index.
 
 ## [1.0.0-rc.26] - 2026-05-02
 

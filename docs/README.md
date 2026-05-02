@@ -28,16 +28,6 @@ When GitHub Pages is enabled for this repository, the docs workflow publishes th
 
 - [Provider Development](PROVIDER_DEVELOPMENT.md): how to add provider endpoints, model API kinds/families, update registry/config behavior, and add shared smoke coverage.
 
-## Research And Internal Notes
-
-These documents are useful for maintainers, but are not the primary user path:
-
-- [Claude Code Wire Diff](research/CLAUDE_CODE_WIRE_DIFF.md): observed Claude Code wire behavior and Claude-compatible provider parity notes.
-- [Use Case Compatibility Plan](internal/USE_CASE_COMPATIBILITY_PLAN.md): implementation plan for workload compatibility evidence and approval flows.
-- [DESIGN.md](https://github.com/codewandler/llmadapter/blob/main/DESIGN.md): internal long-form target design.
-- [PLAN.md](https://github.com/codewandler/llmadapter/blob/main/PLAN.md): implementation history and roadmap notes.
-- [review.md](https://github.com/codewandler/llmadapter/blob/main/review.md): latest repository review snapshot.
-
 ## Examples
 
 - [examples/README.md](https://github.com/codewandler/llmadapter/blob/main/examples/README.md): shipped config examples and adaptation notes.
