@@ -253,14 +253,11 @@ Routing targets provider endpoints, not just providers. This is why OpenRouter a
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md): JSON config, routes, modeldb, aliases, dynamic models, capabilities, pricing.
 - [docs/LIBRARY_USAGE.md](docs/LIBRARY_USAGE.md): Go client patterns.
 - [docs/PROVIDER_MATRIX.md](docs/PROVIDER_MATRIX.md): provider endpoint support and smoke coverage.
-- [docs/CLAUDE_CODE_WIRE_DIFF.md](docs/CLAUDE_CODE_WIRE_DIFF.md): observed Claude Code wire behavior and Claude-compatible provider parity gaps.
 - [docs/USE_CASE_MATRIX.md](docs/USE_CASE_MATRIX.md): workload compatibility status for agentic coding and summarization.
-- [docs/USE_CASE_COMPATIBILITY_PLAN.md](docs/USE_CASE_COMPATIBILITY_PLAN.md): execution plan for agentic-coding compatibility approval.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package architecture and request flow.
 - [docs/API_SURFACE.md](docs/API_SURFACE.md): public package boundary.
 - [docs/PROVIDER_DEVELOPMENT.md](docs/PROVIDER_DEVELOPMENT.md): adding provider endpoints/API kinds.
-- [DESIGN.md](DESIGN.md): long-form target design.
-- [PLAN.md](PLAN.md): implementation history and remaining roadmap.
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): common transport, provider, and continuation issues.
 - [CHANGELOG.md](CHANGELOG.md): release history.
 
 ## Verification
@@ -283,7 +280,7 @@ Live tests skip when `TEST_INTEGRATION` is unset or credentials are missing.
 
 ## Stability And Limits
 
-`v1.0.0-rc.1` is intended to be the stable baseline for the stateless adapter/gateway/mux surface.
+The `v1.0.0-rc` track is intended to stabilize the stateless adapter/gateway/mux surface before the first v1 release.
 
 Stable behavior:
 

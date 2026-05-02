@@ -22,7 +22,7 @@ Do not model a multi-surface provider as one API kind. OpenRouter and MiniMax ar
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries and request flow.
 - [API_SURFACE.md](API_SURFACE.md): public/internal package boundary.
 - [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md): current support and smoke coverage.
-- [DESIGN.md](../DESIGN.md): long-form target design.
+- [DESIGN.md](../DESIGN.md): internal long-form target design, useful for historical context.
 
 Inspect similar implementations:
 

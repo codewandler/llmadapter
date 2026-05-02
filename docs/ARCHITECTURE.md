@@ -2,7 +2,7 @@
 
 This document describes the current `llmadapter` architecture, package boundaries, dependency shape, known shortcomings, and roadmap for hardening the design.
 
-`DESIGN.md` remains the long-form target design. `PLAN.md` records implementation history and the release-candidate roadmap. `docs/API_SURFACE.md` records the v1 public package boundary. This document is the practical architecture review of the code as it exists now.
+`docs/API_SURFACE.md` records the v1 public package boundary. This document is the practical architecture review of the code as it exists now. Root-level `DESIGN.md` and `PLAN.md` are internal background notes rather than primary user documentation.
 
 ## Purpose
 

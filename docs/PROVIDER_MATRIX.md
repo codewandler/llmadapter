@@ -104,7 +104,7 @@ The e2e package skips cleanly when `TEST_INTEGRATION` is unset. Individual provi
 
 ## Latest V1 Track Result
 
-On 2026-04-26, the full live command above was run with local credentials available for all v1 provider endpoints. Text, tools, tool continuation, gateway routing, reasoning where advertised, parallel tools where advertised, Responses continuation, invalid credentials, and invalid model normalization passed. Prompt-cache accounting passed for all provider/model/API combinations promoted by the agentic-coding compatibility artifact.
+On 2026-05-02, the full live command above was run with local credentials available for all v1 provider endpoints. Text, tools, tool continuation, and gateway routing passed for Anthropic, Claude-compatible access, OpenAI Chat, OpenAI Responses, Codex Responses, OpenRouter Chat, OpenRouter Responses, OpenRouter Messages, MiniMax Chat, and MiniMax Messages.
 
 On 2026-04-27, the focused Codex WebSocket continuation and WebSocket prompt-cache smokes passed with `TEST_INTEGRATION=1`, including runtime `transport=websocket` evidence and provider-reported cache-read token accounting on the repeated cached request.
 
