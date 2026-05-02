@@ -17,12 +17,12 @@ Do not model a multi-surface provider as one API kind. OpenRouter and MiniMax ar
 
 ## Files To Read First
 
-- [README.md](../README.md): product surface and supported providers.
-- [AGENTS.md](../AGENTS.md): repo rules and required checks.
+- [README.md](https://github.com/codewandler/llmadapter/blob/main/README.md): product surface and supported providers.
+- [AGENTS.md](https://github.com/codewandler/llmadapter/blob/main/AGENTS.md): repo rules and required checks.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries and request flow.
 - [API_SURFACE.md](API_SURFACE.md): public/internal package boundary.
 - [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md): current support and smoke coverage.
-- [DESIGN.md](../DESIGN.md): internal long-form target design, useful for historical context.
+- [DESIGN.md](https://github.com/codewandler/llmadapter/blob/main/DESIGN.md): internal long-form target design, useful for historical context.
 
 Inspect similar implementations:
 
@@ -48,7 +48,7 @@ Inspect similar implementations:
 7. Add `adapterconfig` tests for provider endpoint metadata, defaults, modeldb service identity, and auto detection when relevant.
 8. Ensure `gatewayserver` can expose the provider through existing endpoint codecs when the API family is supported.
 9. Add shared e2e smoke entries gated by provider-specific env vars or local auth detection.
-10. Update [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md), [CONFIGURATION.md](CONFIGURATION.md), and [README.md](../README.md) if public provider support changes.
+10. Update [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md), [CONFIGURATION.md](CONFIGURATION.md), and [README.md](https://github.com/codewandler/llmadapter/blob/main/README.md) if public provider support changes.
 
 ## Capability Rules
 
