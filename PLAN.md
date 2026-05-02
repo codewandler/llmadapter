@@ -193,6 +193,7 @@ env GOCACHE=/tmp/go-cache go test ./diagnostics ./cmd/llmadapter ./adapterconfig
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug request,response,stream --config /tmp/llmadapter-codex-smoke.json --source-api openai.responses --model codex-smoke --session debug-trace-followup --branch main --max-tokens 16 --no-cache "Reply exactly: trace ok"
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug request,response,stream --config /tmp/llmadapter-claude-smoke.json --source-api anthropic.messages --model claude-smoke --max-tokens 16 --no-cache "Reply exactly: trace ok"
 env GOCACHE=/tmp/go-cache go run ./cmd/llmadapter infer --debug request,response --config /tmp/llmadapter-codex-smoke.json --source-api openai.responses --model codex-smoke --session debug-redaction-check --branch main --max-tokens 8 --no-cache "Reply: ok"
+env GOCACHE=/tmp/go-cache go run /tmp/llmadapter_codex_reuse_trace.go
 ```
 
 Implemented package surface:
