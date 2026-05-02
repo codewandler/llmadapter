@@ -10,6 +10,8 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.27] - 2026-05-03
+
 ### Changed
 
 - Reworked the root README as a concise public landing page and added `docs/README.md` as the detailed documentation index.
