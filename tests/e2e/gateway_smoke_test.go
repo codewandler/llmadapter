@@ -16,6 +16,8 @@ import (
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	bedrockmessages "github.com/codewandler/llmadapter/providers/bedrock/messages"
+	bedrockresponses "github.com/codewandler/llmadapter/providers/bedrock/responses"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
@@ -36,6 +38,7 @@ type gatewayProvider struct {
 	apiKeyEnv        []string
 	localClaudeOAuth bool
 	localCodexOAuth  bool
+	awsProfileAuth   bool
 	modelEnv         string
 	model            string
 	maxOutputTokens  int
@@ -204,6 +207,36 @@ func gatewayProviders() []gatewayProvider {
 			},
 		},
 		{
+			name:            "bedrock_responses",
+			apiKind:         adapt.ApiBedrockResponses,
+			family:          adapt.FamilyOpenAIResponses,
+			capabilities:    router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true},
+			apiKeyEnv:       []string{bedrockresponses.EnvAPIKey, bedrockresponses.EnvBearerToken},
+			awsProfileAuth:  true,
+			modelEnv:        bedrockresponses.EnvModel,
+			model:           bedrockresponses.DefaultModel,
+			maxOutputTokens: 512,
+			newClient: func(apiKey string) (unified.Client, error) {
+				return bedrockresponses.NewClient(bedrockresponses.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:           "bedrock_messages",
+			apiKind:        adapt.ApiBedrockAnthropicMessages,
+			family:         adapt.FamilyAnthropicMessages,
+			capabilities:   router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:      []string{bedrockmessages.EnvAPIKey, bedrockmessages.EnvBearerToken},
+			awsProfileAuth: true,
+			modelEnv:       bedrockmessages.EnvModel,
+			model:          bedrockmessages.DefaultModel,
+			newClient: func(apiKey string) (unified.Client, error) {
+				if apiKey == "" {
+					return bedrockmessages.NewClient()
+				}
+				return bedrockmessages.NewClient(bedrockmessages.WithAPIKey(apiKey))
+			},
+		},
+		{
 			name:         "openrouter_chat",
 			apiKind:      adapt.ApiOpenRouterChatCompletions,
 			family:       adapt.FamilyOpenAIChatCompletions,
@@ -281,7 +314,7 @@ func newGateway(t *testing.T, provider gatewayProvider) (http.Handler, string) {
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
 	}
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
-	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) && !(provider.localCodexOAuth && codex.LocalAvailable()) {
+	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) && !(provider.localCodexOAuth && codex.LocalAvailable()) && !provider.awsProfileAuth {
 		if len(provider.apiKeyEnv) == 0 && provider.localClaudeOAuth {
 			t.Skipf("Claude provider %s requires local Claude credentials, expected ~/.claude/.credentials.json or CLAUDE_CONFIG_DIR to point to a token file", provider.name)
 		}

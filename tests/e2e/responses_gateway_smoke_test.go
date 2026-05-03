@@ -15,6 +15,7 @@ import (
 	"github.com/codewandler/llmadapter/adapt"
 	responsesendpoint "github.com/codewandler/llmadapter/endpoints/openairesponses"
 	"github.com/codewandler/llmadapter/gateway"
+	bedrockresponses "github.com/codewandler/llmadapter/providers/bedrock/responses"
 	codex "github.com/codewandler/llmadapter/providers/openai/codex"
 	openairesponses "github.com/codewandler/llmadapter/providers/openai/responses"
 	openrouterresponses "github.com/codewandler/llmadapter/providers/openrouter/responses"
@@ -97,6 +98,7 @@ type responsesGatewayProvider struct {
 	apiKind         adapt.ApiKind
 	apiKeyEnv       []string
 	localCodexOAuth bool
+	awsProfileAuth  bool
 	modelEnv        string
 	model           string
 	newClient       func(apiKey string) (unified.Client, error)
@@ -129,6 +131,17 @@ func responsesGatewayProviders() []responsesGatewayProvider {
 			},
 		},
 		{
+			name:           "bedrock_responses",
+			apiKind:        adapt.ApiBedrockResponses,
+			apiKeyEnv:      []string{bedrockresponses.EnvAPIKey, bedrockresponses.EnvBearerToken},
+			awsProfileAuth: true,
+			modelEnv:       bedrockresponses.EnvModel,
+			model:          bedrockresponses.DefaultModel,
+			newClient: func(apiKey string) (unified.Client, error) {
+				return bedrockresponses.NewClient(bedrockresponses.WithAPIKey(apiKey))
+			},
+		},
+		{
 			name:      "openrouter_responses",
 			apiKind:   adapt.ApiOpenRouterResponses,
 			apiKeyEnv: []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
@@ -147,7 +160,7 @@ func newResponsesGateway(t *testing.T, provider responsesGatewayProvider) (http.
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
 	}
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
-	if apiKey == "" && !(provider.localCodexOAuth && codex.LocalAvailable()) {
+	if apiKey == "" && !(provider.localCodexOAuth && codex.LocalAvailable()) && !provider.awsProfileAuth {
 		t.Skipf("set one of %s to run %s Responses gateway e2e smoke tests", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
 	model := provider.model

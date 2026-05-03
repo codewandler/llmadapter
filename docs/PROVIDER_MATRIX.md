@@ -26,6 +26,8 @@ Legend:
 | `openai_chat` | `openai.chat_completions` | `openai.chat_completions` | `OPENAI_API_KEY` or `OPENAI_KEY` | `gpt-4.1-mini` |
 | `openai_responses` | `openai.responses` | `openai.responses` | `OPENAI_API_KEY` or `OPENAI_KEY` | `gpt-4.1-mini` |
 | `codex_responses` | `codex.responses` | `openai.responses` | `CODEX_ACCESS_TOKEN`, `CODEX_CODE_OAUTH_TOKEN`, or `~/.codex/auth.json` | provider default |
+| `bedrock_responses` | `bedrock.responses` | `openai.responses` | `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK` | `openai.gpt-oss-120b` |
+| `bedrock_messages` | `bedrock.anthropic_messages` | `anthropic.messages` | `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK` | `anthropic.claude-opus-4-7` |
 | `openrouter_chat` | `openrouter.chat_completions` | `openai.chat_completions` | `OPENROUTER_API_KEY` or `OPENROUTER_KEY` | `openai/gpt-4.1-mini` |
 | `openrouter_responses` | `openrouter.responses` | `openai.responses` | `OPENROUTER_API_KEY` or `OPENROUTER_KEY` | `openai/gpt-4.1-mini` |
 | `openrouter_messages` | `openrouter.anthropic_messages` | `anthropic.messages` | `OPENROUTER_API_KEY` or `OPENROUTER_KEY` | `anthropic/claude-sonnet-4` |
@@ -41,6 +43,8 @@ Legend:
 | `openai_chat` | `replay` | `replay` | `http_sse` |
 | `openai_responses` | `previous_response_id` | `previous_response_id` | `http_sse` |
 | `codex_responses` | `replay` | `replay` | `http_sse` |
+| `bedrock_responses` | `previous_response_id` | `previous_response_id` | `http_sse` |
+| `bedrock_messages` | `replay` | `replay` | `http_sse` |
 | `openrouter_chat` | `replay` | `replay` | `http_sse` |
 | `openrouter_responses` | `replay` | `replay` | `http_sse` |
 | `openrouter_messages` | `replay` | `replay` | `http_sse` |
@@ -58,6 +62,8 @@ Consumers should choose their public projection strategy from `Consumer continua
 | `openai_chat` | live | live | live | live | n/a | n/a | fixture | fixture | live | modeldb | live |
 | `openai_responses` | live | live | live | live | live | live | fixture | fixture | live | modeldb | live |
 | `codex_responses` | live | live | live | live | live | live | fixture | fixture | live | modeldb | live |
+| `bedrock_responses` | live | live | live | n/a | live | n/a | fixture | n/a | live | modeldb | live |
+| `bedrock_messages` | live | live | live | n/a | n/a | n/a | n/a | fixture | live | modeldb | live |
 | `openrouter_chat` | live | live | live | live | n/a | n/a | fixture | fixture | live | modeldb | live |
 | `openrouter_responses` | live | live | live | live | live | live | fixture | fixture | live | modeldb | live |
 | `openrouter_messages` | live | live | live | n/a | live | live | n/a | fixture | live | modeldb | live |
@@ -75,6 +81,12 @@ OpenAI platform Responses has an official WebSocket mode. Direct `openai_respons
 The default OpenAI Responses WebSocket transport enables compression and forces IPv4. OpenRouter Responses does not inherit that mode unless it opts in explicitly.
 
 OpenAI Responses owns the base provider wire implementation for the Responses family. OpenRouter Responses wraps that base with OpenRouter-specific request extensions; Codex Responses wraps it with Codex auth/session/header behavior and Codex-specific unsupported-field handling.
+
+Bedrock Responses uses Amazon Bedrock Mantle's OpenAI-compatible `/v1/responses` endpoint. The default base URL is derived from `AWS_REGION` or `AWS_DEFAULT_REGION`, falling back to `us-east-1`; config `base_url` may also be set explicitly, with or without a trailing `/v1`. Authentication can use explicit Bedrock bearer keys or AWS SDK-loaded profile/region credentials to generate short-term Bedrock bearer tokens. Native Bedrock Converse and Bedrock Chat Completions are separate endpoint shapes and are not represented by `bedrock_responses`; Anthropic-compatible Bedrock access is represented by `bedrock_messages`.
+
+Bedrock Mantle's `/v1/models` list is broader than the `/v1/responses` surface. On 2026-05-03 in `us-east-1`, the listed models that live-probed successfully through `/v1/responses` were `openai.gpt-oss-120b` and `openai.gpt-oss-20b`; all other listed Mantle IDs returned Bedrock validation errors stating that the model does not support `/v1/responses`.
+
+Bedrock Messages uses Mantle's Anthropic-compatible route at `/anthropic/v1/messages`. On 2026-05-03 in `us-east-1`, `anthropic.claude-opus-4-7` and `anthropic.claude-haiku-4-5` live-probed successfully through this endpoint; `anthropic.claude-opus-4-6` returned a provider not-found error for that Mantle model ID. A separate `/anthropic/v1/models` listing is not exposed, so the broad Mantle `/v1/models` endpoint remains the discovery source even though it mixes API surfaces. The shared smoke matrix uses Haiku 4.5 for tool-continuation because Opus 4.7 intentionally refuses the synthetic prompt-injection-shaped tool result used by the generic continuation smoke. Bedrock Messages accepts adaptive-thinking-shaped requests, but the live stream did not expose reasoning deltas or reasoning token accounting, so this endpoint does not advertise reasoning yet.
 
 ## Live Smoke Commands
 
@@ -98,6 +110,9 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestSmokeO
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestGatewaySmoke -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestAnthropicMessagesGatewaySmoke -count=1 -v
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestResponsesGatewaySmoke -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestBedrockResponsesModelsList -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 BEDROCK_RESPONSES_PROBE_MODELS=openai.gpt-oss-120b,openai.gpt-oss-20b go test ./tests/e2e -run TestBedrockResponsesProbeModels -count=1 -v
+env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 BEDROCK_MESSAGES_PROBE_MODELS=anthropic.claude-opus-4-7,anthropic.claude-haiku-4-5 go test ./tests/e2e -run TestBedrockMessagesProbeModels -count=1 -v
 ```
 
 The e2e package skips cleanly when `TEST_INTEGRATION` is unset. Individual provider subtests skip when their credential env vars or local OAuth files are unavailable, or when a feature is not advertised by that endpoint in the smoke matrix.

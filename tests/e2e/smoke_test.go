@@ -10,6 +10,8 @@ import (
 	"time"
 
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	bedrockmessages "github.com/codewandler/llmadapter/providers/bedrock/messages"
+	bedrockresponses "github.com/codewandler/llmadapter/providers/bedrock/responses"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
@@ -26,6 +28,7 @@ type smokeProvider struct {
 	apiKeyEnv             []string
 	localClaudeOAuth      bool
 	localCodexOAuth       bool
+	awsProfileAuth        bool
 	modelEnv              string
 	model                 string
 	tools                 bool
@@ -913,6 +916,35 @@ func smokeProviders() []smokeProvider {
 			newClient:          newCodexSmokeClient,
 		},
 		{
+			name:                  "bedrock_responses",
+			apiKeyEnv:             []string{bedrockresponses.EnvAPIKey, bedrockresponses.EnvBearerToken},
+			awsProfileAuth:        true,
+			modelEnv:              bedrockresponses.EnvModel,
+			model:                 bedrockresponses.DefaultModel,
+			tools:                 true,
+			reasoning:             true,
+			maxOutputTokens:       512,
+			responsesContinuation: true,
+			newClient: func(apiKey string) (unified.Client, error) {
+				return bedrockresponses.NewClient(bedrockresponses.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:                  "bedrock_messages",
+			apiKeyEnv:             []string{bedrockmessages.EnvAPIKey, bedrockmessages.EnvBearerToken},
+			awsProfileAuth:        true,
+			modelEnv:              bedrockmessages.EnvModel,
+			model:                 "anthropic.claude-haiku-4-5",
+			tools:                 true,
+			continuationMaxTokens: 512,
+			newClient: func(apiKey string) (unified.Client, error) {
+				if apiKey == "" {
+					return bedrockmessages.NewClient()
+				}
+				return bedrockmessages.NewClient(bedrockmessages.WithAPIKey(apiKey))
+			},
+		},
+		{
 			name:          "openrouter_chat",
 			apiKeyEnv:     []string{"OPENROUTER_API_KEY", "OPENROUTER_KEY"},
 			modelEnv:      "OPENROUTER_MODEL",
@@ -1116,7 +1148,7 @@ func (p smokeProvider) continuationMaxOutputTokens(defaultValue int) int {
 func newSmokeClient(t *testing.T, provider smokeProvider) (unified.Client, string) {
 	t.Helper()
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
-	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) && !(provider.localCodexOAuth && codex.LocalAvailable()) {
+	if apiKey == "" && !(provider.localClaudeOAuth && anthropic.LocalTokenStoreAvailable()) && !(provider.localCodexOAuth && codex.LocalAvailable()) && !provider.awsProfileAuth {
 		if len(provider.apiKeyEnv) == 0 && provider.localClaudeOAuth {
 			t.Skipf("Claude provider %s requires local Claude credentials, expected ~/.claude/.credentials.json or CLAUDE_CONFIG_DIR to point to a token file", provider.name)
 		}

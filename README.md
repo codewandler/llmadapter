@@ -51,6 +51,8 @@ Current v1 release-candidate endpoint types:
 | `openai_chat` | OpenAI Chat Completions |
 | `openai_responses` | OpenAI Responses |
 | `codex_responses` | Codex/ChatGPT-compatible Responses |
+| `bedrock_responses` | Amazon Bedrock Mantle OpenAI-compatible Responses |
+| `bedrock_messages` | Amazon Bedrock Mantle Anthropic-compatible Messages |
 | `openrouter_chat` | OpenRouter Chat Completions |
 | `openrouter_responses` | OpenRouter Responses |
 | `openrouter_messages` | OpenRouter Anthropic Messages |
@@ -132,6 +134,7 @@ Live provider calls use standard env vars or local OAuth files:
 
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY` or `OPENAI_KEY`
+- `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK` for Bedrock Mantle Responses/Messages, or AWS profile/region credentials for short-term token generation
 - `OPENROUTER_API_KEY` or `OPENROUTER_KEY`
 - `MINIMAX_API_KEY` or `MINIMAX_KEY`
 - local Claude Code credentials in `~/.claude/.credentials.json`

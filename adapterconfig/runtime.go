@@ -342,6 +342,8 @@ func modelDBServiceIDForProviderType(providerType string) string {
 		return "openai"
 	case "codex_responses":
 		return "codex"
+	case "bedrock_responses", "bedrock_messages":
+		return "bedrock"
 	case "openrouter_chat", "openrouter_responses", "openrouter_messages":
 		return "openrouter"
 	case "minimax_chat", "minimax_messages":

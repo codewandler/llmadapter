@@ -74,7 +74,62 @@ Provider fields:
 
 Supported provider endpoint types are documented in [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md).
 
-Known provider endpoint types infer their modeldb service identity automatically: Anthropic/Claude map to `anthropic`, OpenAI maps to `openai`, Codex maps to `codex`, OpenRouter maps to `openrouter`, and MiniMax maps to `minimax`. Set `modeldb_service_id` only when using a custom provider type or deliberately overriding that identity.
+Known provider endpoint types infer their modeldb service identity automatically: Anthropic/Claude map to `anthropic`, OpenAI maps to `openai`, Codex maps to `codex`, Bedrock maps to `bedrock`, OpenRouter maps to `openrouter`, and MiniMax maps to `minimax`. Set `modeldb_service_id` only when using a custom provider type or deliberately overriding that identity.
+
+Amazon Bedrock Mantle Responses can be configured as an OpenAI Responses-family endpoint:
+
+```json
+{
+  "providers": [
+    {
+      "name": "bedrock",
+      "type": "bedrock_responses",
+      "api_key_env": "BEDROCK_API_KEY",
+      "model": "openai.gpt-oss-120b"
+    }
+  ],
+  "routes": [
+    {
+      "source_api": "openai.responses",
+      "model": "bedrock-gpt-oss",
+      "provider": "bedrock",
+      "provider_api": "bedrock.responses",
+      "native_model": "openai.gpt-oss-120b"
+    }
+  ]
+}
+```
+
+If `base_url` is omitted, `bedrock_responses` uses `https://bedrock-mantle.${AWS_REGION}.api.aws`, then `AWS_DEFAULT_REGION`, then `us-east-1`. If you paste AWS's OpenAI SDK style URL with a trailing `/v1`, llmadapter normalizes it before calling `/v1/responses`.
+
+Authentication prefers explicit `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK` bearer values. If neither is configured, `bedrock_responses` loads AWS credentials through the AWS SDK default chain, including `AWS_PROFILE` and SSO-backed profiles, and generates a short-term Bedrock bearer token for the selected region. Short-term tokens are cached in memory and refreshed before expiry.
+
+Bedrock Mantle's `/v1/models` endpoint can list models for multiple OpenAI-compatible API surfaces. `bedrock_responses` only targets `/v1/responses`; the currently live-verified Responses models are `openai.gpt-oss-120b` and `openai.gpt-oss-20b`. Other listed Mantle models may require a different endpoint shape such as Chat Completions or Messages. Bedrock currently accepts only `tool_choice: "auto"` on this Responses surface, so llmadapter sends non-auto canonical tool choices as `auto` and emits a warning.
+
+Amazon Bedrock Mantle Anthropic-compatible Messages can be configured separately:
+
+```json
+{
+  "providers": [
+    {
+      "name": "bedrock-claude",
+      "type": "bedrock_messages",
+      "model": "anthropic.claude-opus-4-7"
+    }
+  ],
+  "routes": [
+    {
+      "source_api": "anthropic.messages",
+      "model": "bedrock-opus",
+      "provider": "bedrock-claude",
+      "provider_api": "bedrock.anthropic_messages",
+      "native_model": "anthropic.claude-opus-4-7"
+    }
+  ]
+}
+```
+
+`bedrock_messages` uses the Mantle Anthropic route prefix, so the default upstream URL is `https://bedrock-mantle.${AWS_REGION}.api.aws/anthropic/v1/messages`. If `base_url` is configured, it may be the host, the `/anthropic` prefix, or the full `/anthropic/v1/messages` endpoint. Live-probed Bedrock Messages model IDs currently include `anthropic.claude-opus-4-7` and `anthropic.claude-haiku-4-5`; `anthropic.claude-opus-4-6` is not available as a Mantle Messages model ID in `us-east-1`.
 
 Provider JSON config does not currently expose provider-internal transport toggles. For example, `codex_responses` may use WebSocket internally for explicit session requests, but that behavior is controlled by request extensions and provider implementation defaults rather than route config. Direct provider users can control this with `responses.WithWebSocketMode(...)` for `providers/openai/responses` or `codex.WithWebSocketMode(...)` for `providers/openai/codex`.
 

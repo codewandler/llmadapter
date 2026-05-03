@@ -8,6 +8,8 @@ import (
 
 	"github.com/codewandler/llmadapter/adapt"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	bedrockmessages "github.com/codewandler/llmadapter/providers/bedrock/messages"
+	bedrockresponses "github.com/codewandler/llmadapter/providers/bedrock/responses"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openai "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
@@ -114,6 +116,32 @@ var descriptors = []Descriptor{
 		DefaultModelEnv:      codex.EnvModel,
 		DefaultModel:         codex.DefaultModel,
 		Factory:              newCodexResponsesClient,
+	},
+	{
+		Type:                 "bedrock_responses",
+		APIKind:              adapt.ApiBedrockResponses,
+		Family:               adapt.FamilyOpenAIResponses,
+		Capabilities:         router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true, ReasoningDeltas: true, ServerSideState: true},
+		ConsumerContinuation: unified.ContinuationPreviousResponseID,
+		InternalContinuation: unified.ContinuationPreviousResponseID,
+		Transport:            unified.TransportHTTPSSE,
+		DefaultAPIKeyEnvs:    []string{bedrockresponses.EnvAPIKey, bedrockresponses.EnvBearerToken},
+		DefaultModelEnv:      bedrockresponses.EnvModel,
+		DefaultModel:         bedrockresponses.DefaultModel,
+		Factory:              newBedrockResponsesClient,
+	},
+	{
+		Type:                 "bedrock_messages",
+		APIKind:              adapt.ApiBedrockAnthropicMessages,
+		Family:               adapt.FamilyAnthropicMessages,
+		Capabilities:         router.CapabilitySet{Streaming: true, Tools: true},
+		ConsumerContinuation: unified.ContinuationReplay,
+		InternalContinuation: unified.ContinuationReplay,
+		Transport:            unified.TransportHTTPSSE,
+		DefaultAPIKeyEnvs:    []string{bedrockmessages.EnvAPIKey, bedrockmessages.EnvBearerToken},
+		DefaultModelEnv:      bedrockmessages.EnvModel,
+		DefaultModel:         bedrockmessages.DefaultModel,
+		Factory:              newBedrockMessagesClient,
 	},
 	{
 		Type:                 "openrouter_chat",
@@ -298,6 +326,34 @@ func newCodexResponsesClient(cfg ClientConfig) (unified.Client, error) {
 		opts = append(opts, codex.WithWebSocketTransport(cfg.WebSocketTransport))
 	}
 	return codex.NewClient(opts...)
+}
+
+func newBedrockResponsesClient(cfg ClientConfig) (unified.Client, error) {
+	opts := []bedrockresponses.Option{}
+	if cfg.APIKey != "" {
+		opts = append(opts, bedrockresponses.WithAPIKey(cfg.APIKey))
+	}
+	if cfg.BaseURL != "" {
+		opts = append(opts, bedrockresponses.WithBaseURL(cfg.BaseURL))
+	}
+	if cfg.Transport != nil {
+		opts = append(opts, bedrockresponses.WithTransport(cfg.Transport))
+	}
+	return bedrockresponses.NewClient(opts...)
+}
+
+func newBedrockMessagesClient(cfg ClientConfig) (unified.Client, error) {
+	opts := []bedrockmessages.Option{}
+	if cfg.APIKey != "" {
+		opts = append(opts, bedrockmessages.WithAPIKey(cfg.APIKey))
+	}
+	if cfg.BaseURL != "" {
+		opts = append(opts, bedrockmessages.WithBaseURL(cfg.BaseURL))
+	}
+	if cfg.Transport != nil {
+		opts = append(opts, bedrockmessages.WithTransport(cfg.Transport))
+	}
+	return bedrockmessages.NewClient(opts...)
 }
 
 func newOpenRouterChatClient(cfg ClientConfig) (unified.Client, error) {

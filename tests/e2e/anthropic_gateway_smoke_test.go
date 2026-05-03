@@ -16,6 +16,7 @@ import (
 	anthropicendpoint "github.com/codewandler/llmadapter/endpoints/anthropicmessages"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	bedrockmessages "github.com/codewandler/llmadapter/providers/bedrock/messages"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openroutermessages "github.com/codewandler/llmadapter/providers/openrouter/messages"
 	"github.com/codewandler/llmadapter/router"
@@ -134,6 +135,22 @@ func anthropicMessagesGatewayProviders() []gatewayProvider {
 				return minimaxmessages.NewClient(minimaxmessages.WithAPIKey(apiKey))
 			},
 		},
+		{
+			name:           "bedrock_messages",
+			apiKind:        adapt.ApiBedrockAnthropicMessages,
+			family:         adapt.FamilyAnthropicMessages,
+			capabilities:   router.CapabilitySet{Streaming: true, Tools: true},
+			apiKeyEnv:      []string{bedrockmessages.EnvAPIKey, bedrockmessages.EnvBearerToken},
+			awsProfileAuth: true,
+			modelEnv:       bedrockmessages.EnvModel,
+			model:          bedrockmessages.DefaultModel,
+			newClient: func(apiKey string) (unified.Client, error) {
+				if apiKey == "" {
+					return bedrockmessages.NewClient()
+				}
+				return bedrockmessages.NewClient(bedrockmessages.WithAPIKey(apiKey))
+			},
+		},
 	}
 }
 
@@ -143,7 +160,7 @@ func newAnthropicMessagesGateway(t *testing.T, provider gatewayProvider) (http.H
 		t.Skip("set TEST_INTEGRATION=1 to run e2e smoke tests")
 	}
 	apiKey := firstSetEnv(provider.apiKeyEnv...)
-	if apiKey == "" {
+	if apiKey == "" && !provider.awsProfileAuth {
 		t.Skipf("set one of %s to run %s Anthropic Messages gateway e2e smoke tests", strings.Join(provider.apiKeyEnv, ","), provider.name)
 	}
 	model := provider.model

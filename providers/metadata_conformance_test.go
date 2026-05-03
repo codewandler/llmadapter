@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	bedrockmessages "github.com/codewandler/llmadapter/providers/bedrock/messages"
+	bedrockresponses "github.com/codewandler/llmadapter/providers/bedrock/responses"
 	minimaxmessages "github.com/codewandler/llmadapter/providers/minimax/messages"
 	openaichat "github.com/codewandler/llmadapter/providers/openai/chatcompletions"
 	codex "github.com/codewandler/llmadapter/providers/openai/codex"
@@ -56,11 +58,27 @@ func TestProviderUsageRawConformance(t *testing.T) {
 			},
 		},
 		{
+			name:    "bedrock_responses",
+			frames:  responsesUsageFrames("openai.gpt-oss-120b"),
+			wantRaw: `"input_tokens":7`,
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return bedrockresponses.NewClient(bedrockresponses.WithAPIKey("key"), bedrockresponses.WithTransport(t))
+			},
+		},
+		{
 			name:    "anthropic_messages",
 			frames:  anthropicUsageFrames("claude-test"),
 			wantRaw: `"cache_read_input_tokens":3`,
 			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
 				return anthropic.NewClient(anthropic.WithAPIKey("key"), anthropic.WithTransport(t))
+			},
+		},
+		{
+			name:    "bedrock_messages",
+			frames:  anthropicUsageFrames("anthropic.claude-opus-4-7"),
+			wantRaw: `"cache_read_input_tokens":3`,
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return bedrockmessages.NewClient(bedrockmessages.WithAPIKey("key"), bedrockmessages.WithTransport(t))
 			},
 		},
 		{
@@ -148,6 +166,16 @@ func TestProviderUnknownRawEventConformance(t *testing.T) {
 			},
 		},
 		{
+			name:        "bedrock_responses",
+			frames:      responsesUnknownEventFrames("openai.gpt-oss-120b"),
+			wantAPIKind: "bedrock.responses",
+			wantType:    "response.web_search_call.in_progress",
+			wantJSON:    `"id":"ws_1"`,
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return bedrockresponses.NewClient(bedrockresponses.WithAPIKey("key"), bedrockresponses.WithTransport(t))
+			},
+		},
+		{
 			name:        "anthropic_messages",
 			frames:      anthropicUnknownContentFrames("claude-test"),
 			wantAPIKind: "anthropic.messages",
@@ -155,6 +183,16 @@ func TestProviderUnknownRawEventConformance(t *testing.T) {
 			wantJSON:    `"id":"srv_1"`,
 			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
 				return anthropic.NewClient(anthropic.WithAPIKey("key"), anthropic.WithTransport(t))
+			},
+		},
+		{
+			name:        "bedrock_messages",
+			frames:      anthropicUnknownContentFrames("anthropic.claude-opus-4-7"),
+			wantAPIKind: "bedrock.anthropic_messages",
+			wantType:    "server_tool_use",
+			wantJSON:    `"id":"srv_1"`,
+			newClient: func(t transport.ByteStreamTransport) (unified.Client, error) {
+				return bedrockmessages.NewClient(bedrockmessages.WithAPIKey("key"), bedrockmessages.WithTransport(t))
 			},
 		},
 		{
