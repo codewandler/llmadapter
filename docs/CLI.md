@@ -45,6 +45,8 @@ Show auto-detected provider status:
 go run ./cmd/llmadapter providers --auto
 ```
 
+`bedrock_converse` is auto-detected from AWS SDK credentials such as `AWS_PROFILE` plus `AWS_REGION`; Bedrock Mantle Responses/Messages are auto-detected from `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK`.
+
 Show configured provider status:
 
 ```sh

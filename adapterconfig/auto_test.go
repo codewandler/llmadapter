@@ -109,6 +109,36 @@ func TestAutoMuxClientDetectsLocalCodexOAuth(t *testing.T) {
 	}
 }
 
+func TestAutoMuxClientDetectsBedrockConverseAWSCredentials(t *testing.T) {
+	clearAutoEnv(t)
+	t.Setenv("AWS_PROFILE", "dev")
+	oldDetector := autoAWSCredentialsAvailable
+	autoAWSCredentialsAvailable = func() bool { return true }
+	t.Cleanup(func() { autoAWSCredentialsAvailable = oldDetector })
+
+	result, err := AutoMuxClient(AutoOptions{EnableEnv: true, EnableLocalClaude: false, EnableLocalCodex: false, UseModelDB: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !autoEnabled(result.Enabled, "bedrock_converse") {
+		t.Fatalf("expected bedrock_converse enabled: %+v", result.Enabled)
+	}
+	provider, ok := findProvider(result.Config, "bedrock_converse")
+	if !ok {
+		t.Fatalf("missing provider config: %+v", result.Config.Providers)
+	}
+	if provider.APIKeyEnv != "" || provider.ModelDBServiceID != "bedrock" {
+		t.Fatalf("unexpected provider config: %+v", provider)
+	}
+	route, ok := autoRoute(result.Config, adapt.ApiAnthropicMessages)
+	if !ok {
+		t.Fatalf("expected Anthropic Messages route: %+v", result.Config.Routes)
+	}
+	if route.Provider != "bedrock_converse" || route.ProviderAPI != adapt.ApiBedrockConverse {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+}
+
 func TestAutoMuxClientIntentsCreatePublicRoutes(t *testing.T) {
 	clearAutoEnv(t)
 	t.Setenv("OPENAI_API_KEY", "test-openai-key")
@@ -515,6 +545,20 @@ func clearAutoEnv(t *testing.T) {
 		"CODEX_AUTH_PATH",
 		"CODEX_CODE_OAUTH_TOKEN",
 		"CODEX_MODEL",
+		"AWS_ACCESS_KEY_ID",
+		"AWS_CONFIG_FILE",
+		"AWS_CONTAINER_CREDENTIALS_FULL_URI",
+		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+		"AWS_DEFAULT_REGION",
+		"AWS_EC2_METADATA_DISABLED",
+		"AWS_PROFILE",
+		"AWS_REGION",
+		"AWS_ROLE_ARN",
+		"AWS_SECRET_ACCESS_KEY",
+		"AWS_SESSION_TOKEN",
+		"AWS_SHARED_CREDENTIALS_FILE",
+		"AWS_WEB_IDENTITY_TOKEN_FILE",
+		"BEDROCK_CONVERSE_MODEL",
 		"MINIMAX_API_KEY",
 		"MINIMAX_KEY",
 		"MINIMAX_MODEL",
@@ -533,6 +577,9 @@ func clearAutoEnv(t *testing.T) {
 	}
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	t.Setenv("CODEX_AUTH_PATH", filepath.Join(t.TempDir(), "missing-auth.json"))
+	t.Setenv("AWS_CONFIG_FILE", filepath.Join(t.TempDir(), "missing-aws-config"))
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(t.TempDir(), "missing-aws-credentials"))
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 }
 
 func autoEnabled(providers []AutoProvider, providerType string) bool {

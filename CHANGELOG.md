@@ -23,6 +23,9 @@ match these entries as the project starts publishing releases.
   probes for OpenRouter models that need cache-capable endpoint routing.
 - Bedrock Converse now maps canonical cache-control hints to native cache
   points and advertises prompt caching after live cache-accounting coverage.
+- Auto-detected mux configuration now enables `bedrock_converse` when the AWS
+  SDK credential chain can retrieve credentials, including `AWS_PROFILE` and
+  SSO-backed profiles.
 - Bedrock Converse Opus 4.7 reasoning requests now use adaptive reasoning and
   `output_config.effort` when no explicit reasoning token budget is set.
 - Added live agentic-coding compatibility coverage for explicit Anthropic Opus

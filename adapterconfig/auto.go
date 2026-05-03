@@ -1,10 +1,13 @@
 package adapterconfig
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
+	"time"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/codewandler/llmadapter/adapt"
 	"github.com/codewandler/llmadapter/modelmeta"
 	"github.com/codewandler/llmadapter/providerregistry"
@@ -13,6 +16,8 @@ import (
 	"github.com/codewandler/llmadapter/unified"
 	"github.com/codewandler/modeldb"
 )
+
+var autoAWSCredentialsAvailable = defaultAutoAWSCredentialsAvailable
 
 type AutoOptions struct {
 	EnableEnv         bool
@@ -99,6 +104,18 @@ func autoProvider(descriptor providerregistry.Descriptor, opts AutoOptions) (Pro
 			return autoProviderConfig(descriptor, "", model, opts), status, true
 		}
 		status.Reason = "missing Codex OAuth env/local credentials"
+		return ProviderConfig{}, status, false
+	}
+	if descriptor.Type == "bedrock_converse" {
+		if opts.EnableEnv && autoAWSCredentialsAvailable() {
+			status.Reason = autoAWSReason()
+			return autoProviderConfig(descriptor, "", model, opts), status, true
+		}
+		if !opts.EnableEnv {
+			status.Reason = "env auto detection disabled"
+		} else {
+			status.Reason = "missing AWS SDK credentials"
+		}
 		return ProviderConfig{}, status, false
 	}
 	if !opts.EnableEnv {
@@ -440,4 +457,39 @@ func firstEnvWithName(keys ...string) (string, string) {
 		}
 	}
 	return "", ""
+}
+
+func defaultAutoAWSCredentialsAvailable() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	opts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(autoAWSRegion())}
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return false
+	}
+	_, err = cfg.Credentials.Retrieve(ctx)
+	return err == nil
+}
+
+func autoAWSRegion() string {
+	if region := os.Getenv("AWS_REGION"); region != "" {
+		return region
+	}
+	if region := os.Getenv("AWS_DEFAULT_REGION"); region != "" {
+		return region
+	}
+	return "us-east-1"
+}
+
+func autoAWSReason() string {
+	if os.Getenv("AWS_PROFILE") != "" {
+		return "aws_sdk:AWS_PROFILE"
+	}
+	if os.Getenv("AWS_ACCESS_KEY_ID") != "" {
+		return "aws_sdk:AWS_ACCESS_KEY_ID"
+	}
+	if os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE") != "" || os.Getenv("AWS_ROLE_ARN") != "" {
+		return "aws_sdk:web_identity"
+	}
+	return "aws_sdk_credentials"
 }

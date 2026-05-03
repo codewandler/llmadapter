@@ -135,7 +135,7 @@ Live provider calls use standard env vars or local OAuth files:
 
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY` or `OPENAI_KEY`
-- `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK` for Bedrock Mantle Responses/Messages, or AWS profile/region credentials for short-term token generation
+- `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK` for Bedrock Mantle Responses/Messages, and AWS SDK credentials such as `AWS_PROFILE` plus `AWS_REGION` for Bedrock Converse
 - `OPENROUTER_API_KEY` or `OPENROUTER_KEY`
 - `MINIMAX_API_KEY` or `MINIMAX_KEY`
 - local Claude Code credentials in `~/.claude/.credentials.json`
