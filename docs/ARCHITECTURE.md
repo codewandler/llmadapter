@@ -158,7 +158,7 @@ Provider instances are projected into modeldb runtime views for strict workload 
 
 `compatibility` evaluates route candidates against workload profiles such as `agentic_coding` and `summarization`. It consumes candidates produced by `adapterconfig`; it does not perform a separate modeldb lookup or instantiate providers. Live compatibility artifacts are workload certification evidence, not model identity data; they are joined with modeldb runtime views when consumers request approved-only selection.
 
-`conformance` joins static provider descriptors with the latest compatibility artifact. For `agentic_coding`, approved rows are treated as a strict consumer contract: every required feature must have live evidence, cache accounting must be live, and continuation/transport evidence must be explicit in the artifact. This lets agentsdk-style consumers distinguish “configured route exists” from “route is certified for coding-agent workloads.”
+`conformance` joins static provider descriptors with the latest compatibility artifact. For `agentic_coding`, approved rows are treated as a strict consumer contract: every required feature must have live evidence, cache accounting must be live, and continuation/transport evidence must be explicit in the artifact. Reasoning is optional workload evidence so consumers can filter for thinking models without excluding non-thinking coding models from the base agentic-coding list. This lets agentsdk-style consumers distinguish “configured route exists” from “route is certified for coding-agent workloads.”
 
 Modeldb is metadata and pricing input. It must not secretly instantiate providers or own credentials.
 

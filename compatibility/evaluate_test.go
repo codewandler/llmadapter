@@ -32,8 +32,8 @@ func TestEvaluateApprovedWhenRequiredAndPreferredSupported(t *testing.T) {
 
 func TestEvaluateFailsWhenRequiredUnsupported(t *testing.T) {
 	candidate := Candidate{Features: CandidateFeatures(router.CapabilitySet{
-		Streaming:     true,
 		Tools:         true,
+		Reasoning:     true,
 		PromptCaching: true,
 	}, "provider_descriptor", "")}
 
@@ -41,8 +41,34 @@ func TestEvaluateFailsWhenRequiredUnsupported(t *testing.T) {
 	if evaluation.Status != StatusFailed {
 		t.Fatalf("status = %s, want %s", evaluation.Status, StatusFailed)
 	}
-	if !containsFeature(evaluation.MissingRequired, FeatureReasoning) {
-		t.Fatalf("missing required = %v, want reasoning", evaluation.MissingRequired)
+	if !containsFeature(evaluation.MissingRequired, FeatureStreamingText) {
+		t.Fatalf("missing required = %v, want streaming_text", evaluation.MissingRequired)
+	}
+}
+
+func TestEvaluateApprovesAgenticCodingWithoutReasoning(t *testing.T) {
+	candidate := Candidate{
+		Provider:         "openrouter_responses",
+		ProviderType:     "openrouter_responses",
+		ModelDBService:   "openrouter",
+		CapabilitySource: "modeldb_exposure",
+		Features: append(CandidateFeatures(router.CapabilitySet{
+			Streaming:     true,
+			Tools:         true,
+			PromptCaching: true,
+		}, "modeldb_exposure", "openrouter"), FeatureEvidence{
+			Feature:   FeatureCacheAccounting,
+			Supported: true,
+			Evidence:  EvidenceLive,
+		}),
+	}
+
+	evaluation := Evaluate(candidate, AgenticCodingProfile())
+	if evaluation.Status != StatusApproved {
+		t.Fatalf("status = %s, want %s: %+v", evaluation.Status, StatusApproved, evaluation)
+	}
+	if !containsFeature(evaluation.UnsupportedOptional, FeatureReasoning) {
+		t.Fatalf("unsupported optional = %v, want reasoning", evaluation.UnsupportedOptional)
 	}
 }
 

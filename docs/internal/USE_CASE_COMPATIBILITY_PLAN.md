@@ -41,7 +41,7 @@ Initial use cases:
 
 | Use case | Goal |
 | --- | --- |
-| `agentic_coding` | Coding-agent runtime with tool use, reasoning, caching, structured output, and usage accounting. |
+| `agentic_coding` | Coding-agent runtime with tool use, caching, structured output, and usage accounting; reasoning is optional evidence for thinking-model filters. |
 | `summarization` | Simple text generation/summarization where tools, reasoning, and cache behavior are not required. |
 
 Initial agentic-coding features:
@@ -52,7 +52,7 @@ Initial agentic-coding features:
 | `tools` | required |
 | `tool_continuation` | required |
 | `structured_output` | required |
-| `reasoning` | required |
+| `reasoning` | optional |
 | `prompt_caching` | required |
 | `usage` | required |
 | `cache_accounting` | required |

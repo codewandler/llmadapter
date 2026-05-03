@@ -15,6 +15,12 @@ match these entries as the project starts publishing releases.
 - Added live agentic-coding compatibility coverage for Bedrock Converse Haiku
   4.5, Sonnet 4.6, Opus 4.6, and Opus 4.7, plus OpenRouter Responses GLM 4.6,
   GLM 4.7, and DeepSeek V3.2 rows.
+- Lowered the `agentic_coding` profile so reasoning is optional evidence rather
+  than a required approval gate, allowing non-thinking coding models to be
+  listed while keeping `reasoning=live` available for thinking-model filters.
+- Added live agentic-coding compatibility coverage for OpenRouter Responses
+  Qwen3-Coder and Qwen3-Coder-Next rows, with deterministic cache-accounting
+  probes for OpenRouter models that need cache-capable endpoint routing.
 - Bedrock Converse now maps canonical cache-control hints to native cache
   points and advertises prompt caching after live cache-accounting coverage.
 - Bedrock Converse Opus 4.7 reasoning requests now use adaptive reasoning and

@@ -18,7 +18,7 @@ go run ./cmd/llmadapter compatibility-record --use-case agentic_coding
 
 | Use case | Purpose |
 | --- | --- |
-| `agentic_coding` | Coding-agent runtime requiring tools, tool continuation, reasoning, prompt caching, structured output, and usage accounting. |
+| `agentic_coding` | Coding-agent runtime requiring tools, tool continuation, prompt caching, structured output, and usage accounting; reasoning is optional evidence for thinking-model filters. |
 | `summarization` | Text generation or summarization where tools, reasoning, and prompt caching are optional. |
 
 ## Agentic Coding Requirements
@@ -29,7 +29,7 @@ go run ./cmd/llmadapter compatibility-record --use-case agentic_coding
 | Tools | required | The model/provider path must support tool calls. |
 | Tool continuation | required | Tool results must be sendable back into the same API family. |
 | Structured output | required | JSON mode/schema or tool schemas can carry structured data. |
-| Reasoning | required | Thinking/reasoning must be requestable and observable where the provider exposes it. |
+| Reasoning | optional | Thinking/reasoning is recorded when observable and can be used by consumers that want reasoning-only model lists. |
 | Prompt caching | required | llmadapter must be able to encode useful cache controls. |
 | Usage | required | Usage events must be mapped when the provider reports usage. |
 | Cache accounting | required | Provider-reported cache write/read counters are mandatory for agentic coding cost tracking. |
@@ -68,7 +68,7 @@ Library consumers can use `adapterconfig.SelectModelForUseCase` or `AutoResult.S
 
 The generated `Transport` column records the transport observed by the workload compatibility run. It is not a routing requirement unless the use case says so. Codex WebSocket continuation/cache behavior is tracked separately in `docs/PROVIDER_MATRIX.md` because it is a provider-internal optimization while the public Codex continuation contract remains replay.
 
-`llmadapter conformance` now validates the approved `agentic_coding` rows as a strict contract. An approved row is only valid when all required workload checks are recorded as live evidence, cache accounting is live, and the artifact explicitly records consumer continuation, internal continuation, and transport. This is the contract consumers such as agentsdk should trust when selecting models for coding-agent use.
+`llmadapter conformance` now validates the approved `agentic_coding` rows as a strict contract. An approved row is only valid when all required workload checks are recorded as live evidence, cache accounting is live, and the artifact explicitly records consumer continuation, internal continuation, and transport. Reasoning remains recorded evidence, but non-thinking coding models can still be approved. This is the contract consumers such as agentsdk should trust when selecting models for coding-agent use.
 
 ## Initial Candidate Set
 
@@ -81,6 +81,8 @@ These rows are covered by the live agentic-coding compatibility smoke test:
 | `kimi-k2.6` | `openrouter_responses` |
 | `glm-4.6` | `openrouter_responses` |
 | `glm-4.7` | `openrouter_responses` |
+| `qwen3-coder` | `openrouter_responses` |
+| `qwen3-coder-next` | `openrouter_responses` |
 | `deepseek-v3.2` | `openrouter_responses` |
 | `haiku` | `claude`, `anthropic`, `openrouter_messages` |
 | `sonnet` | `claude`, `anthropic`, `openrouter_messages` |
@@ -103,37 +105,39 @@ Latest command:
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestUseCaseAgenticCoding -count=1 -v
 ```
 
-Total duration: 129.564 seconds.
+Total duration: 95.062 seconds.
 
 | Candidate | Provider endpoint | Native model | Continuation | Transport | Required checks | Cache accounting | Status | Duration |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `anthropic_haiku` | `anthropic` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 4.50s |
-| `anthropic_opus` | `anthropic` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 10.44s |
-| `anthropic_opus_4_7` | `anthropic` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 8.79s |
-| `anthropic_sonnet` | `anthropic` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 8.92s |
-| `bedrock_converse_haiku` | `bedrock_converse` | `anthropic.claude-haiku-4-5-20251001-v1:0` | replay | http_sse | pass | live | approved | 7.32s |
-| `bedrock_converse_opus_4_6` | `bedrock_converse` | `anthropic.claude-opus-4-6-v1` | replay | http_sse | pass | live | approved | 12.79s |
-| `bedrock_converse_opus_4_7` | `bedrock_converse` | `anthropic.claude-opus-4-7` | replay | http_sse | pass | live | approved | 8.76s |
-| `bedrock_converse_sonnet_4_6` | `bedrock_converse` | `anthropic.claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 8.32s |
-| `claude_haiku` | `claude` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 6.74s |
-| `claude_opus` | `claude` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 11.01s |
-| `claude_opus_4_7` | `claude` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 8.54s |
-| `claude_sonnet` | `claude` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 8.41s |
-| `codex_gpt_5_4` | `codex_responses` | `gpt-5.4` | replay | http_sse | pass | live | approved | 12.14s |
-| `codex_gpt_5_5` | `codex_responses` | `gpt-5.5` | replay | http_sse | pass | live | approved | 12.62s |
-| `minimax_latest` | `minimax_messages` | `MiniMax-M2.7` | replay | http_sse | pass | live | approved | 24.36s |
-| `openai_gpt_5_4` | `openai_responses` | `gpt-5.4` | previous_response_id | http_sse | pass | live | approved | 10.93s |
-| `openai_gpt_5_5` | `openai_responses` | `gpt-5.5` | previous_response_id | http_sse | pass | live | approved | 13.83s |
-| `openrouter_deepseek_v3_2` | `openrouter_responses` | `deepseek/deepseek-v3.2` | replay | http_sse | pass | live | approved | 34.43s |
-| `openrouter_glm_4_6` | `openrouter_responses` | `z-ai/glm-4.6` | replay | http_sse | pass | live | approved | 50.30s |
-| `openrouter_glm_4_7` | `openrouter_responses` | `z-ai/glm-4.7` | replay | http_sse | pass | live | approved | 17.66s |
-| `openrouter_gpt_5_4` | `openrouter_responses` | `openai/gpt-5.4` | replay | http_sse | pass | live | approved | 7.94s |
-| `openrouter_gpt_5_5` | `openrouter_responses` | `openai/gpt-5.5` | replay | http_sse | pass | live | approved | 16.22s |
-| `openrouter_haiku` | `openrouter_messages` | `anthropic/claude-haiku-4.5` | replay | http_sse | pass | live | approved | 7.44s |
-| `openrouter_kimi_k2_6` | `openrouter_responses` | `moonshotai/kimi-k2.6` | replay | http_sse | pass | live | approved | 129.56s |
-| `openrouter_opus` | `openrouter_messages` | `anthropic/claude-opus-4.6` | replay | http_sse | pass | live | approved | 12.53s |
-| `openrouter_opus_4_7` | `openrouter_messages` | `anthropic/claude-opus-4.7` | replay | http_sse | pass | live | approved | 8.01s |
-| `openrouter_sonnet` | `openrouter_messages` | `anthropic/claude-sonnet-4.6` | replay | http_sse | pass | live | approved | 7.44s |
+| `anthropic_haiku` | `anthropic` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 5.29s |
+| `anthropic_opus` | `anthropic` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 10.26s |
+| `anthropic_opus_4_7` | `anthropic` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 9.12s |
+| `anthropic_sonnet` | `anthropic` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 7.98s |
+| `bedrock_converse_haiku` | `bedrock_converse` | `anthropic.claude-haiku-4-5-20251001-v1:0` | replay | http_sse | pass | live | approved | 7.20s |
+| `bedrock_converse_opus_4_6` | `bedrock_converse` | `anthropic.claude-opus-4-6-v1` | replay | http_sse | pass | live | approved | 12.97s |
+| `bedrock_converse_opus_4_7` | `bedrock_converse` | `anthropic.claude-opus-4-7` | replay | http_sse | pass | live | approved | 9.08s |
+| `bedrock_converse_sonnet_4_6` | `bedrock_converse` | `anthropic.claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 8.14s |
+| `claude_haiku` | `claude` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 5.78s |
+| `claude_opus` | `claude` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 14.60s |
+| `claude_opus_4_7` | `claude` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 8.46s |
+| `claude_sonnet` | `claude` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 16.83s |
+| `codex_gpt_5_4` | `codex_responses` | `gpt-5.4` | replay | http_sse | pass | live | approved | 9.00s |
+| `codex_gpt_5_5` | `codex_responses` | `gpt-5.5` | replay | http_sse | pass | live | approved | 13.29s |
+| `minimax_latest` | `minimax_messages` | `MiniMax-M2.7` | replay | http_sse | pass | live | approved | 27.49s |
+| `openai_gpt_5_4` | `openai_responses` | `gpt-5.4` | previous_response_id | http_sse | pass | live | approved | 8.49s |
+| `openai_gpt_5_5` | `openai_responses` | `gpt-5.5` | previous_response_id | http_sse | pass | live | approved | 12.19s |
+| `openrouter_deepseek_v3_2` | `openrouter_responses` | `deepseek/deepseek-v3.2` | replay | http_sse | pass | live | approved | 37.37s |
+| `openrouter_glm_4_6` | `openrouter_responses` | `z-ai/glm-4.6` | replay | http_sse | pass | live | approved | 71.69s |
+| `openrouter_glm_4_7` | `openrouter_responses` | `z-ai/glm-4.7` | replay | http_sse | pass | live | approved | 52.58s |
+| `openrouter_gpt_5_4` | `openrouter_responses` | `openai/gpt-5.4` | replay | http_sse | pass | live | approved | 8.45s |
+| `openrouter_gpt_5_5` | `openrouter_responses` | `openai/gpt-5.5` | replay | http_sse | pass | live | approved | 17.68s |
+| `openrouter_haiku` | `openrouter_messages` | `anthropic/claude-haiku-4.5` | replay | http_sse | pass | live | approved | 6.48s |
+| `openrouter_kimi_k2_6` | `openrouter_responses` | `moonshotai/kimi-k2.6` | replay | http_sse | pass | live | approved | 95.06s |
+| `openrouter_opus` | `openrouter_messages` | `anthropic/claude-opus-4.6` | replay | http_sse | pass | live | approved | 13.01s |
+| `openrouter_opus_4_7` | `openrouter_messages` | `anthropic/claude-opus-4.7` | replay | http_sse | pass | live | approved | 7.75s |
+| `openrouter_qwen3_coder` | `openrouter_responses` | `qwen/qwen3-coder` | replay | http_sse | pass | live | approved | 6.09s |
+| `openrouter_qwen3_coder_next` | `openrouter_responses` | `qwen/qwen3-coder-next` | replay | http_sse | pass | live | approved | 6.59s |
+| `openrouter_sonnet` | `openrouter_messages` | `anthropic/claude-sonnet-4.6` | replay | http_sse | pass | live | approved | 29.28s |
 
 <!-- agentic-coding-result:end -->
 
@@ -157,8 +161,10 @@ env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestUseCas
 
 Cache accounting is mandatory for agentic coding. Every approved row reported provider cache write or cache read counters in this run.
 
+Reasoning is optional for agentic coding. Consumers that need a thinking-model-only list should filter the evidence table for `reasoning=live`.
+
 The same artifact passes `llmadapter conformance`: every approved row is also a valid approved row, and no approved row is missing required feature, continuation, or transport evidence.
 
 OpenRouter documentation says prompt caching can report `cached_tokens` and `cache_write_tokens` in detailed usage. The adapter now decodes both Responses-style `input_tokens_details` and Chat/Completions-style `prompt_tokens_details`, which is required because OpenRouter can expose the latter shape on Responses-compatible streams.
 
-Kimi uses OpenRouter model `moonshotai/kimi-k2.6`. GLM and DeepSeek rows use OpenRouter Responses models `z-ai/glm-4.6`, `z-ai/glm-4.7`, and `deepseek/deepseek-v3.2`. Sonnet and Opus rows use catalog/test-harness public model names that resolve to `claude-sonnet-4-6` and `claude-opus-4-6`; these are not llmadapter-owned built-in aliases.
+Kimi uses OpenRouter model `moonshotai/kimi-k2.6`. GLM, Qwen, and DeepSeek rows use OpenRouter Responses models `z-ai/glm-4.6`, `z-ai/glm-4.7`, `qwen/qwen3-coder`, `qwen/qwen3-coder-next`, and `deepseek/deepseek-v3.2`. Sonnet and Opus rows use catalog/test-harness public model names that resolve to `claude-sonnet-4-6` and `claude-opus-4-6`; these are not llmadapter-owned built-in aliases.

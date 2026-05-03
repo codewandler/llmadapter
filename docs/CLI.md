@@ -179,7 +179,7 @@ go run ./cmd/llmadapter compatibility --use-case agentic_coding --model anthropi
 
 Initial use cases:
 
-- `agentic_coding`: requires streaming text, tools, tool continuation, structured output, reasoning, prompt caching, usage, and cache accounting; prefers pricing.
+- `agentic_coding`: requires streaming text, tools, tool continuation, structured output, prompt caching, usage, and cache accounting; records reasoning as optional evidence for thinking-model filters; prefers pricing.
 - `summarization`: requires streaming text and usage; tools, reasoning, prompt caching, cache accounting, pricing, and gateway support are optional.
 
 Compatibility output is offline inspection. It uses provider descriptors, config/modeldb capability provenance, and existing route resolution. `resolve --approved-only` joins that route resolution with modeldb runtime views and the live workload-specific evidence artifact.
@@ -210,7 +210,7 @@ go run ./cmd/llmadapter conformance --json
 
 The default report joins the provider registry with `docs/compatibility/agentic_coding.json`. Use `--compatibility-artifact` to point at another recorded artifact.
 
-For `agentic_coding`, every approved row is validated as a strict workload contract. The row must have `required_status=passed`, live evidence for text, tools, tool continuation, structured output, reasoning, prompt caching, usage, and cache accounting, plus explicit consumer continuation, internal continuation, and transport evidence. The text report shows `AGENTIC_APPROVED`, `AGENTIC_VALID`, and `AGENTIC_CONTRACT`; the command exits non-zero if an approved row violates that contract.
+For `agentic_coding`, every approved row is validated as a strict workload contract. The row must have `required_status=passed`, live evidence for text, tools, tool continuation, structured output, prompt caching, usage, and cache accounting, plus explicit consumer continuation, internal continuation, and transport evidence. Reasoning is recorded when observable but is not required for approval. The text report shows `AGENTIC_APPROVED`, `AGENTIC_VALID`, and `AGENTIC_CONTRACT`; the command exits non-zero if an approved row violates that contract.
 
 ## infer
 

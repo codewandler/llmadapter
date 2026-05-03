@@ -24,13 +24,13 @@ func MustBuiltinProfile(useCase UseCase) Profile {
 func AgenticCodingProfile() Profile {
 	return Profile{
 		UseCase:     UseCaseAgenticCoding,
-		Description: "Coding-agent runtime with tool use, continuation, reasoning, caching, structured output, and usage accounting.",
+		Description: "Coding-agent runtime with tool use, continuation, caching, structured output, and usage accounting; reasoning evidence is optional and can be used for thinking-model filters.",
 		Requirements: map[Feature]RequirementLevel{
 			FeatureStreamingText:    RequirementRequired,
 			FeatureTools:            RequirementRequired,
 			FeatureToolContinuation: RequirementRequired,
 			FeatureStructuredOutput: RequirementRequired,
-			FeatureReasoning:        RequirementRequired,
+			FeatureReasoning:        RequirementOptional,
 			FeaturePromptCaching:    RequirementRequired,
 			FeatureUsage:            RequirementRequired,
 			FeatureCacheAccounting:  RequirementRequired,

@@ -296,12 +296,11 @@ func agenticCodingContractViolations(row compatibility.Row) []string {
 		"tools":             row.Tools,
 		"tool_continuation": row.ToolContinuation,
 		"structured_output": row.StructuredOutput,
-		"reasoning":         row.Reasoning,
 		"prompt_caching":    row.PromptCaching,
 		"usage":             row.Usage,
 		"cache_accounting":  row.CacheAccounting,
 	}
-	for _, name := range []string{"text", "tools", "tool_continuation", "structured_output", "reasoning", "prompt_caching", "usage", "cache_accounting"} {
+	for _, name := range []string{"text", "tools", "tool_continuation", "structured_output", "prompt_caching", "usage", "cache_accounting"} {
 		if requiredLive[name] != string(compatibility.EvidenceLive) {
 			reasons = append(reasons, fmt.Sprintf("%s=%q, want live", name, requiredLive[name]))
 		}
@@ -319,7 +318,7 @@ func agenticCodingContractViolations(row compatibility.Row) []string {
 }
 
 func supportsAgenticPrimitives(capabilities router.CapabilitySet) bool {
-	return capabilities.Streaming && capabilities.Tools && capabilities.Reasoning && capabilities.PromptCaching
+	return capabilities.Streaming && capabilities.Tools && capabilities.PromptCaching
 }
 
 func coverageForProvider(providerType string) FeatureCoverage {
