@@ -117,6 +117,9 @@ Total duration: 232.313 seconds.
 | `claude_opus` | `claude` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 12.47s |
 | `anthropic_opus` | `anthropic` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 16.55s |
 | `openrouter_opus` | `openrouter_messages` | `anthropic/claude-opus-4.6` | replay | http_sse | pass | live | approved | 13.53s |
+| `claude_opus_4_7` | `claude` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 9.96s |
+| `anthropic_opus_4_7` | `anthropic` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 8.97s |
+| `openrouter_opus_4_7` | `openrouter_messages` | `anthropic/claude-opus-4.7` | replay | http_sse | pass | live | approved | 17.15s |
 | `minimax_latest` | `minimax_messages` | `MiniMax-M2.7` | replay | http_sse | pass | live | approved | 31.17s |
 
 <!-- agentic-coding-result:end -->

@@ -10,6 +10,17 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+### Changed
+
+- Added live agentic-coding compatibility coverage for explicit Anthropic Opus
+  4.7 routes across Claude, direct Anthropic, and OpenRouter Messages while
+  retaining the existing Opus 4.6 evidence rows.
+
+### Fixed
+
+- Delayed `TestUseCaseAgenticCoding` artifact writes until parallel subtests
+  finish so targeted live runs emit populated compatibility rows.
+
 ## [1.0.0-rc.30] - 2026-05-03
 
 ### Changed
