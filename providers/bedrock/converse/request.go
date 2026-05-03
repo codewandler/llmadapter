@@ -41,21 +41,39 @@ func (c *Client) buildRequest(req unified.Request, resolvedModel string) (builtR
 
 	var system []types.SystemContentBlock
 	for _, inst := range req.Instructions {
-		text := contentText(inst.Content)
-		if text != "" {
-			system = append(system, &types.SystemContentBlockMemberText{Value: text})
+		for _, part := range inst.Content {
+			textPart, ok := part.(unified.TextPart)
+			if !ok {
+				out.warnings = append(out.warnings, warning("unsupported_field_dropped", "instructions.content", "non-text instruction content part was dropped"))
+				continue
+			}
+			if textPart.Text != "" {
+				system = append(system, &types.SystemContentBlockMemberText{Value: textPart.Text})
+			}
+			if textPart.CacheControl != nil && cacheEnabled(req.CachePolicy) {
+				system = append(system, &types.SystemContentBlockMemberCachePoint{Value: cachePointBlock(textPart.CacheControl)})
+			}
 		}
 	}
 	var messages []types.Message
 	for _, msg := range req.Messages {
 		switch msg.Role {
 		case unified.RoleSystem:
-			text := contentText(msg.Content)
-			if text != "" {
-				system = append(system, &types.SystemContentBlockMemberText{Value: text})
+			for _, part := range msg.Content {
+				textPart, ok := part.(unified.TextPart)
+				if !ok {
+					out.warnings = append(out.warnings, warning("unsupported_field_dropped", "messages.content", "non-text system content part was dropped"))
+					continue
+				}
+				if textPart.Text != "" {
+					system = append(system, &types.SystemContentBlockMemberText{Value: textPart.Text})
+				}
+				if textPart.CacheControl != nil && cacheEnabled(req.CachePolicy) {
+					system = append(system, &types.SystemContentBlockMemberCachePoint{Value: cachePointBlock(textPart.CacheControl)})
+				}
 			}
 		case unified.RoleUser:
-			content, warnings, err := contentBlocks(msg.Content, "messages.content")
+			content, warnings, err := contentBlocks(msg.Content, "messages.content", req.CachePolicy)
 			if err != nil {
 				return out, err
 			}
@@ -118,10 +136,15 @@ func (c *Client) buildRequest(req unified.Request, resolvedModel string) (builtR
 		additional["top_k"] = *req.TopK
 	}
 	if req.Reasoning != nil {
-		budget := reasoningBudget(*req.Reasoning)
-		additional["reasoning_config"] = map[string]any{
-			"type":          "enabled",
-			"budget_tokens": budget,
+		if isAdaptiveReasoningModel(resolvedModel) && req.Reasoning.MaxTokens == nil && req.Reasoning.Effort != "" {
+			additional["reasoning_config"] = map[string]any{"type": "adaptive"}
+			additional["output_config"] = map[string]any{"effort": string(req.Reasoning.Effort)}
+		} else {
+			budget := reasoningBudget(*req.Reasoning)
+			additional["reasoning_config"] = map[string]any{
+				"type":          "enabled",
+				"budget_tokens": budget,
+			}
 		}
 	}
 	if isClaudeModel(resolvedModel) {
@@ -137,20 +160,44 @@ func (c *Client) buildRequest(req unified.Request, resolvedModel string) (builtR
 	return out, nil
 }
 
-func contentBlocks(parts []unified.ContentPart, field string) ([]types.ContentBlock, []unified.WarningEvent, error) {
+func contentBlocks(parts []unified.ContentPart, field string, cachePolicy unified.CachePolicy) ([]types.ContentBlock, []unified.WarningEvent, error) {
 	var blocks []types.ContentBlock
 	var warnings []unified.WarningEvent
-	if text := contentText(parts); text != "" {
-		blocks = append(blocks, &types.ContentBlockMemberText{Value: text})
-	}
 	for _, part := range parts {
-		switch part.(type) {
+		switch p := part.(type) {
 		case unified.TextPart:
+			if p.Text != "" {
+				blocks = append(blocks, &types.ContentBlockMemberText{Value: p.Text})
+			}
+			if p.CacheControl != nil && cacheEnabled(cachePolicy) {
+				blocks = append(blocks, &types.ContentBlockMemberCachePoint{Value: cachePointBlock(p.CacheControl)})
+			}
 		default:
 			warnings = append(warnings, warning("unsupported_field_dropped", field, "non-text content part was dropped"))
 		}
 	}
 	return blocks, warnings, nil
+}
+
+func cacheEnabled(policy unified.CachePolicy) bool {
+	return policy == unified.CachePolicyOn || policy == unified.CachePolicyAuto
+}
+
+func cachePointBlock(control *unified.CacheControl) types.CachePointBlock {
+	block := types.CachePointBlock{Type: types.CachePointTypeDefault}
+	if control != nil {
+		switch control.TTL {
+		case "5m":
+			block.Ttl = types.CacheTTLFiveMinutes
+		case "1h":
+			block.Ttl = types.CacheTTLOneHour
+		}
+	}
+	return block
+}
+
+func isAdaptiveReasoningModel(model string) bool {
+	return stripInferenceProfilePrefix(model) == ModelClaudeOpus47
 }
 
 func assistantContentBlocks(msg unified.Message) ([]types.ContentBlock, []unified.WarningEvent, error) {

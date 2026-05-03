@@ -157,6 +157,22 @@ func TestBuiltInMiniMaxAnthropicMessagesMetadata(t *testing.T) {
 	}
 }
 
+func TestBuiltInMiniMaxAnthropicCapabilitiesPreserveModelFlags(t *testing.T) {
+	catalog, err := modeldb.LoadBuiltIn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true, ReasoningDeltas: true, PromptCaching: true}
+
+	got, ok := EnrichCapabilities(base, catalog, "minimax", "MiniMax-M2.7", adapt.FamilyAnthropicMessages)
+	if !ok {
+		t.Fatal("expected MiniMax Anthropic Messages capabilities")
+	}
+	if !got.Streaming || !got.Tools || !got.Reasoning || !got.ReasoningDeltas || !got.PromptCaching {
+		t.Fatalf("expected MiniMax model flags with exposure cache metadata: %+v", got)
+	}
+}
+
 func TestBuiltInOpenRouterAnthropicMessagesMetadata(t *testing.T) {
 	catalog, err := modeldb.LoadBuiltIn()
 	if err != nil {

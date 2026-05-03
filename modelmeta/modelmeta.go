@@ -50,8 +50,13 @@ func EnrichCapabilitiesForAPIType(base router.CapabilitySet, catalog modeldb.Cat
 	}
 
 	out := base
+	var modelCaps *modeldb.Capabilities
+	if model, ok := catalog.Models[offering.ModelKey]; ok {
+		modelCaps = &model.Capabilities
+	}
 	if exposure.ExposedCapabilities != nil {
-		out = applyExposureCapabilities(out, *exposure.ExposedCapabilities, *exposure)
+		caps := effectiveExposureCapabilities(*exposure.ExposedCapabilities, modelCaps)
+		out = applyExposureCapabilities(out, caps, *exposure)
 	}
 	if model, ok := catalog.Models[offering.ModelKey]; ok {
 		out = applyLimits(out, model.Limits)
@@ -60,6 +65,30 @@ func EnrichCapabilitiesForAPIType(base router.CapabilitySet, catalog modeldb.Cat
 		out = applyLimits(out, *offering.LimitsOverride)
 	}
 	return out, true
+}
+
+func effectiveExposureCapabilities(exposureCaps modeldb.Capabilities, modelCaps *modeldb.Capabilities) modeldb.Capabilities {
+	if modelCaps == nil || !isCacheOnlyExposure(exposureCaps) {
+		return exposureCaps
+	}
+	merged := *modelCaps
+	merged.Caching = exposureCaps.Caching
+	return merged
+}
+
+func isCacheOnlyExposure(caps modeldb.Capabilities) bool {
+	return caps.Caching != nil &&
+		caps.Reasoning == nil &&
+		!caps.ToolUse &&
+		!caps.ParallelToolCalls &&
+		!caps.StructuredOutput &&
+		!caps.StructuredOutputs &&
+		!caps.Vision &&
+		!caps.Streaming &&
+		!caps.Temperature &&
+		!caps.Logprobs &&
+		!caps.Seed &&
+		!caps.WebSearch
 }
 
 func ResolvedMetadata(catalog modeldb.Catalog, serviceID, wireModelID string, family adapt.ApiFamily) (unified.ResolvedModelMetadata, bool) {

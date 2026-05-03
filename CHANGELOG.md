@@ -12,12 +12,22 @@ match these entries as the project starts publishing releases.
 
 ### Changed
 
+- Added live agentic-coding compatibility coverage for Bedrock Converse Haiku
+  4.5, Sonnet 4.6, Opus 4.6, and Opus 4.7, plus OpenRouter Responses GLM 4.6,
+  GLM 4.7, and DeepSeek V3.2 rows.
+- Bedrock Converse now maps canonical cache-control hints to native cache
+  points and advertises prompt caching after live cache-accounting coverage.
+- Bedrock Converse Opus 4.7 reasoning requests now use adaptive reasoning and
+  `output_config.effort` when no explicit reasoning token budget is set.
 - Added live agentic-coding compatibility coverage for explicit Anthropic Opus
   4.7 routes across Claude, direct Anthropic, and OpenRouter Messages while
   retaining the existing Opus 4.6 evidence rows.
 
 ### Fixed
 
+- Preserved model-level capabilities when a modeldb exposure only adds concrete
+  prompt-cache metadata, avoiding accidental capability narrowing for MiniMax
+  Messages routes.
 - Delayed `TestUseCaseAgenticCoding` artifact writes until parallel subtests
   finish so targeted live runs emit populated compatibility rows.
 

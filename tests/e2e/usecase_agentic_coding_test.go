@@ -31,6 +31,7 @@ type agenticCodingCandidate struct {
 	apiKeyEnv             []string
 	localClaudeOAuth      bool
 	localCodexOAuth       bool
+	awsSDKAuth            bool
 	maxOutputTokens       int
 	cacheWarmupNoUsage    bool
 	cachePrefixRepeat     int
@@ -168,6 +169,9 @@ func candidateNativeModel(candidate agenticCodingCandidate) string {
 }
 
 func candidateFamily(candidate agenticCodingCandidate) adapt.ApiFamily {
+	if candidate.providerAPI == adapt.ApiBedrockConverse {
+		return adapt.FamilyBedrockConverse
+	}
 	switch candidate.sourceAPI {
 	case adapt.ApiAnthropicMessages:
 		return adapt.FamilyAnthropicMessages
@@ -180,6 +184,10 @@ func candidateFamily(candidate agenticCodingCandidate) adapt.ApiFamily {
 	}
 }
 
+func awsCredentialEnvAvailable() bool {
+	return os.Getenv("AWS_PROFILE") != "" || os.Getenv("AWS_ACCESS_KEY_ID") != "" || os.Getenv("AWS_REGION") != "" || os.Getenv("AWS_DEFAULT_REGION") != ""
+}
+
 func agenticCodingCandidates() []agenticCodingCandidate {
 	return []agenticCodingCandidate{
 		openAIResponsesAgenticCandidate("openai_gpt_5_5", "gpt-5.5", "OPENAI_AGENTIC_GPT55_MODEL"),
@@ -189,18 +197,25 @@ func agenticCodingCandidates() []agenticCodingCandidate {
 		codexAgenticCandidate("codex_gpt_5_4", "gpt-5.4", "CODEX_AGENTIC_GPT54_MODEL"),
 		openRouterResponsesAgenticCandidate("openrouter_gpt_5_4", "gpt-5.4", "openai/gpt-5.4", "OPENROUTER_AGENTIC_GPT54_MODEL"),
 		openRouterResponsesAgenticCandidate("openrouter_kimi_k2_6", "kimi-k2.6", "moonshotai/kimi-k2.6", "OPENROUTER_AGENTIC_KIMI_MODEL"),
+		openRouterResponsesAgenticCandidate("openrouter_glm_4_6", "glm-4.6", "z-ai/glm-4.6", "OPENROUTER_AGENTIC_GLM46_MODEL"),
+		openRouterResponsesAgenticCandidate("openrouter_glm_4_7", "glm-4.7", "z-ai/glm-4.7", "OPENROUTER_AGENTIC_GLM47_MODEL"),
+		openRouterResponsesAgenticCandidate("openrouter_deepseek_v3_2", "deepseek-v3.2", "deepseek/deepseek-v3.2", "OPENROUTER_AGENTIC_DEEPSEEK_V32_MODEL"),
 		claudeFamilyAgenticCandidate("claude_haiku", "haiku", "claude-haiku-4-5-20251001", "CLAUDE_AGENTIC_HAIKU_MODEL", "claude", nil, true),
 		anthropicAgenticCandidate("anthropic_haiku", "haiku", "claude-haiku-4-5-20251001", "ANTHROPIC_AGENTIC_HAIKU_MODEL"),
 		openRouterMessagesAgenticCandidate("openrouter_haiku", "haiku", "anthropic/claude-haiku-4.5", "OPENROUTER_AGENTIC_HAIKU_MODEL"),
+		bedrockConverseAgenticCandidate("bedrock_converse_haiku", "bedrock-haiku", "anthropic.claude-haiku-4-5-20251001-v1:0", "BEDROCK_CONVERSE_AGENTIC_HAIKU_MODEL"),
 		claudeFamilyAgenticCandidate("claude_sonnet", "sonnet", "claude-sonnet-4-6", "CLAUDE_AGENTIC_SONNET_MODEL", "claude", nil, true),
 		anthropicAgenticCandidate("anthropic_sonnet", "sonnet", "claude-sonnet-4-6", "ANTHROPIC_AGENTIC_SONNET_MODEL"),
 		openRouterMessagesAgenticCandidate("openrouter_sonnet", "sonnet", "anthropic/claude-sonnet-4.6", "OPENROUTER_AGENTIC_SONNET_MODEL"),
+		bedrockConverseAgenticCandidate("bedrock_converse_sonnet_4_6", "bedrock-sonnet-4-6", "anthropic.claude-sonnet-4-6", "BEDROCK_CONVERSE_AGENTIC_SONNET46_MODEL"),
 		claudeFamilyAgenticCandidate("claude_opus", "opus", "claude-opus-4-6", "CLAUDE_AGENTIC_OPUS_MODEL", "claude", nil, true),
 		anthropicAgenticCandidate("anthropic_opus", "opus", "claude-opus-4-6", "ANTHROPIC_AGENTIC_OPUS_MODEL"),
 		openRouterMessagesAgenticCandidate("openrouter_opus", "opus", "anthropic/claude-opus-4.6", "OPENROUTER_AGENTIC_OPUS_MODEL"),
+		bedrockConverseAgenticCandidate("bedrock_converse_opus_4_6", "bedrock-opus-4-6", "anthropic.claude-opus-4-6-v1", "BEDROCK_CONVERSE_AGENTIC_OPUS46_MODEL"),
 		opus47AgenticCandidate(claudeFamilyAgenticCandidate("claude_opus_4_7", "claude-opus-4-7", "claude-opus-4-7", "CLAUDE_AGENTIC_OPUS47_MODEL", "claude", nil, true), "claude-opus-4-7"),
 		opus47AgenticCandidate(anthropicAgenticCandidate("anthropic_opus_4_7", "claude-opus-4-7", "claude-opus-4-7", "ANTHROPIC_AGENTIC_OPUS47_MODEL"), "claude-opus-4-7"),
 		opus47AgenticCandidate(openRouterMessagesAgenticCandidate("openrouter_opus_4_7", "anthropic/claude-opus-4.7", "anthropic/claude-opus-4.7", "OPENROUTER_AGENTIC_OPUS47_MODEL"), "anthropic/claude-opus-4.7"),
+		opus47AgenticCandidate(bedrockConverseAgenticCandidate("bedrock_converse_opus_4_7", "bedrock-opus-4-7", "anthropic.claude-opus-4-7", "BEDROCK_CONVERSE_AGENTIC_OPUS47_MODEL"), ""),
 		minimaxMessagesAgenticCandidate(),
 	}
 }
@@ -306,6 +321,23 @@ func openRouterMessagesAgenticCandidate(name, publicModel, nativeModel, env stri
 	}
 }
 
+func bedrockConverseAgenticCandidate(name, publicModel, nativeModel, env string) agenticCodingCandidate {
+	return agenticCodingCandidate{
+		name:               name,
+		publicModel:        publicModel,
+		nativeModel:        nativeModel,
+		modelEnv:           env,
+		providerType:       "bedrock_converse",
+		providerAPI:        adapt.ApiBedrockConverse,
+		sourceAPI:          adapt.ApiBedrockConverse,
+		modelDBService:     "bedrock",
+		awsSDKAuth:         true,
+		maxOutputTokens:    2048,
+		cachePrefixRepeat:  360,
+		cacheWarmupNoUsage: false,
+	}
+}
+
 func minimaxMessagesAgenticCandidate() agenticCodingCandidate {
 	return agenticCodingCandidate{
 		name:               "minimax_latest",
@@ -325,7 +357,7 @@ func minimaxMessagesAgenticCandidate() agenticCodingCandidate {
 
 func newAgenticCodingClient(t *testing.T, candidate agenticCodingCandidate) (unified.Client, string) {
 	t.Helper()
-	if firstSetEnv(candidate.apiKeyEnv...) == "" && !(candidate.localClaudeOAuth && messages.LocalTokenStoreAvailable()) && !(candidate.localCodexOAuth && codex.LocalAvailable()) {
+	if firstSetEnv(candidate.apiKeyEnv...) == "" && !(candidate.localClaudeOAuth && messages.LocalTokenStoreAvailable()) && !(candidate.localCodexOAuth && codex.LocalAvailable()) && !(candidate.awsSDKAuth && awsCredentialEnvAvailable()) {
 		t.Skipf("%s unavailable: set one of %s or local credentials", candidate.name, strings.Join(candidate.apiKeyEnv, ","))
 	}
 	model := candidate.nativeModel
@@ -415,7 +447,7 @@ func checkAgenticToolContinuation(t *testing.T, client unified.Client, model str
 		t.Fatalf("tool call = %+v", call)
 	}
 
-	final, err := collectSmokeResponse(ctx, client, unified.Request{
+	continuation := unified.Request{
 		Model:           model,
 		MaxOutputTokens: &maxTokens,
 		Messages: []unified.Message{
@@ -431,7 +463,11 @@ func checkAgenticToolContinuation(t *testing.T, client unified.Client, model str
 			},
 		},
 		Stream: true,
-	})
+	}
+	if candidate.providerType == "bedrock_converse" {
+		continuation.Tools = []unified.Tool{tool}
+	}
+	final, err := collectSmokeResponse(ctx, client, continuation)
 	if err != nil {
 		t.Fatalf("tool continuation: %v", err)
 	}

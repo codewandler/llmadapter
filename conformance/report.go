@@ -353,7 +353,7 @@ var featureCoverageByProvider = map[string]FeatureCoverage{
 		Text: "live", Tools: "live", ToolContinuation: "live", ParallelTools: "n/a", Reasoning: "n/a", PromptCacheAccounting: "n/a", StructuredOutput: "n/a", Vision: "fixture", Usage: "live", Pricing: "modeldb", Gateway: "live",
 	},
 	"bedrock_converse": {
-		Text: "live", Tools: "live", ToolContinuation: "live", ParallelTools: "n/a", Reasoning: "live", PromptCacheAccounting: "n/a", StructuredOutput: "n/a", Vision: "n/a", Usage: "live", Pricing: "modeldb", Gateway: "live",
+		Text: "live", Tools: "live", ToolContinuation: "live", ParallelTools: "n/a", Reasoning: "live", PromptCacheAccounting: "live", StructuredOutput: "n/a", Vision: "n/a", Usage: "live", Pricing: "modeldb", Gateway: "live",
 	},
 	"openrouter_chat": {
 		Text: "live", Tools: "live", ToolContinuation: "live", ParallelTools: "live", Reasoning: "n/a", PromptCacheAccounting: "n/a", StructuredOutput: "fixture", Vision: "fixture", Usage: "live", Pricing: "modeldb", Gateway: "live",

@@ -148,7 +148,7 @@ var descriptors = []Descriptor{
 		Type:                 "bedrock_converse",
 		APIKind:              adapt.ApiBedrockConverse,
 		Family:               adapt.FamilyBedrockConverse,
-		Capabilities:         router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true, ReasoningDeltas: true},
+		Capabilities:         router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true, ReasoningDeltas: true, PromptCaching: true},
 		ConsumerContinuation: unified.ContinuationReplay,
 		InternalContinuation: unified.ContinuationReplay,
 		Transport:            unified.TransportHTTPSSE,

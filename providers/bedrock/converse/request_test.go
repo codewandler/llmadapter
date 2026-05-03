@@ -147,3 +147,79 @@ func TestBuildRequestDropsToolsWhenToolChoiceNone(t *testing.T) {
 		t.Fatalf("tool config = %+v, want nil", built.input.ToolConfig)
 	}
 }
+
+func TestBuildRequestMapsCachePoints(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := unified.Request{
+		Model:       ModelClaudeSonnet46,
+		CachePolicy: unified.CachePolicyOn,
+		Instructions: []unified.Instruction{{
+			Kind: unified.InstructionSystem,
+			Content: []unified.ContentPart{unified.TextPart{
+				Text:         "Reusable system prefix.",
+				CacheControl: unified.EphemeralCache("1h"),
+			}},
+		}},
+		Messages: []unified.Message{{
+			Role: unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{
+				Text:         "Reusable user prefix.",
+				CacheControl: unified.EphemeralCache("5m"),
+			}},
+		}},
+	}
+	built, err := client.buildRequest(req, ModelClaudeSonnet46)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(built.input.System) != 2 {
+		t.Fatalf("system blocks = %d, want 2", len(built.input.System))
+	}
+	sysCache, ok := built.input.System[1].(*types.SystemContentBlockMemberCachePoint)
+	if !ok || sysCache.Value.Ttl != types.CacheTTLOneHour {
+		t.Fatalf("system cache block = %#v", built.input.System[1])
+	}
+	if len(built.input.Messages) != 1 || len(built.input.Messages[0].Content) != 2 {
+		t.Fatalf("message content = %+v", built.input.Messages)
+	}
+	msgCache, ok := built.input.Messages[0].Content[1].(*types.ContentBlockMemberCachePoint)
+	if !ok || msgCache.Value.Ttl != types.CacheTTLFiveMinutes {
+		t.Fatalf("message cache block = %#v", built.input.Messages[0].Content[1])
+	}
+}
+
+func TestBuildRequestMapsOpus47AdaptiveReasoning(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := 2048
+	req := unified.Request{
+		Model:           ModelClaudeOpus47,
+		MaxOutputTokens: &maxTokens,
+		Reasoning:       &unified.ReasoningConfig{Effort: unified.ReasoningEffortHigh},
+	}
+	built, err := client.buildRequest(req, PrefixUS+"."+ModelClaudeOpus47)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := built.input.AdditionalModelRequestFields.MarshalSmithyDocument()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var additional map[string]any
+	if err := json.Unmarshal(raw, &additional); err != nil {
+		t.Fatal(err)
+	}
+	reasoning, ok := additional["reasoning_config"].(map[string]any)
+	if !ok || reasoning["type"] != "adaptive" {
+		t.Fatalf("reasoning_config = %+v", additional["reasoning_config"])
+	}
+	outputConfig, ok := additional["output_config"].(map[string]any)
+	if !ok || outputConfig["effort"] != "high" {
+		t.Fatalf("output_config = %+v", additional["output_config"])
+	}
+}

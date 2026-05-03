@@ -79,12 +79,18 @@ These rows are covered by the live agentic-coding compatibility smoke test:
 | `gpt-5.5` | `openai_responses`, `codex_responses`, `openrouter_responses` |
 | `gpt-5.4` | `openai_responses`, `codex_responses`, `openrouter_responses` |
 | `kimi-k2.6` | `openrouter_responses` |
+| `glm-4.6` | `openrouter_responses` |
+| `glm-4.7` | `openrouter_responses` |
+| `deepseek-v3.2` | `openrouter_responses` |
 | `haiku` | `claude`, `anthropic`, `openrouter_messages` |
 | `sonnet` | `claude`, `anthropic`, `openrouter_messages` |
 | `opus` | `claude`, `anthropic`, `openrouter_messages` |
+| `bedrock-haiku` | `bedrock_converse` |
+| `bedrock-sonnet-4-6` | `bedrock_converse` |
+| `bedrock-opus-4-6` | `bedrock_converse` |
+| `bedrock-opus-4-7` | `bedrock_converse` |
 | `minimax-latest` | `minimax_messages` |
 
-Bedrock is intentionally excluded until a Bedrock provider endpoint exists.
 Short names in this generated evidence artifact are modeldb/catalog or test-harness public model names, not llmadapter-owned built-in aliases. Runtime docs prefer service-qualified names or explicit operator aliases.
 
 ## Latest Agentic-Coding Result
@@ -97,30 +103,37 @@ Latest command:
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestUseCaseAgenticCoding -count=1 -v
 ```
 
-Total duration: 232.313 seconds.
+Total duration: 129.564 seconds.
 
 | Candidate | Provider endpoint | Native model | Continuation | Transport | Required checks | Cache accounting | Status | Duration |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `openai_gpt_5_5` | `openai_responses` | `gpt-5.5` | previous_response_id | http_sse | pass | live | approved | 10.42s |
-| `codex_gpt_5_5` | `codex_responses` | `gpt-5.5` | replay | http_sse | pass | live | approved | 9.49s |
-| `openrouter_gpt_5_5` | `openrouter_responses` | `openai/gpt-5.5` | replay | http_sse | pass | live | approved | 10.85s |
-| `openai_gpt_5_4` | `openai_responses` | `gpt-5.4` | previous_response_id | http_sse | pass | live | approved | 8.13s |
-| `codex_gpt_5_4` | `codex_responses` | `gpt-5.4` | replay | http_sse | pass | live | approved | 7.96s |
-| `openrouter_gpt_5_4` | `openrouter_responses` | `openai/gpt-5.4` | replay | http_sse | pass | live | approved | 7.22s |
-| `openrouter_kimi_k2_6` | `openrouter_responses` | `moonshotai/kimi-k2.6` | replay | http_sse | pass | live | approved | 58.22s |
-| `claude_haiku` | `claude` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 8.35s |
-| `anthropic_haiku` | `anthropic` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 4.42s |
-| `openrouter_haiku` | `openrouter_messages` | `anthropic/claude-haiku-4.5` | replay | http_sse | pass | live | approved | 7.74s |
-| `claude_sonnet` | `claude` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 8.29s |
-| `anthropic_sonnet` | `anthropic` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 7.16s |
-| `openrouter_sonnet` | `openrouter_messages` | `anthropic/claude-sonnet-4.6` | replay | http_sse | pass | live | approved | 10.31s |
-| `claude_opus` | `claude` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 12.47s |
-| `anthropic_opus` | `anthropic` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 16.55s |
-| `openrouter_opus` | `openrouter_messages` | `anthropic/claude-opus-4.6` | replay | http_sse | pass | live | approved | 13.53s |
-| `claude_opus_4_7` | `claude` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 9.96s |
-| `anthropic_opus_4_7` | `anthropic` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 8.97s |
-| `openrouter_opus_4_7` | `openrouter_messages` | `anthropic/claude-opus-4.7` | replay | http_sse | pass | live | approved | 17.15s |
-| `minimax_latest` | `minimax_messages` | `MiniMax-M2.7` | replay | http_sse | pass | live | approved | 31.17s |
+| `anthropic_haiku` | `anthropic` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 4.50s |
+| `anthropic_opus` | `anthropic` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 10.44s |
+| `anthropic_opus_4_7` | `anthropic` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 8.79s |
+| `anthropic_sonnet` | `anthropic` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 8.92s |
+| `bedrock_converse_haiku` | `bedrock_converse` | `anthropic.claude-haiku-4-5-20251001-v1:0` | replay | http_sse | pass | live | approved | 7.32s |
+| `bedrock_converse_opus_4_6` | `bedrock_converse` | `anthropic.claude-opus-4-6-v1` | replay | http_sse | pass | live | approved | 12.79s |
+| `bedrock_converse_opus_4_7` | `bedrock_converse` | `anthropic.claude-opus-4-7` | replay | http_sse | pass | live | approved | 8.76s |
+| `bedrock_converse_sonnet_4_6` | `bedrock_converse` | `anthropic.claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 8.32s |
+| `claude_haiku` | `claude` | `claude-haiku-4-5-20251001` | replay | http_sse | pass | live | approved | 6.74s |
+| `claude_opus` | `claude` | `claude-opus-4-6` | replay | http_sse | pass | live | approved | 11.01s |
+| `claude_opus_4_7` | `claude` | `claude-opus-4-7` | replay | http_sse | pass | live | approved | 8.54s |
+| `claude_sonnet` | `claude` | `claude-sonnet-4-6` | replay | http_sse | pass | live | approved | 8.41s |
+| `codex_gpt_5_4` | `codex_responses` | `gpt-5.4` | replay | http_sse | pass | live | approved | 12.14s |
+| `codex_gpt_5_5` | `codex_responses` | `gpt-5.5` | replay | http_sse | pass | live | approved | 12.62s |
+| `minimax_latest` | `minimax_messages` | `MiniMax-M2.7` | replay | http_sse | pass | live | approved | 24.36s |
+| `openai_gpt_5_4` | `openai_responses` | `gpt-5.4` | previous_response_id | http_sse | pass | live | approved | 10.93s |
+| `openai_gpt_5_5` | `openai_responses` | `gpt-5.5` | previous_response_id | http_sse | pass | live | approved | 13.83s |
+| `openrouter_deepseek_v3_2` | `openrouter_responses` | `deepseek/deepseek-v3.2` | replay | http_sse | pass | live | approved | 34.43s |
+| `openrouter_glm_4_6` | `openrouter_responses` | `z-ai/glm-4.6` | replay | http_sse | pass | live | approved | 50.30s |
+| `openrouter_glm_4_7` | `openrouter_responses` | `z-ai/glm-4.7` | replay | http_sse | pass | live | approved | 17.66s |
+| `openrouter_gpt_5_4` | `openrouter_responses` | `openai/gpt-5.4` | replay | http_sse | pass | live | approved | 7.94s |
+| `openrouter_gpt_5_5` | `openrouter_responses` | `openai/gpt-5.5` | replay | http_sse | pass | live | approved | 16.22s |
+| `openrouter_haiku` | `openrouter_messages` | `anthropic/claude-haiku-4.5` | replay | http_sse | pass | live | approved | 7.44s |
+| `openrouter_kimi_k2_6` | `openrouter_responses` | `moonshotai/kimi-k2.6` | replay | http_sse | pass | live | approved | 129.56s |
+| `openrouter_opus` | `openrouter_messages` | `anthropic/claude-opus-4.6` | replay | http_sse | pass | live | approved | 12.53s |
+| `openrouter_opus_4_7` | `openrouter_messages` | `anthropic/claude-opus-4.7` | replay | http_sse | pass | live | approved | 8.01s |
+| `openrouter_sonnet` | `openrouter_messages` | `anthropic/claude-sonnet-4.6` | replay | http_sse | pass | live | approved | 7.44s |
 
 <!-- agentic-coding-result:end -->
 
@@ -136,7 +149,7 @@ Total duration: 232.313 seconds.
 
 ## Current Result
 
-The latest live run on 2026-04-26 passed all required agentic-coding checks for every row above:
+The latest live run on 2026-05-03 passed all required agentic-coding checks for every row above:
 
 ```sh
 env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run TestUseCaseAgenticCoding -count=1 -v
@@ -148,4 +161,4 @@ The same artifact passes `llmadapter conformance`: every approved row is also a 
 
 OpenRouter documentation says prompt caching can report `cached_tokens` and `cache_write_tokens` in detailed usage. The adapter now decodes both Responses-style `input_tokens_details` and Chat/Completions-style `prompt_tokens_details`, which is required because OpenRouter can expose the latter shape on Responses-compatible streams.
 
-Kimi uses OpenRouter model `moonshotai/kimi-k2.6`. Sonnet and Opus rows use catalog/test-harness public model names that resolve to `claude-sonnet-4-6` and `claude-opus-4-6`; these are not llmadapter-owned built-in aliases.
+Kimi uses OpenRouter model `moonshotai/kimi-k2.6`. GLM and DeepSeek rows use OpenRouter Responses models `z-ai/glm-4.6`, `z-ai/glm-4.7`, and `deepseek/deepseek-v3.2`. Sonnet and Opus rows use catalog/test-harness public model names that resolve to `claude-sonnet-4-6` and `claude-opus-4-6`; these are not llmadapter-owned built-in aliases.

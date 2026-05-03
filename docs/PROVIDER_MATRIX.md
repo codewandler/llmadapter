@@ -66,7 +66,7 @@ Consumers should choose their public projection strategy from `Consumer continua
 | `codex_responses` | live | live | live | live | live | live | fixture | fixture | live | modeldb | live |
 | `bedrock_responses` | live | live | live | n/a | live | n/a | fixture | n/a | live | modeldb | live |
 | `bedrock_messages` | live | live | live | n/a | n/a | n/a | n/a | fixture | live | modeldb | live |
-| `bedrock_converse` | live | live | live | n/a | live | n/a | n/a | n/a | live | modeldb | live |
+| `bedrock_converse` | live | live | live | n/a | live | live | n/a | n/a | live | modeldb | live |
 | `openrouter_chat` | live | live | live | live | n/a | n/a | fixture | fixture | live | modeldb | live |
 | `openrouter_responses` | live | live | live | live | live | live | fixture | fixture | live | modeldb | live |
 | `openrouter_messages` | live | live | live | n/a | live | live | n/a | fixture | live | modeldb | live |
@@ -91,7 +91,7 @@ Bedrock Mantle's `/v1/models` list is broader than the `/v1/responses` surface. 
 
 Bedrock Messages uses Mantle's Anthropic-compatible route at `/anthropic/v1/messages`. On 2026-05-03 in `us-east-1`, `anthropic.claude-opus-4-7` and `anthropic.claude-haiku-4-5` live-probed successfully through this endpoint; `anthropic.claude-opus-4-6` returned a provider not-found error for that Mantle model ID. A separate `/anthropic/v1/models` listing is not exposed, so the broad Mantle `/v1/models` endpoint remains the discovery source even though it mixes API surfaces. The shared smoke matrix uses Haiku 4.5 for tool-continuation because Opus 4.7 intentionally refuses the synthetic prompt-injection-shaped tool result used by the generic continuation smoke. Bedrock Messages accepts adaptive-thinking-shaped requests, but the live stream did not expose reasoning deltas or reasoning token accounting, so this endpoint does not advertise reasoning yet.
 
-Bedrock Converse uses the native AWS SDK Bedrock Runtime `ConverseStream` API and AWS SDK credentials rather than Mantle bearer tokens. It targets replay-based continuation, text, tools, and Claude extended-thinking request fields. Modeldb-backed fixed and dynamic routes prefer `RuntimeAccess.ResolvedWireID` for region-specific inference profiles and fall back to provider-local prefixing only when runtime metadata is unavailable. On 2026-05-03 in `us-east-1`, the shared text, tool-use, tool-result continuation, reasoning, OpenAI Chat gateway, and Anthropic Messages gateway smokes passed with the default Sonnet 4.6 model.
+Bedrock Converse uses the native AWS SDK Bedrock Runtime `ConverseStream` API and AWS SDK credentials rather than Mantle bearer tokens. It targets replay-based continuation, text, tools, prompt cache points, and Claude extended-thinking request fields. Modeldb-backed fixed and dynamic routes prefer `RuntimeAccess.ResolvedWireID` for region-specific inference profiles and fall back to provider-local prefixing only when runtime metadata is unavailable. On 2026-05-03 in `us-east-1`, the shared text, tool-use, tool-result continuation, reasoning, OpenAI Chat gateway, and Anthropic Messages gateway smokes passed with the default Sonnet 4.6 model; the agentic-coding compatibility run also passed cache-accounting checks for Haiku 4.5, Sonnet 4.6, Opus 4.6, and Opus 4.7 through Bedrock Converse.
 
 ## Live Smoke Commands
 
