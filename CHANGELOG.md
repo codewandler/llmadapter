@@ -10,6 +10,12 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.30] - 2026-05-03
+
+### Changed
+
+- Updated modeldb to `v0.14.4`, preserving Codex-specific context window limits such as `codex/gpt-5.5` at 272k tokens while keeping OpenAI platform `gpt-5.5` at 1.05M tokens.
+
 ## [1.0.0-rc.29] - 2026-05-03
 
 ### Added
