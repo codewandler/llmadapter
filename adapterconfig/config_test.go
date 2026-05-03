@@ -87,6 +87,7 @@ func TestProviderEndpointConfigInfersKnownModelDBServiceIDs(t *testing.T) {
 		"openai_chat":          "openai",
 		"openai_responses":     "openai",
 		"codex_responses":      "codex",
+		"bedrock_converse":     "bedrock",
 		"bedrock_messages":     "bedrock",
 		"bedrock_responses":    "bedrock",
 		"openrouter_chat":      "openrouter",

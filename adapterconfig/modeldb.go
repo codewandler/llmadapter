@@ -100,6 +100,7 @@ func ResolveRouteModelDBModel(route RouteConfig, endpoint router.ProviderEndpoin
 	}
 	route.NativeModel = wireModelID
 	route.ModelDBWireModelID = wireModelID
+	route.NativeModel = resolveRuntimeNativeModel(endpoint, catalog, serviceID, wireModelID)
 	return route, nil
 }
 
@@ -222,9 +223,12 @@ func normalizeModelDBAlias(value string) string {
 
 func mergeCatalog(dst *modeldb.Catalog, src modeldb.Catalog) error {
 	return modeldb.MergeCatalogFragment(dst, &modeldb.Fragment{
-		Services:  catalogServices(src),
-		Models:    catalogModels(src),
-		Offerings: catalogOfferings(src),
+		Services:           catalogServices(src),
+		Models:             catalogModels(src),
+		Offerings:          catalogOfferings(src),
+		Runtimes:           catalogRuntimes(src),
+		RuntimeAccess:      catalogRuntimeAccess(src),
+		RuntimeAcquisition: catalogRuntimeAcquisition(src),
 	})
 }
 
@@ -273,6 +277,49 @@ func catalogOfferings(catalog modeldb.Catalog) []modeldb.Offering {
 			return out[i].ServiceID < out[j].ServiceID
 		}
 		return out[i].WireModelID < out[j].WireModelID
+	})
+	return out
+}
+
+func catalogRuntimes(catalog modeldb.Catalog) []modeldb.Runtime {
+	out := make([]modeldb.Runtime, 0, len(catalog.Runtimes))
+	for _, runtime := range catalog.Runtimes {
+		out = append(out, runtime)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+func catalogRuntimeAccess(catalog modeldb.Catalog) []modeldb.RuntimeAccess {
+	out := make([]modeldb.RuntimeAccess, 0, len(catalog.RuntimeAccess))
+	for _, access := range catalog.RuntimeAccess {
+		out = append(out, access)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].RuntimeID != out[j].RuntimeID {
+			return out[i].RuntimeID < out[j].RuntimeID
+		}
+		if out[i].Offering.ServiceID != out[j].Offering.ServiceID {
+			return out[i].Offering.ServiceID < out[j].Offering.ServiceID
+		}
+		return out[i].Offering.WireModelID < out[j].Offering.WireModelID
+	})
+	return out
+}
+
+func catalogRuntimeAcquisition(catalog modeldb.Catalog) []modeldb.RuntimeAcquisition {
+	out := make([]modeldb.RuntimeAcquisition, 0, len(catalog.RuntimeAcquisition))
+	for _, acquisition := range catalog.RuntimeAcquisition {
+		out = append(out, acquisition)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].RuntimeID != out[j].RuntimeID {
+			return out[i].RuntimeID < out[j].RuntimeID
+		}
+		if out[i].Offering.ServiceID != out[j].Offering.ServiceID {
+			return out[i].Offering.ServiceID < out[j].Offering.ServiceID
+		}
+		return out[i].Offering.WireModelID < out[j].Offering.WireModelID
 	})
 	return out
 }

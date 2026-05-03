@@ -131,6 +131,31 @@ Amazon Bedrock Mantle Anthropic-compatible Messages can be configured separately
 
 `bedrock_messages` uses the Mantle Anthropic route prefix, so the default upstream URL is `https://bedrock-mantle.${AWS_REGION}.api.aws/anthropic/v1/messages`. If `base_url` is configured, it may be the host, the `/anthropic` prefix, or the full `/anthropic/v1/messages` endpoint. Live-probed Bedrock Messages model IDs currently include `anthropic.claude-opus-4-7` and `anthropic.claude-haiku-4-5`; `anthropic.claude-opus-4-6` is not available as a Mantle Messages model ID in `us-east-1`.
 
+Amazon Bedrock native Converse can be configured separately when you want the AWS SDK-backed Bedrock Runtime surface instead of Mantle:
+
+```json
+{
+  "providers": [
+    {
+      "name": "bedrock-converse",
+      "type": "bedrock_converse",
+      "model": "anthropic.claude-sonnet-4-6"
+    }
+  ],
+  "routes": [
+    {
+      "source_api": "anthropic.messages",
+      "model": "bedrock-sonnet",
+      "provider": "bedrock-converse",
+      "provider_api": "bedrock.converse",
+      "native_model": "anthropic.claude-sonnet-4-6"
+    }
+  ]
+}
+```
+
+`bedrock_converse` uses the AWS SDK default credential chain, including `AWS_PROFILE`, SSO-backed profiles, `AWS_REGION`, and `AWS_DEFAULT_REGION`. The default region is `us-east-1`, and the default model is `anthropic.claude-sonnet-4-6`. Modeldb-backed fixed and dynamic routes prefer Bedrock `RuntimeAccess.ResolvedWireID` rows for the region runtime, falling back to `bedrock-global` access when present. Direct clients and routes without runtime metadata preserve explicit `us.`, `eu.`, `apac.`, or `global.` model prefixes and otherwise use the provider-local fallback table.
+
 Provider JSON config does not currently expose provider-internal transport toggles. For example, `codex_responses` may use WebSocket internally for explicit session requests, but that behavior is controlled by request extensions and provider implementation defaults rather than route config. Direct provider users can control this with `responses.WithWebSocketMode(...)` for `providers/openai/responses` or `codex.WithWebSocketMode(...)` for `providers/openai/codex`.
 
 ## Routes

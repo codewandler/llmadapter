@@ -274,7 +274,8 @@ func dynamicModelResolver(endpoint router.ProviderEndpoint, route RouteConfig, c
 		if !ok {
 			return router.ModelResolution{}, false
 		}
-		resolution := router.ModelResolution{NativeModel: item.Offering.WireModelID}
+		nativeModel := resolveRuntimeNativeModel(endpoint, catalog, serviceID, item.Offering.WireModelID)
+		resolution := router.ModelResolution{NativeModel: nativeModel}
 		if capabilities, ok := modelmeta.EnrichCapabilities(endpoint.Capabilities, catalog, serviceID, item.Offering.WireModelID, endpoint.Family); ok {
 			resolution.Capabilities = &capabilities
 		}
@@ -342,7 +343,7 @@ func modelDBServiceIDForProviderType(providerType string) string {
 		return "openai"
 	case "codex_responses":
 		return "codex"
-	case "bedrock_responses", "bedrock_messages":
+	case "bedrock_responses", "bedrock_messages", "bedrock_converse":
 		return "bedrock"
 	case "openrouter_chat", "openrouter_responses", "openrouter_messages":
 		return "openrouter"
@@ -384,10 +385,16 @@ func (c *requestScopedPricingClient) Request(ctx context.Context, req unified.Re
 	if err != nil {
 		return nil, err
 	}
-	if req.Model == "" {
+	wireModelID := req.Model
+	if meta, ok, err := unified.ResolvedModelMetadataFrom(req.Extensions); err != nil {
+		return nil, err
+	} else if ok && meta.WireModelID != "" {
+		wireModelID = meta.WireModelID
+	}
+	if wireModelID == "" {
 		return events, nil
 	}
-	return processEventStream(ctx, events, pricing.NewProcessor(c.catalog, c.serviceID, req.Model)), nil
+	return processEventStream(ctx, events, pricing.NewProcessor(c.catalog, c.serviceID, wireModelID)), nil
 }
 
 func processEventStream(ctx context.Context, events <-chan unified.Event, processors ...pipeline.Processor[unified.Event]) <-chan unified.Event {

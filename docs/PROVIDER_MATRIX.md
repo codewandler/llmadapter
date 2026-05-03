@@ -28,6 +28,7 @@ Legend:
 | `codex_responses` | `codex.responses` | `openai.responses` | `CODEX_ACCESS_TOKEN`, `CODEX_CODE_OAUTH_TOKEN`, or `~/.codex/auth.json` | provider default |
 | `bedrock_responses` | `bedrock.responses` | `openai.responses` | `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK` | `openai.gpt-oss-120b` |
 | `bedrock_messages` | `bedrock.anthropic_messages` | `anthropic.messages` | `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK` | `anthropic.claude-opus-4-7` |
+| `bedrock_converse` | `bedrock.converse` | `bedrock.converse` | AWS SDK default credential chain | `anthropic.claude-sonnet-4-6` |
 | `openrouter_chat` | `openrouter.chat_completions` | `openai.chat_completions` | `OPENROUTER_API_KEY` or `OPENROUTER_KEY` | `openai/gpt-4.1-mini` |
 | `openrouter_responses` | `openrouter.responses` | `openai.responses` | `OPENROUTER_API_KEY` or `OPENROUTER_KEY` | `openai/gpt-4.1-mini` |
 | `openrouter_messages` | `openrouter.anthropic_messages` | `anthropic.messages` | `OPENROUTER_API_KEY` or `OPENROUTER_KEY` | `anthropic/claude-sonnet-4` |
@@ -45,6 +46,7 @@ Legend:
 | `codex_responses` | `replay` | `replay` | `http_sse` |
 | `bedrock_responses` | `previous_response_id` | `previous_response_id` | `http_sse` |
 | `bedrock_messages` | `replay` | `replay` | `http_sse` |
+| `bedrock_converse` | `replay` | `replay` | `http_sse` |
 | `openrouter_chat` | `replay` | `replay` | `http_sse` |
 | `openrouter_responses` | `replay` | `replay` | `http_sse` |
 | `openrouter_messages` | `replay` | `replay` | `http_sse` |
@@ -64,6 +66,7 @@ Consumers should choose their public projection strategy from `Consumer continua
 | `codex_responses` | live | live | live | live | live | live | fixture | fixture | live | modeldb | live |
 | `bedrock_responses` | live | live | live | n/a | live | n/a | fixture | n/a | live | modeldb | live |
 | `bedrock_messages` | live | live | live | n/a | n/a | n/a | n/a | fixture | live | modeldb | live |
+| `bedrock_converse` | live | live | live | n/a | live | n/a | n/a | n/a | live | modeldb | live |
 | `openrouter_chat` | live | live | live | live | n/a | n/a | fixture | fixture | live | modeldb | live |
 | `openrouter_responses` | live | live | live | live | live | live | fixture | fixture | live | modeldb | live |
 | `openrouter_messages` | live | live | live | n/a | live | live | n/a | fixture | live | modeldb | live |
@@ -87,6 +90,8 @@ Bedrock Responses uses Amazon Bedrock Mantle's OpenAI-compatible `/v1/responses`
 Bedrock Mantle's `/v1/models` list is broader than the `/v1/responses` surface. On 2026-05-03 in `us-east-1`, the listed models that live-probed successfully through `/v1/responses` were `openai.gpt-oss-120b` and `openai.gpt-oss-20b`; all other listed Mantle IDs returned Bedrock validation errors stating that the model does not support `/v1/responses`.
 
 Bedrock Messages uses Mantle's Anthropic-compatible route at `/anthropic/v1/messages`. On 2026-05-03 in `us-east-1`, `anthropic.claude-opus-4-7` and `anthropic.claude-haiku-4-5` live-probed successfully through this endpoint; `anthropic.claude-opus-4-6` returned a provider not-found error for that Mantle model ID. A separate `/anthropic/v1/models` listing is not exposed, so the broad Mantle `/v1/models` endpoint remains the discovery source even though it mixes API surfaces. The shared smoke matrix uses Haiku 4.5 for tool-continuation because Opus 4.7 intentionally refuses the synthetic prompt-injection-shaped tool result used by the generic continuation smoke. Bedrock Messages accepts adaptive-thinking-shaped requests, but the live stream did not expose reasoning deltas or reasoning token accounting, so this endpoint does not advertise reasoning yet.
+
+Bedrock Converse uses the native AWS SDK Bedrock Runtime `ConverseStream` API and AWS SDK credentials rather than Mantle bearer tokens. It targets replay-based continuation, text, tools, and Claude extended-thinking request fields. Modeldb-backed fixed and dynamic routes prefer `RuntimeAccess.ResolvedWireID` for region-specific inference profiles and fall back to provider-local prefixing only when runtime metadata is unavailable. On 2026-05-03 in `us-east-1`, the shared text, tool-use, tool-result continuation, reasoning, OpenAI Chat gateway, and Anthropic Messages gateway smokes passed with the default Sonnet 4.6 model.
 
 ## Live Smoke Commands
 

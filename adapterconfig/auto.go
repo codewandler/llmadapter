@@ -337,7 +337,7 @@ func modelDBProviderPreference(providerType string) int {
 		return 2
 	case "codex_responses":
 		return 3
-	case "bedrock_responses", "bedrock_messages":
+	case "bedrock_responses", "bedrock_messages", "bedrock_converse":
 		return 4
 	case "minimax_messages", "minimax_chat":
 		return 5
@@ -407,11 +407,11 @@ func bestProviderForAPI(cfg Config, sourceAPI adapt.ApiKind) (ProviderConfig, bo
 func preferredProviderTypes(sourceAPI adapt.ApiKind) []string {
 	switch sourceAPI {
 	case adapt.ApiOpenAIResponses:
-		return []string{"openai_responses", "openrouter_responses", "codex_responses", "bedrock_responses", "anthropic", "claude", "bedrock_messages", "openrouter_messages", "minimax_messages"}
+		return []string{"openai_responses", "openrouter_responses", "codex_responses", "bedrock_responses", "anthropic", "claude", "bedrock_messages", "bedrock_converse", "openrouter_messages", "minimax_messages"}
 	case adapt.ApiOpenAIChatCompletions:
-		return []string{"openai_chat", "openrouter_chat", "minimax_chat", "anthropic", "claude"}
+		return []string{"openai_chat", "openrouter_chat", "minimax_chat", "anthropic", "claude", "bedrock_converse"}
 	case adapt.ApiAnthropicMessages:
-		return []string{"anthropic", "claude", "bedrock_messages", "openrouter_messages", "minimax_messages"}
+		return []string{"anthropic", "claude", "bedrock_messages", "bedrock_converse", "openrouter_messages", "minimax_messages"}
 	default:
 		return nil
 	}

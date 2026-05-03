@@ -53,6 +53,7 @@ Current v1 release-candidate endpoint types:
 | `codex_responses` | Codex/ChatGPT-compatible Responses |
 | `bedrock_responses` | Amazon Bedrock Mantle OpenAI-compatible Responses |
 | `bedrock_messages` | Amazon Bedrock Mantle Anthropic-compatible Messages |
+| `bedrock_converse` | Amazon Bedrock native Converse |
 | `openrouter_chat` | OpenRouter Chat Completions |
 | `openrouter_responses` | OpenRouter Responses |
 | `openrouter_messages` | OpenRouter Anthropic Messages |

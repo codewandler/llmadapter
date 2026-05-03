@@ -10,6 +10,7 @@ import (
 	"time"
 
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	bedrockconverse "github.com/codewandler/llmadapter/providers/bedrock/converse"
 	bedrockmessages "github.com/codewandler/llmadapter/providers/bedrock/messages"
 	bedrockresponses "github.com/codewandler/llmadapter/providers/bedrock/responses"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
@@ -42,6 +43,7 @@ type smokeProvider struct {
 	maxOutputTokens       int
 	continuationMaxTokens int
 	continuationNoTools   bool
+	continuationTools     bool
 	newClient             func(apiKey string) (unified.Client, error)
 }
 
@@ -281,6 +283,9 @@ func TestSmokeToolResultContinuation(t *testing.T) {
 			}
 			if provider.continuationNoTools {
 				continuationReq.ToolChoice = &unified.ToolChoice{Mode: unified.ToolChoiceNone}
+			}
+			if provider.continuationTools {
+				continuationReq.Tools = []unified.Tool{tool}
 			}
 			events, err = client.Request(ctx, continuationReq)
 			if err != nil {
@@ -942,6 +947,19 @@ func smokeProviders() []smokeProvider {
 					return bedrockmessages.NewClient()
 				}
 				return bedrockmessages.NewClient(bedrockmessages.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:                  "bedrock_converse",
+			awsProfileAuth:        true,
+			modelEnv:              bedrockconverse.EnvModel,
+			model:                 bedrockconverse.DefaultModel,
+			tools:                 true,
+			reasoning:             true,
+			continuationMaxTokens: 512,
+			continuationTools:     true,
+			newClient: func(apiKey string) (unified.Client, error) {
+				return bedrockconverse.NewClient()
 			},
 		},
 		{

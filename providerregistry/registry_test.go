@@ -36,7 +36,7 @@ func TestAnthropicFamilyDescriptorsAdvertiseReasoning(t *testing.T) {
 }
 
 func TestResponsesDescriptorsAdvertiseReasoning(t *testing.T) {
-	for _, providerType := range []string{"openai_responses", "openrouter_responses", "codex_responses", "bedrock_responses"} {
+	for _, providerType := range []string{"openai_responses", "openrouter_responses", "codex_responses", "bedrock_responses", "bedrock_converse"} {
 		descriptor, ok := Lookup(providerType)
 		if !ok {
 			t.Fatalf("missing descriptor %q", providerType)
@@ -104,6 +104,13 @@ func TestDescriptorsAdvertiseContinuationAndTransport(t *testing.T) {
 	}
 	if bedrockMessages.ConsumerContinuation != unified.ContinuationReplay {
 		t.Fatalf("bedrock messages consumer continuation = %s, want replay", bedrockMessages.ConsumerContinuation)
+	}
+	bedrockConverse, _ := Lookup("bedrock_converse")
+	if bedrockConverse.APIKind != adapt.ApiBedrockConverse || bedrockConverse.Family != adapt.FamilyBedrockConverse {
+		t.Fatalf("bedrock_converse descriptor = %+v", bedrockConverse)
+	}
+	if bedrockConverse.ConsumerContinuation != unified.ContinuationReplay {
+		t.Fatalf("bedrock converse consumer continuation = %s, want replay", bedrockConverse.ConsumerContinuation)
 	}
 }
 

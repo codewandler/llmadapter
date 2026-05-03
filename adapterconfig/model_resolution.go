@@ -202,6 +202,8 @@ func resolveRouteModelForCandidate(route RouteConfig, endpoint router.ProviderEn
 				return RouteConfig{}, router.ProviderEndpoint{}, "", false
 			}
 			route.NativeModel = item.Offering.WireModelID
+			route.ModelDBWireModelID = item.Offering.WireModelID
+			route.NativeModel = resolveRuntimeNativeModel(endpoint, catalog, serviceID, item.Offering.WireModelID)
 			endpoint = EndpointWithModelDBMetadata(endpoint, route, catalog)
 		}
 	}

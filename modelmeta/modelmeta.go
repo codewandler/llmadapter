@@ -21,6 +21,8 @@ func APITypeForFamily(family adapt.ApiFamily) (modeldb.APIType, bool) {
 		return modeldb.APITypeOpenAIChat, true
 	case adapt.FamilyOpenAIResponses:
 		return modeldb.APITypeOpenAIResponses, true
+	case adapt.FamilyBedrockConverse:
+		return modeldb.APITypeBedrockConverse, true
 	default:
 		return "", false
 	}

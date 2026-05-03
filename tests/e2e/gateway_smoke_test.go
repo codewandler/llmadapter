@@ -16,6 +16,7 @@ import (
 	chat "github.com/codewandler/llmadapter/endpoints/openaichatcompletions"
 	"github.com/codewandler/llmadapter/gateway"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	bedrockconverse "github.com/codewandler/llmadapter/providers/bedrock/converse"
 	bedrockmessages "github.com/codewandler/llmadapter/providers/bedrock/messages"
 	bedrockresponses "github.com/codewandler/llmadapter/providers/bedrock/responses"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
@@ -234,6 +235,19 @@ func gatewayProviders() []gatewayProvider {
 					return bedrockmessages.NewClient()
 				}
 				return bedrockmessages.NewClient(bedrockmessages.WithAPIKey(apiKey))
+			},
+		},
+		{
+			name:            "bedrock_converse",
+			apiKind:         adapt.ApiBedrockConverse,
+			family:          adapt.FamilyBedrockConverse,
+			capabilities:    router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true},
+			awsProfileAuth:  true,
+			modelEnv:        bedrockconverse.EnvModel,
+			model:           bedrockconverse.DefaultModel,
+			maxOutputTokens: 512,
+			newClient: func(apiKey string) (unified.Client, error) {
+				return bedrockconverse.NewClient()
 			},
 		},
 		{

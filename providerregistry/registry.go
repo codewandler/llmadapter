@@ -8,6 +8,7 @@ import (
 
 	"github.com/codewandler/llmadapter/adapt"
 	anthropic "github.com/codewandler/llmadapter/providers/anthropic/messages"
+	bedrockconverse "github.com/codewandler/llmadapter/providers/bedrock/converse"
 	bedrockmessages "github.com/codewandler/llmadapter/providers/bedrock/messages"
 	bedrockresponses "github.com/codewandler/llmadapter/providers/bedrock/responses"
 	minimax "github.com/codewandler/llmadapter/providers/minimax/chatcompletions"
@@ -142,6 +143,19 @@ var descriptors = []Descriptor{
 		DefaultModelEnv:      bedrockmessages.EnvModel,
 		DefaultModel:         bedrockmessages.DefaultModel,
 		Factory:              newBedrockMessagesClient,
+	},
+	{
+		Type:                 "bedrock_converse",
+		APIKind:              adapt.ApiBedrockConverse,
+		Family:               adapt.FamilyBedrockConverse,
+		Capabilities:         router.CapabilitySet{Streaming: true, Tools: true, Reasoning: true, ReasoningDeltas: true},
+		ConsumerContinuation: unified.ContinuationReplay,
+		InternalContinuation: unified.ContinuationReplay,
+		Transport:            unified.TransportHTTPSSE,
+		DefaultAPIKeyEnvs:    nil,
+		DefaultModelEnv:      bedrockconverse.EnvModel,
+		DefaultModel:         bedrockconverse.DefaultModel,
+		Factory:              newBedrockConverseClient,
 	},
 	{
 		Type:                 "openrouter_chat",
@@ -354,6 +368,14 @@ func newBedrockMessagesClient(cfg ClientConfig) (unified.Client, error) {
 		opts = append(opts, bedrockmessages.WithTransport(cfg.Transport))
 	}
 	return bedrockmessages.NewClient(opts...)
+}
+
+func newBedrockConverseClient(cfg ClientConfig) (unified.Client, error) {
+	opts := []bedrockconverse.Option{}
+	if cfg.BaseURL != "" {
+		opts = append(opts, bedrockconverse.WithBaseEndpoint(cfg.BaseURL))
+	}
+	return bedrockconverse.NewClient(opts...)
 }
 
 func newOpenRouterChatClient(cfg ClientConfig) (unified.Client, error) {

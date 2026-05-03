@@ -17,6 +17,7 @@ func TestAPITypeForFamily(t *testing.T) {
 		{adapt.FamilyAnthropicMessages, modeldb.APITypeAnthropicMessages},
 		{adapt.FamilyOpenAIChatCompletions, modeldb.APITypeOpenAIChat},
 		{adapt.FamilyOpenAIResponses, modeldb.APITypeOpenAIResponses},
+		{adapt.FamilyBedrockConverse, modeldb.APITypeBedrockConverse},
 	}
 	for _, tt := range tests {
 		got, ok := APITypeForFamily(tt.family)
