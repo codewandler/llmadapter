@@ -8,7 +8,7 @@ Primary goal: keep the adapter buildable and incrementally useful while hardenin
 
 ## Current Status
 
-Status date: 2026-05-03.
+Status date: 2026-05-04.
 
 `v1.0.0-rc.20` has been cut. The current tree now includes an unreleased first slice for Amazon Bedrock Mantle Responses (`bedrock_responses`) on the OpenAI Responses family. The current remaining v1 work is release-candidate validation and final v1.0.0 promotion if no regressions or documentation inaccuracies are found.
 
@@ -136,6 +136,7 @@ Codex WebSocket live smoke slice: `tests/e2e` includes `TEST_INTEGRATION`-gated 
 Responses WebSocket option slice: `providers/openai/responses` exposes three-state `WithWebSocketMode(...)` support for official OpenAI Responses WebSocket mode, with deterministic enabled/default/auto/fallback tests, a shared compression-on, IPv4-forced default WebSocket transport, and shared session reuse/open-or-write mechanics used by native OpenAI Responses and Codex; `openrouter_responses` stays on HTTP/SSE unless it explicitly opts in later
 OpenAI Responses WebSocket smoke slice: `tests/e2e/TestSmokeOpenAIResponsesWebSocket` verifies direct OpenAI Responses WebSocket mode with live OpenAI credentials, stable cache/session key, streamed text, usage, and runtime `transport=websocket` metadata
 Codex WebSocket conformance slice: deterministic Codex provider tests cover session-mode WebSocket enabled, WebSocket disabled, missing stable session ID, pre-stream HTTP/SSE fallback, retry-after-fallback, mid-stream failure invalidation, and branch-safe internal continuation; Codex uses the same WebSocket mode vocabulary while preserving Codex-specific auth/session behavior
+Codex WebSocket recovery slice: `codex_responses` now treats pre-output abnormal WebSocket closes, unexpected EOFs, and reused-session write failures as recoverable before consumers observe output; it invalidates stale internal continuation state, retries the turn on a fresh WebSocket with replay semantics, and only falls back to HTTP/SSE if that fresh WebSocket attempt also fails before output
 Claude Code wire-diff research slice: `docs/research/CLAUDE_CODE_WIRE_DIFF.md` records observed Claude Code 2.1.112 request/header/stream differences, model-aware effort and adaptive-thinking behavior, advisor-tool/context-management/compaction findings, and the current llmadapter Claude-compatible provider gaps
 Claude Code parity slice: Anthropic-family wire structs preserve adaptive effort, context-management, stop-details, nested usage, service tier, inference geo, usage iterations, and server-tool usage; Claude-compatible headers now compose request/auth-aware beta values, send current Claude Code/Stainless versions plus `X-Claude-Code-Session-Id`, add `advisor-tool-2026-03-01`, add Claude Code's clear-thinking context-management edit for thinking requests, and map modeldb-resolved adaptive effort support to adaptive thinking plus `output_config.effort` while preserving manual-budget thinking for legacy or explicitly budgeted requests
 Responses phase preservation slice: `unified.Message`, collected responses, and message start/done events now preserve assistant message phase metadata; downstream `/v1/responses` decoding/projection and OpenAI Responses-compatible provider encoding only send phase for assistant messages, deterministic tests observe the serialized OpenAI Responses request body carrying assistant `phase`, and Responses stream decoding preserves `commentary` / `final_answer` metadata when upstream emits it
@@ -253,6 +254,8 @@ env GOCACHE=/tmp/go-cache go test ./providers/openai/chatcompletions ./providers
 ```
 
 Latest retry-slice live note: `env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/codex_responses' -count=1 -v` passed on 2026-05-02. The required full live matrix was rerun and initially failed only on `TestSmokeToolResultContinuation/minimax_messages`; the MiniMax Messages continuation smoke has since been tightened and `env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/minimax_messages' -count=5 -v` passed on 2026-05-02.
+
+Latest Codex WebSocket recovery live note: `env GOCACHE=/tmp/go-cache TEST_INTEGRATION=1 go test ./tests/e2e -run 'TestSmokeToolResultContinuation/codex_responses|TestSmokePromptCache/codex_responses' -count=1 -v` passed on 2026-05-04; the local test selection exercised the existing Codex continuation and prompt-cache smoke rows.
 
 Implemented package surface:
 

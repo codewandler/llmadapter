@@ -25,6 +25,34 @@ type WebSocketByteStreamTransport struct {
 	dialer *websocket.Dialer
 }
 
+type WebSocketCloseError struct {
+	Code int
+	Text string
+}
+
+func (e *WebSocketCloseError) Error() string {
+	if e == nil {
+		return "websocket closed"
+	}
+	if e.Text == "" {
+		return fmt.Sprintf("websocket closed: code=%d", e.Code)
+	}
+	return fmt.Sprintf("websocket closed: code=%d text=%s", e.Code, e.Text)
+}
+
+func IsWebSocketClosed(err error) bool {
+	if err == nil {
+		return false
+	}
+	var closeErr *WebSocketCloseError
+	return errors.As(err, &closeErr) || errors.Is(err, io.EOF)
+}
+
+func IsWebSocketAbnormalClose(err error) bool {
+	var closeErr *WebSocketCloseError
+	return errors.As(err, &closeErr) && closeErr.Code == websocket.CloseAbnormalClosure
+}
+
 func NewWebSocketByteStreamTransport(cfg WebSocketTransportConfig) *WebSocketByteStreamTransport {
 	dialer := cfg.Dialer
 	if dialer == nil {
@@ -213,8 +241,11 @@ func (s *webSocketByteStream) Recv(ctx context.Context) ([]byte, error) {
 
 func webSocketReadError(err error) error {
 	var closeErr *websocket.CloseError
-	if errors.As(err, &closeErr) && closeErr.Text != "" {
-		return fmt.Errorf("websocket closed: code=%d text=%s", closeErr.Code, closeErr.Text)
+	if errors.As(err, &closeErr) {
+		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+			return io.EOF
+		}
+		return &WebSocketCloseError{Code: closeErr.Code, Text: closeErr.Text}
 	}
 	if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 		return io.EOF

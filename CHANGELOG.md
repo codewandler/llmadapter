@@ -10,6 +10,13 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.33] - 2026-05-04
+
+### Fixed
+
+- Recovered Codex pre-output WebSocket close and reused-session write failures by
+  retrying the turn on a fresh WebSocket before falling back to HTTP/SSE.
+
 ### Changed
 
 - Added live agentic-coding compatibility coverage for Bedrock Converse Haiku

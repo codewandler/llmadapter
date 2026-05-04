@@ -817,6 +817,177 @@ func TestClientInvalidatesWebSocketContinuationAfterMidStreamDisconnect(t *testi
 	}
 }
 
+func TestClientRetriesFreshWebSocketAfterPreOutputAbnormalClose(t *testing.T) {
+	httpFake := &transport.FakeByteStreamTransport{}
+	wsFake := &reusableWebSocketTransport{
+		turnFrames: [][][]byte{
+			{
+				[]byte(`{"type":"response.created","response":{"id":"resp_1","model":"gpt-5.4","status":"in_progress"}}`),
+				[]byte(`{"type":"response.done","response":{"id":"resp_1","model":"gpt-5.4","status":"completed"}}`),
+			},
+			nil,
+			{
+				[]byte(`{"type":"response.created","response":{"id":"resp_2","model":"gpt-5.4","status":"in_progress"}}`),
+				[]byte(`{"type":"response.output_text.delta","response_id":"resp_2","output_index":0,"content_index":0,"delta":"fresh ws ok"}`),
+				[]byte(`{"type":"response.done","response":{"id":"resp_2","model":"gpt-5.4","status":"completed"}}`),
+			},
+		},
+		turnErrs: []error{nil, &transport.WebSocketCloseError{Code: 1006, Text: "unexpected EOF"}, nil},
+	}
+	client, err := NewClient(
+		WithAccessToken("token"),
+		WithBaseURL("https://example.invalid/backend-api"),
+		WithTransport(httpFake),
+		WithWebSocketTransport(wsFake),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := unified.Request{
+		Model:  "codex",
+		Stream: true,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "one"}},
+		}},
+	}
+	if err := unified.SetCodexExtensions(&first.Extensions, unified.CodexExtensions{
+		InteractionMode: unified.InteractionSession,
+		SessionID:       "sess",
+		BranchID:        "main",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unified.Collect(context.Background(), events); err != nil {
+		t.Fatal(err)
+	}
+
+	second := first
+	second.Messages = append(second.Messages,
+		unified.Message{Role: unified.RoleAssistant, Content: []unified.ContentPart{unified.TextPart{Text: "answer"}}},
+		unified.Message{Role: unified.RoleUser, Content: []unified.ContentPart{unified.TextPart{Text: "two"}}},
+	)
+	events, err = client.Request(context.Background(), second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := responseText(resp); got != "fresh ws ok" {
+		t.Fatalf("text = %q, want fresh ws ok", got)
+	}
+	if len(wsFake.seen) != 2 {
+		t.Fatalf("websocket opens = %d, want initial plus fresh retry", len(wsFake.seen))
+	}
+	if len(httpFake.Seen) != 0 {
+		t.Fatalf("http fallback opens = %d, want 0", len(httpFake.Seen))
+	}
+	if len(wsFake.bodies) != 3 {
+		t.Fatalf("websocket request bodies = %d, want initial, failed reuse, fresh retry", len(wsFake.bodies))
+	}
+	var reusedBody, freshBody map[string]any
+	if err := json.Unmarshal(wsFake.bodies[1], &reusedBody); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(wsFake.bodies[2], &freshBody); err != nil {
+		t.Fatal(err)
+	}
+	if reusedBody["previous_response_id"] != "resp_1" {
+		t.Fatalf("reused previous_response_id = %v, want resp_1", reusedBody["previous_response_id"])
+	}
+	if _, ok := freshBody["previous_response_id"]; ok {
+		t.Fatalf("fresh websocket retry should replay without previous_response_id: %#v", freshBody)
+	}
+}
+
+func TestClientRetriesFreshWebSocketAfterPreOutputWriteFailure(t *testing.T) {
+	httpFake := &transport.FakeByteStreamTransport{}
+	wsFake := &reusableWebSocketTransport{
+		turnFrames: [][][]byte{
+			{
+				[]byte(`{"type":"response.created","response":{"id":"resp_1","model":"gpt-5.4","status":"in_progress"}}`),
+				[]byte(`{"type":"response.done","response":{"id":"resp_1","model":"gpt-5.4","status":"completed"}}`),
+			},
+			{
+				[]byte(`{"type":"response.created","response":{"id":"resp_2","model":"gpt-5.4","status":"in_progress"}}`),
+				[]byte(`{"type":"response.output_text.delta","response_id":"resp_2","output_index":0,"content_index":0,"delta":"write retry ok"}`),
+				[]byte(`{"type":"response.done","response":{"id":"resp_2","model":"gpt-5.4","status":"completed"}}`),
+			},
+		},
+		writeErrs: []error{nil, &transport.WebSocketCloseError{Code: 1006, Text: "unexpected EOF"}},
+	}
+	client, err := NewClient(
+		WithAccessToken("token"),
+		WithBaseURL("https://example.invalid/backend-api"),
+		WithTransport(httpFake),
+		WithWebSocketTransport(wsFake),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := unified.Request{
+		Model:  "codex",
+		Stream: true,
+		Messages: []unified.Message{{
+			Role:    unified.RoleUser,
+			Content: []unified.ContentPart{unified.TextPart{Text: "one"}},
+		}},
+	}
+	if err := unified.SetCodexExtensions(&first.Extensions, unified.CodexExtensions{
+		InteractionMode: unified.InteractionSession,
+		SessionID:       "sess",
+		BranchID:        "main",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := client.Request(context.Background(), first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unified.Collect(context.Background(), events); err != nil {
+		t.Fatal(err)
+	}
+
+	second := first
+	second.Messages = append(second.Messages,
+		unified.Message{Role: unified.RoleAssistant, Content: []unified.ContentPart{unified.TextPart{Text: "answer"}}},
+		unified.Message{Role: unified.RoleUser, Content: []unified.ContentPart{unified.TextPart{Text: "two"}}},
+	)
+	events, err = client.Request(context.Background(), second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := unified.Collect(context.Background(), events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := responseText(resp); got != "write retry ok" {
+		t.Fatalf("text = %q, want write retry ok", got)
+	}
+	if len(wsFake.seen) != 2 {
+		t.Fatalf("websocket opens = %d, want initial plus fresh retry", len(wsFake.seen))
+	}
+	if len(httpFake.Seen) != 0 {
+		t.Fatalf("http fallback opens = %d, want 0", len(httpFake.Seen))
+	}
+	if len(wsFake.bodies) != 3 {
+		t.Fatalf("websocket request bodies = %d, want initial, failed write, fresh retry", len(wsFake.bodies))
+	}
+	var freshBody map[string]any
+	if err := json.Unmarshal(wsFake.bodies[2], &freshBody); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := freshBody["previous_response_id"]; ok {
+		t.Fatalf("fresh websocket retry should replay without previous_response_id: %#v", freshBody)
+	}
+}
+
 func TestClientDoesNotUseInternalPreviousResponseIDAcrossBranches(t *testing.T) {
 	wsFake := &transport.FakeByteStreamTransport{Frames: [][]byte{
 		[]byte(`{"type":"response.created","response":{"id":"resp_1","model":"gpt-5.4","status":"in_progress"}}`),
@@ -916,7 +1087,7 @@ func TestClientFallsBackToHTTPSSEWhenWebSocketOpenFails(t *testing.T) {
 	if got := responseText(resp); got != "http ok" {
 		t.Fatalf("text = %q, want http ok", got)
 	}
-	if len(wsFake.Seen) != 1 || len(httpFake.Seen) != 1 {
+	if len(wsFake.Seen) != 2 || len(httpFake.Seen) != 1 {
 		t.Fatalf("ws seen=%d http seen=%d, want both", len(wsFake.Seen), len(httpFake.Seen))
 	}
 }
@@ -958,7 +1129,7 @@ func TestClientFallsBackToHTTPSSEWhenWebSocketClosesBeforeResponse(t *testing.T)
 	if got := responseText(resp); got != "http fallback ok" {
 		t.Fatalf("text = %q, want http fallback ok", got)
 	}
-	if len(wsFake.Seen) != 1 || len(httpFake.Seen) != 1 {
+	if len(wsFake.Seen) != 2 || len(httpFake.Seen) != 1 {
 		t.Fatalf("ws seen=%d http seen=%d, want both", len(wsFake.Seen), len(httpFake.Seen))
 	}
 }
@@ -971,6 +1142,9 @@ func TestClientRetriesWebSocketAfterPreStreamFallback(t *testing.T) {
 	}}
 	wsFake := &reusableWebSocketTransport{
 		turnFrames: [][][]byte{
+			{
+				[]byte(`{"type":"codex.rate_limits","rate_limits":[]}`),
+			},
 			{
 				[]byte(`{"type":"codex.rate_limits","rate_limits":[]}`),
 			},
@@ -1014,7 +1188,7 @@ func TestClientRetriesWebSocketAfterPreStreamFallback(t *testing.T) {
 	if resp.ID != "resp_ws" {
 		t.Fatalf("second response id = %q, want resp_ws", resp.ID)
 	}
-	if len(wsFake.seen) != 2 {
+	if len(wsFake.seen) != 3 {
 		t.Fatalf("websocket opens = %d, want retry after fallback", len(wsFake.seen))
 	}
 	if len(httpFake.Seen) != 1 {
@@ -1156,6 +1330,7 @@ type reusableWebSocketTransport struct {
 	next       int
 	turnFrames [][][]byte
 	turnErrs   []error
+	writeErrs  []error
 	seen       []*transport.Request
 	bodies     [][]byte
 	stream     *reusableWebSocketStream
@@ -1204,6 +1379,9 @@ func (s *reusableWebSocketStream) Write(ctx context.Context, frame []byte) error
 	s.owner.mu.Lock()
 	defer s.owner.mu.Unlock()
 	s.owner.bodies = append(s.owner.bodies, append([]byte(nil), frame...))
+	if s.owner.next < len(s.owner.writeErrs) && s.owner.writeErrs[s.owner.next] != nil {
+		return s.owner.writeErrs[s.owner.next]
+	}
 	frames, streamErr := s.owner.nextTurnLocked()
 	s.frames = frames
 	s.err = streamErr

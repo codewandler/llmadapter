@@ -171,8 +171,15 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 		if codexExt.TurnState == "" && decision.turnState != "" {
 			webSocketHeader.Set(HeaderCodexTurnState, decision.turnState)
 		}
-		webSocketBody := withPreviousResponseID(codexWebSocketBody(mutated, codexWebSocketClientMetadata(header)), decision.previousResponseID, decision.inputStart)
-		openHTTP := func(ctx context.Context) (transport.ByteStream, error) {
+		webSocketReplayHeader := webSocketHeader.Clone()
+		replayHeader := header.Clone()
+		if codexExt.TurnState == "" {
+			webSocketReplayHeader.Del(HeaderCodexTurnState)
+			replayHeader.Del(HeaderCodexTurnState)
+		}
+		webSocketReplayBody := codexWebSocketBody(mutated, codexWebSocketClientMetadata(header))
+		webSocketBody := withPreviousResponseID(webSocketReplayBody, decision.previousResponseID, decision.inputStart)
+		openHTTPWithHeader := func(ctx context.Context, header http.Header) (transport.ByteStream, error) {
 			stream, err := t.http.Open(ctx, &transport.Request{
 				Method:     req.Method,
 				URL:        t.baseURL + t.path,
@@ -206,17 +213,72 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 			if decision.previousResponseID != "" {
 				internalContinuation = unified.ContinuationPreviousResponseID
 			}
-			return &codexFallbackByteStream{
-				active: &sseWrappedByteStream{inner: stream, wrapFrames: true, commit: decision.commit, fail: failWebSocketSession, close: unlockWS},
-				fallback: func(ctx context.Context) (transport.ByteStream, error) {
-					if unlockWS == nil {
-						return openHTTP(ctx)
+			recoverStage := codexRecoveryFreshWebSocket
+			recoverPreStart := func(ctx context.Context, cause error) (codexRecovery, error) {
+				for {
+					stage := recoverStage
+					switch stage {
+					case codexRecoveryFreshWebSocket:
+						recoverStage = codexRecoveryHTTPSSE
+						if t.continuations != nil {
+							t.continuations.invalidate(sessionID, branchID)
+						}
+						if t.webSocketSession == nil {
+							t.webSocketSession = responsesws.NewSession()
+						}
+						t.webSocketSession.CloseLocked()
+						replayStream, replayErr := t.webSocketStream(ctx, req, webSocketReplayHeader, sessionID, webSocketReplayBody)
+						if replayErr != nil {
+							cause = errors.Join(cause, replayErr)
+							continue
+						}
+						var replayQuotaFrames [][]byte
+						if carrier, ok := replayStream.(transport.HeaderCarrier); ok {
+							handshake := carrier.Header()
+							t.continuations.setTurnState(sessionID, branchID, headerValue(handshake, HeaderCodexTurnState))
+							replayQuotaFrames = codexQuotaFramesFromHeader(handshake)
+						}
+						return codexRecovery{
+							stream: &sseWrappedByteStream{
+								inner:      replayStream,
+								wrapFrames: true,
+								commit:     decision.commit,
+								fail:       failWebSocketSession,
+								close:      unlockWS,
+							},
+							metadata: unified.ProviderExecutionEvent{
+								InternalContinuation: unified.ContinuationReplay,
+								Transport:            unified.TransportWebSocket,
+							},
+							preface: replayQuotaFrames,
+						}, nil
+					case codexRecoveryHTTPSSE:
+						recoverStage = codexRecoveryDone
+						if unlockWS != nil {
+							t.webSocketSession.CloseLocked()
+							unlockWS()
+							unlockWS = nil
+						}
+						stream, err := openHTTPWithHeader(ctx, replayHeader)
+						if err != nil {
+							return codexRecovery{}, errors.Join(cause, err)
+						}
+						return codexRecovery{
+							stream: stream,
+							metadata: unified.ProviderExecutionEvent{
+								InternalContinuation: unified.ContinuationReplay,
+								Transport:            unified.TransportHTTPSSE,
+							},
+							started: true,
+						}, nil
+					default:
+						return codexRecovery{}, cause
 					}
-					t.webSocketSession.CloseLocked()
-					unlockWS()
-					unlockWS = nil
-					return openHTTP(ctx)
-				},
+				}
+			}
+			return &codexFallbackByteStream{
+				active:  &sseWrappedByteStream{inner: stream, wrapFrames: true, commit: decision.commit, fail: failWebSocketSession, close: unlockWS},
+				recover: recoverPreStart,
 				metadata: unified.ProviderExecutionEvent{
 					InternalContinuation: internalContinuation,
 					Transport:            unified.TransportWebSocket,
@@ -228,6 +290,53 @@ func (t *codexTransport) Open(ctx context.Context, req *transport.Request) (tran
 			if t.continuations != nil {
 				t.continuations.invalidate(sessionID, branchID)
 			}
+			if t.webSocketSession != nil {
+				t.webSocketSession.CloseLocked()
+			}
+			replayStream, replayErr := t.webSocketStream(ctx, req, webSocketReplayHeader, sessionID, webSocketReplayBody)
+			if replayErr == nil {
+				var replayQuotaFrames [][]byte
+				if carrier, ok := replayStream.(transport.HeaderCarrier); ok {
+					handshake := carrier.Header()
+					t.continuations.setTurnState(sessionID, branchID, headerValue(handshake, HeaderCodexTurnState))
+					replayQuotaFrames = codexQuotaFramesFromHeader(handshake)
+				}
+				recoverHTTP := func(ctx context.Context, cause error) (codexRecovery, error) {
+					if unlockWS != nil {
+						t.webSocketSession.CloseLocked()
+						unlockWS()
+						unlockWS = nil
+					}
+					stream, httpErr := openHTTPWithHeader(ctx, replayHeader)
+					if httpErr != nil {
+						return codexRecovery{}, errors.Join(cause, httpErr)
+					}
+					return codexRecovery{
+						stream: stream,
+						metadata: unified.ProviderExecutionEvent{
+							InternalContinuation: unified.ContinuationReplay,
+							Transport:            unified.TransportHTTPSSE,
+						},
+						started: true,
+					}, nil
+				}
+				return &codexFallbackByteStream{
+					active: &sseWrappedByteStream{
+						inner:      replayStream,
+						wrapFrames: true,
+						commit:     decision.commit,
+						fail:       failWebSocketSession,
+						close:      unlockWS,
+					},
+					recover: recoverHTTP,
+					metadata: unified.ProviderExecutionEvent{
+						InternalContinuation: unified.ContinuationReplay,
+						Transport:            unified.TransportWebSocket,
+					},
+					preface: replayQuotaFrames,
+				}, nil
+			}
+			err = errors.Join(err, replayErr)
 		}
 		if unlockWS != nil {
 			unlockWS()
@@ -643,12 +752,27 @@ func firstNonEmpty(values ...string) string {
 
 type codexFallbackByteStream struct {
 	active       transport.ByteStream
-	fallback     func(context.Context) (transport.ByteStream, error)
+	recover      func(context.Context, error) (codexRecovery, error)
 	metadata     unified.ProviderExecutionEvent
 	sentMetadata bool
 	preface      [][]byte
 	started      bool
 	buffered     [][]byte
+}
+
+type codexRecoveryStage int
+
+const (
+	codexRecoveryFreshWebSocket codexRecoveryStage = iota
+	codexRecoveryHTTPSSE
+	codexRecoveryDone
+)
+
+type codexRecovery struct {
+	stream   transport.ByteStream
+	metadata unified.ProviderExecutionEvent
+	preface  [][]byte
+	started  bool
 }
 
 func (s *codexFallbackByteStream) Recv(ctx context.Context) ([]byte, error) {
@@ -669,19 +793,17 @@ func (s *codexFallbackByteStream) Recv(ctx context.Context) ([]byte, error) {
 		}
 		raw, err := s.active.Recv(ctx)
 		if err != nil {
-			if !s.started && s.fallback != nil && errors.Is(err, errCodexWebSocketClosedBeforeCompleted) {
-				stream, fallbackErr := s.fallback(ctx)
-				if fallbackErr != nil {
-					return nil, fallbackErr
+			if !s.started && s.recover != nil && codexPreStartRecoverable(err) {
+				recovered, recoverErr := s.recover(ctx, err)
+				if recoverErr != nil {
+					return nil, recoverErr
 				}
-				s.active = stream
-				s.fallback = nil
-				s.metadata = unified.ProviderExecutionEvent{
-					InternalContinuation: unified.ContinuationReplay,
-					Transport:            unified.TransportHTTPSSE,
-				}
-				s.preface = nil
-				s.started = true
+				s.active = recovered.stream
+				s.metadata = recovered.metadata
+				s.preface = recovered.preface
+				s.started = recovered.started
+				s.sentMetadata = false
+				s.buffered = nil
 				continue
 			}
 			return nil, err
@@ -707,6 +829,12 @@ func (s *codexFallbackByteStream) Close() error {
 		return nil
 	}
 	return s.active.Close()
+}
+
+func codexPreStartRecoverable(err error) bool {
+	return errors.Is(err, errCodexWebSocketClosedBeforeCompleted) ||
+		transport.IsWebSocketClosed(err) ||
+		errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 func providerMetadataFrame(metadata unified.ProviderExecutionEvent) ([]byte, error) {
