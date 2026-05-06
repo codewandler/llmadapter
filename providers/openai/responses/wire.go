@@ -20,6 +20,7 @@ type requestWire struct {
 	Text                 textConfigWire  `json:"text,omitempty"`
 	Tools                []toolWire      `json:"tools,omitempty"`
 	ToolChoice           any             `json:"tool_choice,omitempty"`
+	ParallelToolCalls    *bool           `json:"parallel_tool_calls,omitempty"`
 }
 
 type textConfigWire struct {

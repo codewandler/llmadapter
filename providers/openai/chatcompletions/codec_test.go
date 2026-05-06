@@ -86,6 +86,26 @@ func TestEncodeRequest(t *testing.T) {
 	}
 }
 
+func TestEncodeParallelToolCallsDefaultsFalse(t *testing.T) {
+	wire, _, err := encodeRequest(unified.Request{Model: "gpt-test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.ParallelToolCalls == nil || *wire.ParallelToolCalls {
+		t.Fatalf("parallel_tool_calls = %#v, want false by default", wire.ParallelToolCalls)
+	}
+}
+
+func TestEncodeParallelToolCallsExplicitTrue(t *testing.T) {
+	enabled := true
+	wire, _, err := encodeRequest(unified.Request{Model: "gpt-test", ParallelToolCalls: &enabled})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.ParallelToolCalls == nil || !*wire.ParallelToolCalls {
+		t.Fatalf("parallel_tool_calls = %#v, want true", wire.ParallelToolCalls)
+	}
+}
 func TestEncodeToolChoiceNoneOmittedWithoutTools(t *testing.T) {
 	wire, _, err := encodeRequest(unified.Request{
 		Model: "gpt-test",

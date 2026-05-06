@@ -476,8 +476,8 @@ func TestClientUsesWebSocketForSessionInteraction(t *testing.T) {
 	if body["tool_choice"] != "auto" {
 		t.Fatalf("ws tool_choice default missing: %#v", body)
 	}
-	if _, ok := body["parallel_tool_calls"]; ok {
-		t.Fatalf("ws parallel_tool_calls should not be defaulted: %#v", body)
+	if body["parallel_tool_calls"] != false {
+		t.Fatalf("ws parallel_tool_calls = %#v, want false", body["parallel_tool_calls"])
 	}
 	if _, ok := body["tools"].([]any); !ok {
 		t.Fatalf("ws tools = %#v", body["tools"])

@@ -15,8 +15,9 @@ type Request struct {
 
 	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
 
-	Tools      []Tool      `json:"tools,omitempty"`
-	ToolChoice *ToolChoice `json:"tool_choice,omitempty"`
+	Tools             []Tool      `json:"tools,omitempty"`
+	ToolChoice        *ToolChoice `json:"tool_choice,omitempty"`
+	ParallelToolCalls *bool       `json:"parallel_tool_calls,omitempty"`
 
 	Reasoning *ReasoningConfig `json:"reasoning,omitempty"`
 	Safety    *SafetyConfig    `json:"safety,omitempty"`

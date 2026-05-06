@@ -10,6 +10,19 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.35] - 2026-05-06
+
+### Added
+
+- Added first-class unified `parallel_tool_calls` request control for OpenAI
+  Responses and Chat Completions transports.
+
+### Fixed
+
+- Defaulted OpenAI Responses and Chat Completions requests to
+  `parallel_tool_calls: false` unless callers explicitly opt in, reducing
+  hidden parallel wrapper / duplicate tool-call behavior.
+
 ## [1.0.0-rc.34] - 2026-05-06
 
 ### Fixed

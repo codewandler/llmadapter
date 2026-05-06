@@ -22,6 +22,20 @@ func TestEncodeToolChoiceNoneWithoutTools(t *testing.T) {
 	}
 }
 
+func TestEncodeParallelToolCallsDefaultsFalse(t *testing.T) {
+	wire, _ := encodeRequest(unified.Request{Model: "gpt-test"})
+	if wire.ParallelToolCalls == nil || *wire.ParallelToolCalls {
+		t.Fatalf("parallel_tool_calls = %#v, want false by default", wire.ParallelToolCalls)
+	}
+}
+
+func TestEncodeParallelToolCallsExplicitTrue(t *testing.T) {
+	enabled := true
+	wire, _ := encodeRequest(unified.Request{Model: "gpt-test", ParallelToolCalls: &enabled})
+	if wire.ParallelToolCalls == nil || !*wire.ParallelToolCalls {
+		t.Fatalf("parallel_tool_calls = %#v, want true", wire.ParallelToolCalls)
+	}
+}
 func TestEncodeAssistantMessagePhase(t *testing.T) {
 	wire, warnings := encodeRequest(unified.Request{
 		Model: "gpt-test",

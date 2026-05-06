@@ -33,13 +33,14 @@ func encodeRequest(req unified.Request) (requestWire, []mappingWarning, error) {
 func encodeRequestForAPI(req unified.Request, apiKind adapt.ApiKind) (requestWire, []mappingWarning, error) {
 	var warnings []mappingWarning
 	out := requestWire{
-		Model:       req.Model,
-		MaxTokens:   req.MaxOutputTokens,
-		Temperature: req.Temperature,
-		TopP:        req.TopP,
-		Stop:        append([]string(nil), req.Stop...),
-		Stream:      req.Stream,
-		User:        req.User,
+		Model:             req.Model,
+		MaxTokens:         req.MaxOutputTokens,
+		Temperature:       req.Temperature,
+		TopP:              req.TopP,
+		Stop:              append([]string(nil), req.Stop...),
+		Stream:            req.Stream,
+		User:              req.User,
+		ParallelToolCalls: parallelToolCalls(req.ParallelToolCalls),
 	}
 	for i, inst := range req.Instructions {
 		out.Messages = append(out.Messages, messageWire{Role: "system", Content: contentText(inst.Content, "instructions."+strconv.Itoa(i)+".content", &warnings), Name: inst.Name})
@@ -144,6 +145,14 @@ func applyOpenRouterExtensions(out *requestWire, extensions unified.Extensions, 
 	out.OpenRouterDebug = raw.Debug
 	out.OpenRouterTrace = raw.Trace
 	out.OpenRouterSessionID = raw.SessionID
+}
+
+func parallelToolCalls(value *bool) *bool {
+	if value != nil {
+		return value
+	}
+	disabled := false
+	return &disabled
 }
 
 func encodeToolChoice(choice unified.ToolChoice) any {

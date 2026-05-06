@@ -14,6 +14,7 @@ type requestWire struct {
 	ResponseFormat      any                `json:"response_format,omitempty"`
 	Tools               []toolWire         `json:"tools,omitempty"`
 	ToolChoice          any                `json:"tool_choice,omitempty"`
+	ParallelToolCalls   *bool              `json:"parallel_tool_calls,omitempty"`
 	User                string             `json:"user,omitempty"`
 	OpenRouterModels    json.RawMessage    `json:"models,omitempty"`
 	OpenRouterRoute     json.RawMessage    `json:"route,omitempty"`

@@ -29,13 +29,14 @@ func (w mappingWarning) event(source string) unified.WarningEvent {
 func encodeRequest(req unified.Request) (requestWire, []mappingWarning) {
 	var warnings []mappingWarning
 	out := requestWire{
-		Model:           req.Model,
-		MaxOutputTokens: req.MaxOutputTokens,
-		Temperature:     req.Temperature,
-		TopP:            req.TopP,
-		TopK:            req.TopK,
-		Stream:          req.Stream,
-		User:            req.User,
+		Model:             req.Model,
+		MaxOutputTokens:   req.MaxOutputTokens,
+		Temperature:       req.Temperature,
+		TopP:              req.TopP,
+		TopK:              req.TopK,
+		Stream:            req.Stream,
+		User:              req.User,
+		ParallelToolCalls: parallelToolCalls(req.ParallelToolCalls),
 	}
 	out.Instructions = contentText(instructionParts(req.Instructions), "instructions.content", &warnings)
 	for i, msg := range req.Messages {
@@ -189,6 +190,14 @@ func applyOpenAIResponsesExtensions(out *requestWire, extensions unified.Extensi
 	if values.PromptCacheRetention != "" {
 		out.PromptCacheRetention = values.PromptCacheRetention
 	}
+}
+
+func parallelToolCalls(value *bool) *bool {
+	if value != nil {
+		return value
+	}
+	disabled := false
+	return &disabled
 }
 
 func encodeToolChoice(choice unified.ToolChoice) any {
