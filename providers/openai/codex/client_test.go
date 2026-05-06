@@ -473,8 +473,11 @@ func TestClientUsesWebSocketForSessionInteraction(t *testing.T) {
 	if body["model"] != "codex" {
 		t.Fatalf("ws body model = %v", body["model"])
 	}
-	if body["tool_choice"] != "auto" || body["parallel_tool_calls"] != true {
-		t.Fatalf("ws defaults missing: %#v", body)
+	if body["tool_choice"] != "auto" {
+		t.Fatalf("ws tool_choice default missing: %#v", body)
+	}
+	if _, ok := body["parallel_tool_calls"]; ok {
+		t.Fatalf("ws parallel_tool_calls should not be defaulted: %#v", body)
 	}
 	if _, ok := body["tools"].([]any); !ok {
 		t.Fatalf("ws tools = %#v", body["tools"])

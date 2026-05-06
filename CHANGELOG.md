@@ -10,6 +10,14 @@ match these entries as the project starts publishing releases.
 
 ## [Unreleased]
 
+## [1.0.0-rc.34] - 2026-05-06
+
+### Fixed
+
+- Stopped the Codex WebSocket transport from defaulting
+  `parallel_tool_calls` to `true`, so callers that omit the field no longer
+  implicitly enable parallel tool calls.
+
 ## [1.0.0-rc.33] - 2026-05-04
 
 ### Fixed

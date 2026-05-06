@@ -483,9 +483,6 @@ func codexWebSocketBody(body []byte, clientMetadata map[string]string) []byte {
 	if _, ok := payload["tool_choice"]; !ok {
 		payload["tool_choice"] = "auto"
 	}
-	if _, ok := payload["parallel_tool_calls"]; !ok {
-		payload["parallel_tool_calls"] = true
-	}
 	if _, ok := payload["reasoning"]; !ok {
 		payload["reasoning"] = nil
 	}
